@@ -8,11 +8,11 @@
 
 ## 2. server-time-sync (sin UI)
 
-- [ ] 2.1 Definir puerto `Clock` en `src/L1_domain/ports/clock.ts` con `now(): Date`
-- [ ] 2.2 Definir value-object `ServerTime` en `src/L1_domain/value-objects/server-time.ts` con validación de ISO8601
-- [ ] 2.3 Implementar adapter `ServerAnchoredClock` en `src/L3_periphery/clock/server-anchored-clock.ts` con `setServerTime(date)` y `now()` aplicando offset
-- [ ] 2.4 Registrar `Clock` → `ServerAnchoredClock` en `app.config.ts`
-- [ ] 2.5 Tests unitarios L1+L2 en `tests/unit/clock.spec.ts` (offset cero, offset positivo, offset negativo) — delegar a `test-engineer`
+- [x] 2.1 Definir puerto `Clock` en `src/L1_domain/ports/clock.ts` con `now(): Date`
+- [x] 2.2 Definir value-object `ServerTime` en `src/L1_domain/value-objects/server-time.ts` con validación de ISO8601
+- [x] 2.3 Implementar adapter `ServerAnchoredClock` en `src/L3_periphery/clock/server-anchored-clock.ts` con `setServerTime(date)` y `now()` aplicando offset
+- [x] 2.4 Registrar `Clock` → `ServerAnchoredClock` en `app.config.ts`
+- [x] 2.5 Tests unitarios L1+L2 en `tests/unit/clock.spec.ts` (offset cero, offset positivo, offset negativo) — delegar a `test-engineer`
 
 ## 3. connectivity-indicator
 

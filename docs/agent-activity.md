@@ -13,3 +13,4 @@ Auto-generado por `.claude/hooks/log-agent-usage.ps1` en cada PostToolUse del to
 | Timestamp | Subagent | Descripción | Modelo | Tokens | Tools | Duración | Costo USD |
 |---|---|---|---|---|---|---|---|
 | 2026-06-11 11:00:00 | general-purpose | Hexagonal boundaries audit (task 8.3, backfilled antes del hook) | opus-4-7 | 34,340 *est | 40 | 98.2s | $1.0302 |
+| 2026-06-11 15:41:11 | test-engineer | Tests para Clock + ServerTime | opus-4-7 | 32,058 | -- | -- | $0.1857 |

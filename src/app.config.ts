@@ -14,6 +14,7 @@ import { routes } from './LR_render/app.routes';
 // (mantiene el dominio independiente del framework DI).
 import { AuthRepository } from './L1_domain/ports/auth-repository';
 import { SessionStorage } from './L1_domain/ports/session-storage';
+import { Clock } from './L1_domain/ports/clock';
 
 // L2 use cases — clases TS puras sin @Injectable; las proveemos por factory.
 import { LoginUseCase } from './L2_application/use-cases/login.use-case';
@@ -23,10 +24,12 @@ import { GetActiveSessionUseCase } from './L2_application/use-cases/get-active-s
 // L3 implementaciones de los puertos + el interceptor HTTP único.
 import { HttpAuthRepository } from './L3_periphery/http/http-auth-repository';
 import { LocalStorageSessionStorage } from './L3_periphery/storage/local-storage-session-storage';
+import { ServerAnchoredClock } from './L3_periphery/clock/server-anchored-clock';
 import { authHeadersInterceptor } from './L3_periphery/interceptors/auth-headers.interceptor';
 
 export const AUTH_REPOSITORY = new InjectionToken<AuthRepository>('AUTH_REPOSITORY');
 export const SESSION_STORAGE = new InjectionToken<SessionStorage>('SESSION_STORAGE');
+export const CLOCK = new InjectionToken<Clock>('CLOCK');
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -41,6 +44,7 @@ export const appConfig: ApplicationConfig = {
     // Bind puertos L1 → implementaciones L3 (ambas ya son @Injectable root-scoped).
     { provide: AUTH_REPOSITORY, useExisting: HttpAuthRepository },
     { provide: SESSION_STORAGE, useExisting: LocalStorageSessionStorage },
+    { provide: CLOCK, useExisting: ServerAnchoredClock },
 
     // Use cases L2: pure TS, sin decorador — Angular los instancia vía factory.
     {
