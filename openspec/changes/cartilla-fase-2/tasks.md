@@ -92,9 +92,9 @@
 
 ## 10. Actualizar contrato y documentación
 
-- [ ] 10.1 Actualizar `agents/api-contract.md` con los dos endpoints nuevos, headers (incluido `X-New-Bearer`), codes, mapeo HTTP→errores
-- [ ] 10.2 Actualizar `CLAUDE.md` si la estructura del repo cambió (probable: nuevas subcarpetas en L1/L2/L3/LR)
-- [ ] 10.3 Anotar en `agents/domain-glossary.md` los términos nuevos: `Simulacro`, `Marcacion`, `Alternativa`, `EstadoSimulacro`, `ClientSubmittedAt`, `ServerTime`, `MarkingsStorage`
+- [x] 10.1 Actualizar `agents/api-contract.md` con los dos endpoints nuevos, headers (incluido `X-New-Bearer`), codes, mapeo HTTP→errores
+- [x] 10.2 Actualizar `CLAUDE.md` si la estructura del repo cambió (probable: nuevas subcarpetas en L1/L2/L3/LR) _(actualizado el header de fase + stack + cambio activo)_
+- [x] 10.3 Anotar en `agents/domain-glossary.md` los términos nuevos: `Simulacro`, `Marcacion`, `Alternativa`, `EstadoSimulacro`, `ClientSubmittedAt`, `ServerTime`, `MarkingsStorage` _(+ Clock, Connectivity, SimulacrosApi, los 7 errores nuevos)_
 
 ## 11. Validación final
 

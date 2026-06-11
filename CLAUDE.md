@@ -6,9 +6,9 @@
 
 **NeonPanda** es una PWA Angular para móviles que sirve como **cartilla virtual de marcaciones** para simulacros (exámenes de práctica). El alumno marca las alternativas A–E por pregunta en pantalla; el enunciado viene impreso en una hoja física que entrega el profesor. Backend: **API-FAKE** (Laravel + Sanctum + Postgres) en Docker, editable.
 
-**Fase actual: Fase 1 (MVP)** — login funcional + redirect a `/home` protegido por guard. Sin cartilla todavía.
+**Fase actual: Fase 2 (cartilla)** — `/home` muestra la lista de simulacros del día con countdown server-anchored, polling 120s y refresh por focus. `/simulacro/:id` permite marcar A–E sobre una grilla offline-first. Envío con auto-envío a T=0 (jitter ±3s) y retry automático en cola IndexedDB. Bearer rolling 6h vía `X-New-Bearer`.
 
-Fase 2 (más adelante): la cartilla con offline + IndexedDB. Por eso la arquitectura hexagonal estricta desde el día 1.
+Fase 1 (archivada): login funcional + redirect a `/home` protegido por guard. Specs en `openspec/specs/auth-*`, `openspec/specs/http-client`, `openspec/specs/route-protection`, `openspec/specs/session-storage`.
 
 ## Stack
 
@@ -17,6 +17,8 @@ Fase 2 (más adelante): la cartilla con offline + IndexedDB. Por eso la arquitec
 - Vitest vía `@angular/build:unit-test`.
 - ESLint flat config + Prettier.
 - Hexagonal estricta en 4 capas: `L1_domain`, `L2_application`, `L3_periphery`, `LR_render`.
+- PWA mobile-lite: manifest + `@angular/service-worker` (shell cacheado en producción).
+- IndexedDB para marcaciones y cola de envíos offline (`fake-indexeddb` en tests).
 
 ## Estructura del repo
 
@@ -87,7 +89,7 @@ Este proyecto usa **OpenSpec / Spec-Driven Development**. Un cambio (`openspec/c
 - `/openspec-apply-change <name>` — implementa tasks marcando checklist.
 - `/openspec-archive-change <name>` — finaliza y mueve a `openspec/changes/archive/`.
 
-El cambio activo actual es `add-auth-login` (Fase 1).
+El cambio activo actual es `cartilla-fase-2` (todas las capabilities implementadas, queda solo `sdd-verify` + `sdd-archive`).
 
 ## Información del entorno dev
 
