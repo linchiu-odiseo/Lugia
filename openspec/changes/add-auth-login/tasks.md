@@ -82,19 +82,19 @@
 - [x] 8.2 `npm test` 78/78 passing. Cobertura formal por capa diferida (Angular 22 `@angular/build:unit-test` no expone flag `--coverage` directo todavía; ver phase-2-followups). Suite cubre TODOS los `#### Scenario:` declarados en las 5 specs del cambio.
 - [x] 8.3 `hexagonal-guard` invocado vía `general-purpose` con instrucciones del subagente `.claude/agents/hexagonal-guard.md` (built-in registry no lo lista todavía porque se creó en esta sesión). Veredicto: **APROBADO**, 0 críticas, 0 smells. 18 archivos auditados; L1 puro, L2 puro, L3 sin LR, LR solo guards de L3 (excepción documentada).
 - [x] 8.4 `npm run build` → `Application bundle generation complete. [2.679 seconds]`. Initial 64.90 kB transfer, lazy chunks `login-page` 10.33 kB y `home-page` 1.12 kB. Sin warnings.
-- [ ] 8.5 Levantar API-FAKE en Docker y PWA en `npm run dev`; login con credenciales válidas → redirige a `/home`
-- [ ] 8.6 Refresh en `/home` mantiene sesión y NO redirige a `/login`
-- [ ] 8.7 Logout desde `/home` limpia `localStorage` (verificar en DevTools Application tab) y navega a `/login`
-- [ ] 8.8 Acceso directo a `/home` sin sesión redirige a `/login`
-- [ ] 8.9 Acceso directo a `/login` con sesión activa redirige a `/home`
-- [ ] 8.10 Credenciales inválidas muestran mensaje "Credenciales inválidas", limpian password, conservan email, mantienen form usable
-- [ ] 8.11 Apagar API-FAKE en Docker y reintentar login: mensaje "No se pudo conectar al servidor. Inténtalo de nuevo." aparece
-- [ ] 8.12 Verificar en DevTools Network: TODOS los requests a API-FAKE incluyen `X-API-Key` y, post-login, `Authorization: Bearer`
-- [ ] 8.13 Verificar que requests al host del dev server (assets, etc.) NO llevan `X-API-Key`
+- [x] 8.5 Login con credenciales válidas → redirige a `/home` ✅
+- [x] 8.6 Refresh en `/home` mantiene sesión, NO redirige a `/login` ✅
+- [x] 8.7 Logout limpia `localStorage` y navega a `/login` ✅
+- [x] 8.8 `/home` sin sesión → redirige a `/login` ✅
+- [x] 8.9 `/login` con sesión activa → redirige a `/home` ✅
+- [x] 8.10 Credenciales inválidas: mensaje "Credenciales inválidas", password limpio, email conservado, form usable ✅
+- [x] 8.11 API-FAKE caído: mensaje "No se pudo conectar al servidor. Inténtalo de nuevo." ✅
+- [x] 8.12 Requests a API-FAKE incluyen `X-API-Key` + (post-login) `Authorization: Bearer` ✅
+- [x] 8.13 Requests al dev server (assets, etc.) NO llevan `X-API-Key` ✅
 
 ## 9. Cierre del cambio
 
-- [ ] 9.1 Documentar resultados de verificación 8.x en `openspec/changes/add-auth-login/verification.md`
+- [x] 9.1 `verification.md` creado con resumen ejecutivo, tabla de 8.1–8.4 (checks automáticos con outputs reales), tabla de 8.5–8.13 (E2E manual, todos OK), mapeo specs↔tests, decisiones registradas durante apply (8 deviaciones del design original, todas documentadas), métricas de salida (LOC, tests, bundle, commits, subagentes), referencia a follow-ups Fase 2.
 - [x] 9.2 Commits organizados por **capa/sección** (no per-task individual) — desviación consciente del estricto "1 commit por concern" porque se hicieron retroactivos tras detectar que faltaba disciplina de commit a mitad de Fase 1. 8 commits hechos siguiendo el formato `<type>(<layer>): <subject> + body + Refs:`: `1191f5d` chore(infra) bootstrap, `a0db606` docs(spec) openspec, `b35b1ed` docs(meta) project docs + subagentes, `be53e1e` feat(L1), `8c243df` feat(L2), `26cc72d` feat(L3), `de96e43` feat(LR), `1dfda6f` chore(infra) tools/-mcp. Cada commit referencia el rango de tasks que cubre y el body explica cada concern dentro del commit. **De aquí en adelante:** commit surgical inmediato después de cada sección SDD (no batches retroactivos) — `feedback-workflow-discipline` en memoria.
 - [x] 9.3 `docs/phase-2-followups.md` creado con 18 follow-ups organizados por área: arquitectura (token expiration, /auth/me on startup), testing (coverage thresholds, vitest projects split), seguridad (CSP via HTTP header, storage del bearer), offline (IndexedDB SessionStorage, service worker), UX (i18n, mensajes 401, registro, MFA), observabilidad (telemetría, métricas), commits y CI (commitlint, GitHub Actions), tooling (.mjs → .ts, MCP).
 - [x] 9.4 `openspec validate add-auth-login` → "Change 'add-auth-login' is valid".
