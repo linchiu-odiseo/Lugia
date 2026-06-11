@@ -42,3 +42,12 @@ __screenshots__/
 # System files
 .DS_Store
 Thumbs.db
+
+# Environment variables — NUNCA committear secretos
+.env
+.env.local
+.env.*.local
+
+# Generated environment files (escritos por scripts/build-env.ts)
+/src/environments/environment.ts
+/src/environments/environment.production.ts

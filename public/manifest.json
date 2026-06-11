@@ -1,0 +1,20 @@
+{
+  "name": "NeonPanda",
+  "short_name": "NeonPanda",
+  "description": "Cartilla virtual de marcaciones para simulacros",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b0f17",
+  "theme_color": "#0b0f17",
+  "lang": "es-PE",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "favicon.ico",
+      "sizes": "48x48",
+      "type": "image/x-icon",
+      "purpose": "any"
+    }
+  ]
+}
