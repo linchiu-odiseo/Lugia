@@ -47,7 +47,10 @@ export class InMemorySessionStorage implements SessionStorage {
 }
 
 export class FakeAuthRepository implements AuthRepository {
-  private nextLogin: { kind: 'resolve'; session: Session } | { kind: 'reject'; error: Error } | null = null;
+  private nextLogin:
+    | { kind: 'resolve'; session: Session }
+    | { kind: 'reject'; error: Error }
+    | null = null;
   private logoutShouldFail = false;
   private loginCalls: Credentials[] = [];
   private logoutCalls: Session[] = [];
@@ -67,7 +70,9 @@ export class FakeAuthRepository implements AuthRepository {
   async login(credentials: Credentials): Promise<Session> {
     this.loginCalls.push(credentials);
     if (!this.nextLogin) {
-      throw new Error('FakeAuthRepository: configurar willResolveLogin o willRejectLogin antes de llamar login()');
+      throw new Error(
+        'FakeAuthRepository: configurar willResolveLogin o willRejectLogin antes de llamar login()',
+      );
     }
     if (this.nextLogin.kind === 'reject') throw this.nextLogin.error;
     return this.nextLogin.session;

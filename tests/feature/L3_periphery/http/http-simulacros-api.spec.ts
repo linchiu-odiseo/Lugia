@@ -1,10 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
-import {
-  HttpTestingController,
-  provideHttpClientTesting,
-} from '@angular/common/http/testing';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { HttpSimulacrosApi } from '../../../../src/L3_periphery/http/http-simulacros-api';
 import { Simulacro } from '../../../../src/L1_domain/entities/simulacro';
 import { ServerTime } from '../../../../src/L1_domain/value-objects/server-time';
@@ -20,15 +17,17 @@ describe('HttpSimulacrosApi', () => {
   const SIMULACROS_URL = `${environment.apiBaseUrl}/simulacros`;
 
   // DTO base válido para componer respuestas.
-  const dtoFor = (overrides: Partial<{
-    id: string;
-    area: string;
-    name: string;
-    count: number;
-    inicio: string;
-    fin: string;
-    estado: string;
-  }> = {}) => ({
+  const dtoFor = (
+    overrides: Partial<{
+      id: string;
+      area: string;
+      name: string;
+      count: number;
+      inicio: string;
+      fin: string;
+      estado: string;
+    }> = {},
+  ) => ({
     id: 'sim-1',
     area: 'Matemática',
     name: 'Simulacro 1',
@@ -67,9 +66,7 @@ describe('HttpSimulacrosApi', () => {
       const result = await pending;
 
       expect(result.serverTime).toBeInstanceOf(ServerTime);
-      expect(result.serverTime.toMillis()).toBe(
-        new Date('2026-06-11T11:30:00Z').getTime(),
-      );
+      expect(result.serverTime.toMillis()).toBe(new Date('2026-06-11T11:30:00Z').getTime());
 
       expect(result.simulacros).toHaveLength(2);
       expect(result.simulacros[0]).toBeInstanceOf(Simulacro);
@@ -95,9 +92,7 @@ describe('HttpSimulacrosApi', () => {
 
       expect(result.simulacros).toEqual([]);
       expect(result.serverTime).toBeInstanceOf(ServerTime);
-      expect(result.serverTime.toMillis()).toBe(
-        new Date('2026-06-11T08:00:00Z').getTime(),
-      );
+      expect(result.serverTime.toMillis()).toBe(new Date('2026-06-11T08:00:00Z').getTime());
     });
 
     it.each(['pendiente', 'abierto', 'enviado', 'cerrado'] as const)(

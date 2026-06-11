@@ -24,11 +24,7 @@ export class ActualizarBearerSiRenovadoUseCase {
     const current = await this.storage.read();
     if (!current) return;
 
-    const renewed = new Session(
-      new BearerToken(trimmed),
-      current.userEmail,
-      current.issuedAt,
-    );
+    const renewed = new Session(new BearerToken(trimmed), current.userEmail, current.issuedAt);
     await this.storage.write(renewed);
   }
 }

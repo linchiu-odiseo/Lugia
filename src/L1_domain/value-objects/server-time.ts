@@ -13,9 +13,7 @@ export class ServerTime {
     }
     const parsed = new Date(trimmed);
     if (Number.isNaN(parsed.getTime())) {
-      throw new InvalidServerTimeError(
-        `ServerTime no es un ISO8601 válido: "${trimmed}".`,
-      );
+      throw new InvalidServerTimeError(`ServerTime no es un ISO8601 válido: "${trimmed}".`);
     }
     this.value = parsed;
   }

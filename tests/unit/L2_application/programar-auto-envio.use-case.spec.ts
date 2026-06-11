@@ -16,11 +16,7 @@ class StubEnviarSimulacroUseCase extends EnviarSimulacroUseCase {
   private nextError: Error | null = null;
 
   constructor() {
-    super(
-      new FakeSimulacrosApi(),
-      new InMemoryMarkingsStorage(),
-      new FakeClock(),
-    );
+    super(new FakeSimulacrosApi(), new InMemoryMarkingsStorage(), new FakeClock());
   }
 
   willResolve(): void {
@@ -45,8 +41,7 @@ class StubEnviarSimulacroUseCase extends EnviarSimulacroUseCase {
     }
     return {
       status: 'enviado',
-      clientSubmittedAt:
-        input.clientSubmittedAtOverride?.toISOString() ?? new Date().toISOString(),
+      clientSubmittedAt: input.clientSubmittedAtOverride?.toISOString() ?? new Date().toISOString(),
     };
   }
 }

@@ -199,7 +199,11 @@ describe('IndexedDbMarkingsStorage', () => {
       session.setSession(makeSession('a@panda.test'));
       expect(await adapter.getMarcaciones('sim-1')).toEqual({ '1': 'A' });
       expect(await adapter.getEnviosPendientes()).toEqual([
-        { simulacroId: 'sim-1', answers: { '1': 'A' }, clientSubmittedAt: '2026-06-11T12:00:00.000Z' },
+        {
+          simulacroId: 'sim-1',
+          answers: { '1': 'A' },
+          clientSubmittedAt: '2026-06-11T12:00:00.000Z',
+        },
       ]);
     });
 
@@ -304,14 +308,14 @@ describe('IndexedDbMarkingsStorage', () => {
         await expect(fresh.getMarcaciones('sim-1')).rejects.toBeInstanceOf(
           OfflineStorageUnavailableError,
         );
-        await expect(fresh.enqueueEnvio({
-          simulacroId: 'sim-1',
-          answers: {},
-          clientSubmittedAt: '2026-06-11T12:00:00.000Z',
-        })).rejects.toBeInstanceOf(OfflineStorageUnavailableError);
-        await expect(fresh.wipeUserScope()).rejects.toBeInstanceOf(
-          OfflineStorageUnavailableError,
-        );
+        await expect(
+          fresh.enqueueEnvio({
+            simulacroId: 'sim-1',
+            answers: {},
+            clientSubmittedAt: '2026-06-11T12:00:00.000Z',
+          }),
+        ).rejects.toBeInstanceOf(OfflineStorageUnavailableError);
+        await expect(fresh.wipeUserScope()).rejects.toBeInstanceOf(OfflineStorageUnavailableError);
       } finally {
         g.indexedDB = saved;
       }
@@ -368,7 +372,11 @@ describe('IndexedDbMarkingsStorage', () => {
 
       const pending = await reopened.getEnviosPendientes();
       expect(pending).toEqual([
-        { simulacroId: 'sim-1', answers: { '1': 'A' }, clientSubmittedAt: '2026-06-11T12:00:00.000Z' },
+        {
+          simulacroId: 'sim-1',
+          answers: { '1': 'A' },
+          clientSubmittedAt: '2026-06-11T12:00:00.000Z',
+        },
       ]);
     });
   });

@@ -28,11 +28,7 @@ export interface EnvioPendiente {
 //
 // Implementación concreta vive en L3 (`IndexedDbMarkingsStorage`).
 export interface MarkingsStorage {
-  setMarcacion(
-    simulacroId: string,
-    pregunta: number,
-    alternativa: AlternativaValue,
-  ): Promise<void>;
+  setMarcacion(simulacroId: string, pregunta: number, alternativa: AlternativaValue): Promise<void>;
   getMarcaciones(simulacroId: string): Promise<AnswersMap>;
   clearMarcaciones(simulacroId: string): Promise<void>;
   enqueueEnvio(envio: EnvioPendiente): Promise<void>;

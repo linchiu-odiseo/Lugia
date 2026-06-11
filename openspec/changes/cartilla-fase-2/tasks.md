@@ -98,10 +98,10 @@
 
 ## 11. Validación final
 
-- [ ] 11.1 Correr `npm run lint` y resolver cualquier violación
-- [ ] 11.2 Correr `npm test` y resolver cualquier test rojo
-- [ ] 11.3 Correr `npm run format:check`
-- [ ] 11.4 Auditar con `hexagonal-guard` sobre `src/` y resolver violaciones reportadas
-- [ ] 11.5 Verificar manualmente el flujo end-to-end con backend mock o API-FAKE real
-- [ ] 11.6 (Opcional) Verificar instalable en mobile via `cloudflared` tunnel (per `[[project-mobile-tunnel-choice]]`)
+- [x] 11.1 Correr `npm run lint` y resolver cualquier violación _(All files pass linting)_
+- [x] 11.2 Correr `npm test` y resolver cualquier test rojo _(376/376 verde, 35 test files)_
+- [x] 11.3 Correr `npm run format:check` _(prettier write aplicado a 50 archivos; check final ok)_
+- [x] 11.4 Auditar con `hexagonal-guard` sobre `src/` y resolver violaciones reportadas _(APROBADO sin violaciones críticas; 8 smells documentados en design.md como follow-ups)_
+- [ ] 11.5 Verificar manualmente el flujo end-to-end con backend mock o API-FAKE real _(pendiente del usuario; requiere backend con los endpoints nuevos)_
+- [ ] 11.6 (Opcional) Verificar instalable en mobile via `cloudflared` tunnel (per `[[project-mobile-tunnel-choice]]`) _(opcional, pendiente del usuario)_
 - [ ] 11.7 Listo para `sdd-verify` y luego `sdd-archive`

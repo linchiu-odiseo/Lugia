@@ -65,9 +65,9 @@ describe('Simulacro', () => {
     });
 
     it('rechaza id null-equivalent con InvalidSimulacroError', () => {
-      expect(
-        () => new Simulacro({ ...validParams, id: null as unknown as string }),
-      ).toThrow(InvalidSimulacroError);
+      expect(() => new Simulacro({ ...validParams, id: null as unknown as string })).toThrow(
+        InvalidSimulacroError,
+      );
     });
   });
 
@@ -77,9 +77,7 @@ describe('Simulacro', () => {
     });
 
     it('rechaza area solo whitespace con InvalidSimulacroError', () => {
-      expect(() => new Simulacro({ ...validParams, area: '   ' })).toThrow(
-        InvalidSimulacroError,
-      );
+      expect(() => new Simulacro({ ...validParams, area: '   ' })).toThrow(InvalidSimulacroError);
     });
   });
 
@@ -89,9 +87,7 @@ describe('Simulacro', () => {
     });
 
     it('rechaza name solo whitespace con InvalidSimulacroError', () => {
-      expect(() => new Simulacro({ ...validParams, name: '   ' })).toThrow(
-        InvalidSimulacroError,
-      );
+      expect(() => new Simulacro({ ...validParams, name: '   ' })).toThrow(InvalidSimulacroError);
     });
   });
 
@@ -105,15 +101,13 @@ describe('Simulacro', () => {
     });
 
     it('rechaza count no-entero (1.5) con InvalidSimulacroError', () => {
-      expect(() => new Simulacro({ ...validParams, count: 1.5 })).toThrow(
-        InvalidSimulacroError,
-      );
+      expect(() => new Simulacro({ ...validParams, count: 1.5 })).toThrow(InvalidSimulacroError);
     });
 
     it('rechaza count no-numérico con InvalidSimulacroError', () => {
-      expect(
-        () => new Simulacro({ ...validParams, count: 'veinte' as unknown as number }),
-      ).toThrow(InvalidSimulacroError);
+      expect(() => new Simulacro({ ...validParams, count: 'veinte' as unknown as number })).toThrow(
+        InvalidSimulacroError,
+      );
     });
 
     it('rechaza count NaN con InvalidSimulacroError', () => {

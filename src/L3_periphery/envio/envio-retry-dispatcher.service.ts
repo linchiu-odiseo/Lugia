@@ -1,8 +1,5 @@
 import { Injectable, OnDestroy, inject } from '@angular/core';
-import {
-  Connectivity,
-  ConnectivityUnsubscribe,
-} from '../../L1_domain/ports/connectivity';
+import { Connectivity, ConnectivityUnsubscribe } from '../../L1_domain/ports/connectivity';
 import { CONNECTIVITY } from '../../app.config';
 import { RetomarEnviosPendientesUseCase } from '../../L2_application/use-cases/retomar-envios-pendientes.use-case';
 

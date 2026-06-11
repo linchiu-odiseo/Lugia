@@ -38,7 +38,9 @@ describe('Errores de dominio', () => {
     });
 
     it('expone message por defecto en español', () => {
-      expect(new NetworkError().message).toBe('No se pudo conectar al servidor. Inténtalo de nuevo.');
+      expect(new NetworkError().message).toBe(
+        'No se pudo conectar al servidor. Inténtalo de nuevo.',
+      );
     });
   });
 

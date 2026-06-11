@@ -42,12 +42,12 @@ describe('Marcacion', () => {
     });
 
     it('rechaza simulacroId null-equivalent sin crashear', () => {
-      expect(
-        () => new Marcacion(null as unknown as string, 1, validAlternativa),
-      ).toThrow(InvalidMarcacionError);
-      expect(
-        () => new Marcacion(undefined as unknown as string, 1, validAlternativa),
-      ).toThrow(InvalidMarcacionError);
+      expect(() => new Marcacion(null as unknown as string, 1, validAlternativa)).toThrow(
+        InvalidMarcacionError,
+      );
+      expect(() => new Marcacion(undefined as unknown as string, 1, validAlternativa)).toThrow(
+        InvalidMarcacionError,
+      );
     });
   });
 
@@ -61,9 +61,7 @@ describe('Marcacion', () => {
     });
 
     it('rechaza pregunta no-entera (1.5) con InvalidMarcacionError', () => {
-      expect(() => new Marcacion('sim-001', 1.5, validAlternativa)).toThrow(
-        InvalidMarcacionError,
-      );
+      expect(() => new Marcacion('sim-001', 1.5, validAlternativa)).toThrow(InvalidMarcacionError);
     });
 
     it('rechaza pregunta NaN con InvalidMarcacionError', () => {
@@ -81,21 +79,21 @@ describe('Marcacion', () => {
 
   describe('invariantes — alternativa', () => {
     it('rechaza alternativa que no es instancia de Alternativa (string crudo)', () => {
-      expect(
-        () => new Marcacion('sim-001', 1, 'C' as unknown as Alternativa),
-      ).toThrow(InvalidMarcacionError);
+      expect(() => new Marcacion('sim-001', 1, 'C' as unknown as Alternativa)).toThrow(
+        InvalidMarcacionError,
+      );
     });
 
     it('rechaza alternativa null con InvalidMarcacionError', () => {
-      expect(
-        () => new Marcacion('sim-001', 1, null as unknown as Alternativa),
-      ).toThrow(InvalidMarcacionError);
+      expect(() => new Marcacion('sim-001', 1, null as unknown as Alternativa)).toThrow(
+        InvalidMarcacionError,
+      );
     });
 
     it('rechaza alternativa undefined con InvalidMarcacionError', () => {
-      expect(
-        () => new Marcacion('sim-001', 1, undefined as unknown as Alternativa),
-      ).toThrow(InvalidMarcacionError);
+      expect(() => new Marcacion('sim-001', 1, undefined as unknown as Alternativa)).toThrow(
+        InvalidMarcacionError,
+      );
     });
 
     it('rechaza objeto que parece Alternativa pero no es instancia (duck-typing)', () => {

@@ -1,8 +1,5 @@
 import { Injectable, OnDestroy } from '@angular/core';
-import {
-  Connectivity,
-  ConnectivityUnsubscribe,
-} from '../../L1_domain/ports/connectivity';
+import { Connectivity, ConnectivityUnsubscribe } from '../../L1_domain/ports/connectivity';
 
 // Adapter L3 del puerto Connectivity.
 //

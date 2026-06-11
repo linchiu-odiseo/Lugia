@@ -17,10 +17,7 @@ describe('App (root shell)', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [App],
-      providers: [
-        provideRouter([]),
-        { provide: CONNECTIVITY, useValue: fakeConnectivity },
-      ],
+      providers: [provideRouter([]), { provide: CONNECTIVITY, useValue: fakeConnectivity }],
     }).compileComponents();
   });
 

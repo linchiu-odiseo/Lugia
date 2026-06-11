@@ -1,9 +1,6 @@
 import { Clock } from '../../L1_domain/ports/clock';
 import { Simulacro } from '../../L1_domain/entities/simulacro';
-import {
-  EnviarSimulacroOutput,
-  EnviarSimulacroUseCase,
-} from './enviar-simulacro.use-case';
+import { EnviarSimulacroOutput, EnviarSimulacroUseCase } from './enviar-simulacro.use-case';
 
 // Jitter máximo en ms a sumar/restar del `setTimeout` para evitar
 // thundering herd cuando 20k alumnos auto-envían al mismo segundo.

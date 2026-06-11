@@ -30,9 +30,8 @@ import {
 class HomeStub {}
 
 class FakeObtenerSimulacrosDelDiaUseCase {
-  private next:
-    | { kind: 'resolve'; list: readonly Simulacro[] }
-    | { kind: 'reject'; error: Error } = { kind: 'resolve', list: [] };
+  private next: { kind: 'resolve'; list: readonly Simulacro[] } | { kind: 'reject'; error: Error } =
+    { kind: 'resolve', list: [] };
 
   willResolve(list: readonly Simulacro[]) {
     this.next = { kind: 'resolve', list };
@@ -309,9 +308,7 @@ describe('SimulacroPage', () => {
       const router = TestBed.inject(Router);
       const navigateSpy = vi.spyOn(router, 'navigate').mockResolvedValue(true);
 
-      const volverBtn = fixture.nativeElement.querySelector(
-        '.btn--secondary',
-      ) as HTMLButtonElement;
+      const volverBtn = fixture.nativeElement.querySelector('.btn--secondary') as HTMLButtonElement;
       volverBtn.click();
 
       expect(navigateSpy).toHaveBeenCalledWith(['/home']);

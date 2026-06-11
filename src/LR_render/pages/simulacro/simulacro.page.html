@@ -13,11 +13,7 @@
 
     <section class="grilla" aria-label="Cartilla de marcaciones">
       @for (pregunta of vm.preguntas(); track pregunta) {
-        <div
-          class="fila"
-          [attr.aria-label]="'Pregunta ' + pregunta"
-          role="radiogroup"
-        >
+        <div class="fila" [attr.aria-label]="'Pregunta ' + pregunta" role="radiogroup">
           <span class="fila__numero">{{ pregunta }}</span>
           <div class="fila__bubbles">
             @for (letra of alternativas; track letra) {
@@ -43,9 +39,7 @@
         <span class="queued-banner__icon" aria-hidden="true">●</span>
         <div class="queued-banner__copy">
           <p class="queued-banner__title">Pendiente de envío</p>
-          <p class="queued-banner__detail">
-            Tu envío se procesará cuando vuelva la red.
-          </p>
+          <p class="queued-banner__detail">Tu envío se procesará cuando vuelva la red.</p>
         </div>
       </div>
     }

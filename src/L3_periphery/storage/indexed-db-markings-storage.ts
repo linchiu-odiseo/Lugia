@@ -87,9 +87,7 @@ export class IndexedDbMarkingsStorage implements MarkingsStorage {
   private async db(): Promise<IDBDatabase> {
     if (this.dbPromise) return this.dbPromise;
     if (typeof indexedDB === 'undefined') {
-      throw new OfflineStorageUnavailableError(
-        'IndexedDB no está disponible en este navegador.',
-      );
+      throw new OfflineStorageUnavailableError('IndexedDB no está disponible en este navegador.');
     }
     this.dbPromise = new Promise<IDBDatabase>((resolve, reject) => {
       const req = indexedDB.open(DB_NAME, DB_VERSION);

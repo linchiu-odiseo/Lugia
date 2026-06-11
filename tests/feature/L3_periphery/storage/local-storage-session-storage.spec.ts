@@ -88,7 +88,11 @@ describe('LocalStorageSessionStorage', () => {
     it('devuelve null y elimina si bearerToken viola invariantes del dominio', async () => {
       localStorage.setItem(
         STORAGE_KEY,
-        JSON.stringify({ bearerToken: '', userEmail: 'a@b.com', issuedAt: new Date().toISOString() }),
+        JSON.stringify({
+          bearerToken: '',
+          userEmail: 'a@b.com',
+          issuedAt: new Date().toISOString(),
+        }),
       );
       expect(await storage.read()).toBeNull();
       expect(localStorage.getItem(STORAGE_KEY)).toBeNull();

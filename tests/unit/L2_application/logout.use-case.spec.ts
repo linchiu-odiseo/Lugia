@@ -2,11 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { LogoutUseCase } from '../../../src/L2_application/use-cases/logout.use-case';
 import { Session } from '../../../src/L1_domain/entities/session';
 import { BearerToken } from '../../../src/L1_domain/value-objects/bearer-token';
-import {
-  FakeAuthRepository,
-  InMemoryMarkingsStorage,
-  InMemorySessionStorage,
-} from './fakes';
+import { FakeAuthRepository, InMemoryMarkingsStorage, InMemorySessionStorage } from './fakes';
 
 describe('LogoutUseCase', () => {
   let repo: FakeAuthRepository;

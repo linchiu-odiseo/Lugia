@@ -198,3 +198,16 @@ Ninguna crítica al momento. Las siguientes son refinamientos que pueden ajustar
 3. **Comportamiento de queue de envíos en logout** — propuesta: descartar. Alternativa: confirmar antes de cerrar sesión. A definir cuando se diseñe la UX del botón "Cerrar sesión".
 4. **Estrategia exacta del service worker** — Fase 2 cubre shell mínimo (manifest + cache del app shell). Cacheo de datos / background sync queda para una iteración posterior si se necesita.
 5. **Campo `enviadoEn` en `Simulacro` entity** — la spec UI menciona "Enviado a las HH:MM" pero la entidad actual no expone ese timestamp. Se introducirá en sec.9 cuando `EnviarSimulacroUseCase` reciba la respuesta del POST con `clientSubmittedAt`. Mientras tanto el HomePage muestra `fin` como placeholder con `DEUDA:` anotada inline.
+
+## Post-implementation follow-ups (de hexagonal-guard audit)
+
+Auditoría completa el 2026-06-11 reportó **APROBADO** sin violaciones críticas. Quedan 8 smells documentados para iteraciones futuras (no bloquean archive):
+
+1. **L2 usa `setTimeout`/`clearTimeout` directo** en `ProgramarAutoEnvioUseCase` — falta puerto `Scheduler` que envuelva el scheduling. Hace los tests sensibles al reloj real. Propuesta: introducir `Scheduler` en L1 con `schedule(at|in, callback): { cancel }` y adapter L3.
+2. **`EstadoSimulacro.esTerminal()` y `permiteEntrada()`** definidos pero no consumidos — los view-models usan `.is('abierto')` en su lugar. O usar los métodos del VO o eliminarlos.
+3. **`Alternativa.isMarked()`, `equals()`, `desmarcada()`** definidos pero no consumidos por código de producción (sí por tests).
+4. **`Simulacro` y `Marcacion` "guard-only"** — validan invariantes en construcción pero no exponen comportamiento de dominio. Candidatos: `Simulacro.tiempoRestante(now)`, `Simulacro.permiteEnvio(now)`, `Marcacion.estaMarcada()`.
+5. **`Session.isExpired()` es placeholder** desde Fase 1 — devuelve siempre `false`. Si Fase 2.x lo consume, OK; si no, removerlo.
+6. **`IndexedDbMarkingsStorage` depende de la clase concreta `LocalStorageSessionStorage`** en lugar del puerto `SessionStorage`. Si Fase X cambia el adapter de sesión, hay que tocar este archivo. Propuesta: inyectar vía el token `SESSION_STORAGE` (requiere mover tokens DI a un módulo neutro para evitar ciclo con `app.config.ts`).
+7. **Mappers L3 (`HttpSimulacrosApi.toSimulacro`, `LocalStorageSessionStorage.read`)** auditados — son legítimos (traducción real string→Date + VO), no ceremoniales.
+8. **`GetActiveSessionUseCase` es passthrough** (`return storage.read()`) — deuda preexistente de Fase 1. Si Fase 2.x agrega `/auth/me` o validación de TTL, se justifica; si no, los callers deberían inyectar el puerto directamente.

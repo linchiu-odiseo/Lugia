@@ -1,10 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { HttpClient, provideHttpClient, withInterceptors } from '@angular/common/http';
-import {
-  HttpTestingController,
-  provideHttpClientTesting,
-} from '@angular/common/http/testing';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { authHeadersInterceptor } from '../../../../src/L3_periphery/interceptors/auth-headers.interceptor';
 import { LocalStorageSessionStorage } from '../../../../src/L3_periphery/storage/local-storage-session-storage';
 import { ActualizarBearerSiRenovadoUseCase } from '../../../../src/L2_application/use-cases/actualizar-bearer-si-renovado.use-case';
@@ -84,11 +81,7 @@ describe('authHeadersInterceptor', () => {
 
   it('preserva headers preexistentes del request', async () => {
     http
-      .post(
-        `${environment.apiBaseUrl}/auth/login`,
-        {},
-        { headers: { 'X-Trace-Id': 'trace-123' } },
-      )
+      .post(`${environment.apiBaseUrl}/auth/login`, {}, { headers: { 'X-Trace-Id': 'trace-123' } })
       .subscribe();
     await flushMicrotasks();
     const req = httpMock.expectOne(`${environment.apiBaseUrl}/auth/login`);

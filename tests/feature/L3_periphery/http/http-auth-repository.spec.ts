@@ -1,10 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
-import {
-  HttpTestingController,
-  provideHttpClientTesting,
-} from '@angular/common/http/testing';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { HttpAuthRepository } from '../../../../src/L3_periphery/http/http-auth-repository';
 import { Session } from '../../../../src/L1_domain/entities/session';
 import { BearerToken } from '../../../../src/L1_domain/value-objects/bearer-token';

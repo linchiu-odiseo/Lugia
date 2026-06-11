@@ -1,10 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
-import {
-  HttpTestingController,
-  provideHttpClientTesting,
-} from '@angular/common/http/testing';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { HttpSimulacrosApi } from '../../../../src/L3_periphery/http/http-simulacros-api';
 import { NetworkError } from '../../../../src/L1_domain/errors/network.error';
 import { SessionExpiredError } from '../../../../src/L1_domain/errors/session-expired.error';
@@ -158,10 +155,7 @@ describe('HttpSimulacrosApi.enviar', () => {
     it('400 sin code → InvalidPayloadError (fallback de 400)', async () => {
       const pending = adapter.enviar(defaultReq);
       const req = httpMock.expectOne(url(SIM_ID));
-      req.flush(
-        { message: 'mensaje-sin-code' },
-        { status: 400, statusText: 'Bad Request' },
-      );
+      req.flush({ message: 'mensaje-sin-code' }, { status: 400, statusText: 'Bad Request' });
       await expect(pending).rejects.toBeInstanceOf(InvalidPayloadError);
     });
   });
@@ -180,10 +174,7 @@ describe('HttpSimulacrosApi.enviar', () => {
     it('403 sin code → NetworkError (catch-all del classifier)', async () => {
       const pending = adapter.enviar(defaultReq);
       const req = httpMock.expectOne(url(SIM_ID));
-      req.flush(
-        { message: 'sin-code' },
-        { status: 403, statusText: 'Forbidden' },
-      );
+      req.flush({ message: 'sin-code' }, { status: 403, statusText: 'Forbidden' });
       await expect(pending).rejects.toBeInstanceOf(NetworkError);
     });
   });
@@ -192,10 +183,7 @@ describe('HttpSimulacrosApi.enviar', () => {
     it('404 → SimulacroNoAsignadoError ignorando body', async () => {
       const pending = adapter.enviar(defaultReq);
       const req = httpMock.expectOne(url(SIM_ID));
-      req.flush(
-        { message: 'cualquier-string' },
-        { status: 404, statusText: 'Not Found' },
-      );
+      req.flush({ message: 'cualquier-string' }, { status: 404, statusText: 'Not Found' });
       await expect(pending).rejects.toBeInstanceOf(SimulacroNoAsignadoError);
     });
   });
@@ -204,10 +192,7 @@ describe('HttpSimulacrosApi.enviar', () => {
     it('401 → SessionExpiredError ignorando body', async () => {
       const pending = adapter.enviar(defaultReq);
       const req = httpMock.expectOne(url(SIM_ID));
-      req.flush(
-        { message: 'Unauthenticated.' },
-        { status: 401, statusText: 'Unauthorized' },
-      );
+      req.flush({ message: 'Unauthenticated.' }, { status: 401, statusText: 'Unauthorized' });
       await expect(pending).rejects.toBeInstanceOf(SessionExpiredError);
     });
   });

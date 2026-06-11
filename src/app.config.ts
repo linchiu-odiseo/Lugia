@@ -76,11 +76,8 @@ export const appConfig: ApplicationConfig = {
     },
     {
       provide: LogoutUseCase,
-      useFactory: (
-        repo: AuthRepository,
-        storage: SessionStorage,
-        markings: MarkingsStorage,
-      ) => new LogoutUseCase(repo, storage, markings),
+      useFactory: (repo: AuthRepository, storage: SessionStorage, markings: MarkingsStorage) =>
+        new LogoutUseCase(repo, storage, markings),
       deps: [AUTH_REPOSITORY, SESSION_STORAGE, MARKINGS_STORAGE],
     },
     {
@@ -90,8 +87,7 @@ export const appConfig: ApplicationConfig = {
     },
     {
       provide: ActualizarBearerSiRenovadoUseCase,
-      useFactory: (storage: SessionStorage) =>
-        new ActualizarBearerSiRenovadoUseCase(storage),
+      useFactory: (storage: SessionStorage) => new ActualizarBearerSiRenovadoUseCase(storage),
       deps: [SESSION_STORAGE],
     },
     {
@@ -107,11 +103,8 @@ export const appConfig: ApplicationConfig = {
     },
     {
       provide: EnviarSimulacroUseCase,
-      useFactory: (
-        api: SimulacrosApi,
-        markings: MarkingsStorage,
-        clock: Clock,
-      ) => new EnviarSimulacroUseCase(api, markings, clock),
+      useFactory: (api: SimulacrosApi, markings: MarkingsStorage, clock: Clock) =>
+        new EnviarSimulacroUseCase(api, markings, clock),
       deps: [SIMULACROS_API, MARKINGS_STORAGE, CLOCK],
     },
     {

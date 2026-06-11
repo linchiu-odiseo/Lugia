@@ -31,8 +31,7 @@ export class HomePage {
   protected readonly pullOffset = signal(0);
   protected readonly isPulling = signal(false);
 
-  private readonly scrollContainer =
-    viewChild<ElementRef<HTMLElement>>('scrollContainer');
+  private readonly scrollContainer = viewChild<ElementRef<HTMLElement>>('scrollContainer');
 
   private touchStartY: number | null = null;
   private touchStartScrollTop = 0;

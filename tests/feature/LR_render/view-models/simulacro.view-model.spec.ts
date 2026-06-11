@@ -41,9 +41,8 @@ class HomeStub {}
 class LoginStub {}
 
 class FakeObtenerSimulacrosDelDiaUseCase {
-  private next:
-    | { kind: 'resolve'; list: readonly Simulacro[] }
-    | { kind: 'reject'; error: Error } = { kind: 'resolve', list: [] };
+  private next: { kind: 'resolve'; list: readonly Simulacro[] } | { kind: 'reject'; error: Error } =
+    { kind: 'resolve', list: [] };
   public callCount = 0;
 
   willResolve(list: readonly Simulacro[]) {
@@ -427,9 +426,7 @@ describe('SimulacroPageViewModel', () => {
 
       await vm.marcar(5, 'C');
 
-      expect(fakeMarcar.calls).toEqual([
-        { simulacroId: 'sim-1', pregunta: 5, alternativa: 'C' },
-      ]);
+      expect(fakeMarcar.calls).toEqual([{ simulacroId: 'sim-1', pregunta: 5, alternativa: 'C' }]);
       expect(vm.marcaciones()['5']).toBe('C');
       vm.stop();
     });

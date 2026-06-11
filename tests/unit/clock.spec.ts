@@ -44,9 +44,7 @@ describe('ServerAnchoredClock', () => {
   describe('setServerTime() con offset positivo', () => {
     it('después de setServerTime con +5s, clock.now() devuelve +5s respecto al reloj local', () => {
       const clock = new ServerAnchoredClock();
-      const serverAhead = new ServerTime(
-        new Date(LOCAL_NOW.getTime() + 5_000).toISOString(),
-      );
+      const serverAhead = new ServerTime(new Date(LOCAL_NOW.getTime() + 5_000).toISOString());
 
       clock.setServerTime(serverAhead);
 
@@ -57,9 +55,7 @@ describe('ServerAnchoredClock', () => {
   describe('setServerTime() con offset negativo', () => {
     it('después de setServerTime con -3s, clock.now() devuelve -3s respecto al reloj local', () => {
       const clock = new ServerAnchoredClock();
-      const serverBehind = new ServerTime(
-        new Date(LOCAL_NOW.getTime() - 3_000).toISOString(),
-      );
+      const serverBehind = new ServerTime(new Date(LOCAL_NOW.getTime() - 3_000).toISOString());
 
       clock.setServerTime(serverBehind);
 
@@ -72,17 +68,13 @@ describe('ServerAnchoredClock', () => {
       const clock = new ServerAnchoredClock();
 
       // Primer GET: server adelantado +10s.
-      const firstServer = new ServerTime(
-        new Date(LOCAL_NOW.getTime() + 10_000).toISOString(),
-      );
+      const firstServer = new ServerTime(new Date(LOCAL_NOW.getTime() + 10_000).toISOString());
       clock.setServerTime(firstServer);
       expect(clock.now().getTime()).toBe(LOCAL_NOW.getTime() + 10_000);
 
       // Segundo GET (mismo instante local, drift distinto): server +2s.
       // Si acumulara sería +12s; el comportamiento correcto es reemplazar a +2s.
-      const secondServer = new ServerTime(
-        new Date(LOCAL_NOW.getTime() + 2_000).toISOString(),
-      );
+      const secondServer = new ServerTime(new Date(LOCAL_NOW.getTime() + 2_000).toISOString());
       clock.setServerTime(secondServer);
       expect(clock.now().getTime()).toBe(LOCAL_NOW.getTime() + 2_000);
     });
@@ -90,14 +82,10 @@ describe('ServerAnchoredClock', () => {
     it('un GET con offset positivo seguido de uno con offset negativo invierte el signo, no suma', () => {
       const clock = new ServerAnchoredClock();
 
-      clock.setServerTime(
-        new ServerTime(new Date(LOCAL_NOW.getTime() + 5_000).toISOString()),
-      );
+      clock.setServerTime(new ServerTime(new Date(LOCAL_NOW.getTime() + 5_000).toISOString()));
       expect(clock.now().getTime()).toBe(LOCAL_NOW.getTime() + 5_000);
 
-      clock.setServerTime(
-        new ServerTime(new Date(LOCAL_NOW.getTime() - 3_000).toISOString()),
-      );
+      clock.setServerTime(new ServerTime(new Date(LOCAL_NOW.getTime() - 3_000).toISOString()));
       expect(clock.now().getTime()).toBe(LOCAL_NOW.getTime() - 3_000);
     });
   });
@@ -105,9 +93,7 @@ describe('ServerAnchoredClock', () => {
   describe('estabilidad del offset entre lecturas', () => {
     it('múltiples llamadas a now() sin avance de reloj devuelven el mismo timestamp', () => {
       const clock = new ServerAnchoredClock();
-      clock.setServerTime(
-        new ServerTime(new Date(LOCAL_NOW.getTime() + 7_000).toISOString()),
-      );
+      clock.setServerTime(new ServerTime(new Date(LOCAL_NOW.getTime() + 7_000).toISOString()));
 
       const a = clock.now().getTime();
       const b = clock.now().getTime();
@@ -116,9 +102,7 @@ describe('ServerAnchoredClock', () => {
 
     it('si el reloj local avanza 1s después de setServerTime, now() avanza 1s manteniendo el offset', () => {
       const clock = new ServerAnchoredClock();
-      clock.setServerTime(
-        new ServerTime(new Date(LOCAL_NOW.getTime() + 5_000).toISOString()),
-      );
+      clock.setServerTime(new ServerTime(new Date(LOCAL_NOW.getTime() + 5_000).toISOString()));
 
       // T0: server +5s.
       expect(clock.now().getTime()).toBe(LOCAL_NOW.getTime() + 5_000);

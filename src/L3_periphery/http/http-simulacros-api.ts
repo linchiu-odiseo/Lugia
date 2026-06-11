@@ -52,9 +52,7 @@ export class HttpSimulacrosApi implements SimulacrosApi {
   async obtenerDelDia(): Promise<SimulacrosListResult> {
     try {
       const dto = await firstValueFrom(
-        this.http.get<SimulacrosListResponseDto>(
-          `${environment.apiBaseUrl}/simulacros`,
-        ),
+        this.http.get<SimulacrosListResponseDto>(`${environment.apiBaseUrl}/simulacros`),
       );
       return {
         simulacros: dto.simulacros.map((s) => this.toSimulacro(s)),
@@ -91,15 +89,11 @@ export class HttpSimulacrosApi implements SimulacrosApi {
   private toSimulacro(dto: SimulacroDto): Simulacro {
     const inicio = new Date(dto.inicio);
     if (Number.isNaN(inicio.getTime())) {
-      throw new InvalidSimulacroError(
-        `Simulacro inicio no es ISO8601 válido: "${dto.inicio}".`,
-      );
+      throw new InvalidSimulacroError(`Simulacro inicio no es ISO8601 válido: "${dto.inicio}".`);
     }
     const fin = new Date(dto.fin);
     if (Number.isNaN(fin.getTime())) {
-      throw new InvalidSimulacroError(
-        `Simulacro fin no es ISO8601 válido: "${dto.fin}".`,
-      );
+      throw new InvalidSimulacroError(`Simulacro fin no es ISO8601 válido: "${dto.fin}".`);
     }
     return new Simulacro({
       id: dto.id,

@@ -29,10 +29,7 @@ export class RetomarEnviosPendientesUseCase {
           // Dejar en cola; reintenta en el próximo trigger.
           continue;
         }
-        console.warn(
-          `Envío pendiente descartado para ${envio.simulacroId}:`,
-          err,
-        );
+        console.warn(`Envío pendiente descartado para ${envio.simulacroId}:`, err);
         await this.storage.dequeueEnvio(envio.simulacroId);
         await this.storage.clearMarcaciones(envio.simulacroId);
       }

@@ -7,10 +7,7 @@ import {
   provideHttpClient,
   withInterceptors,
 } from '@angular/common/http';
-import {
-  HttpTestingController,
-  provideHttpClientTesting,
-} from '@angular/common/http/testing';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { authHeadersInterceptor } from '../../../../src/L3_periphery/interceptors/auth-headers.interceptor';
 import { LocalStorageSessionStorage } from '../../../../src/L3_periphery/storage/local-storage-session-storage';
 import { ActualizarBearerSiRenovadoUseCase } from '../../../../src/L2_application/use-cases/actualizar-bearer-si-renovado.use-case';
@@ -221,7 +218,10 @@ describe('authHeadersInterceptor — rolling bearer refresh', () => {
     // HttpHeaders normaliza un valor vacío a `null` cuando se consulta con
     // `.get()` — el interceptor lo trata como "header ausente" y no dispara
     // el use case. Esto es lo que queremos verificar.
-    req.flush({ simulacros: [] }, { status: 200, statusText: 'OK', headers: { 'X-New-Bearer': '' } });
+    req.flush(
+      { simulacros: [] },
+      { status: 200, statusText: 'OK', headers: { 'X-New-Bearer': '' } },
+    );
     await flushMicrotasks();
 
     const persisted = await storage.read();
@@ -250,7 +250,10 @@ describe('authHeadersInterceptor — rolling bearer refresh', () => {
     await flushMicrotasks();
     const req = httpMock.expectOne(`${environment.apiBaseUrl}/simulacros`);
     // Body cualquiera — recordatorio: clasificamos por status, no por message.
-    req.flush({ message: 'whatever-string-del-backend' }, { status: 401, statusText: 'Unauthorized' });
+    req.flush(
+      { message: 'whatever-string-del-backend' },
+      { status: 401, statusText: 'Unauthorized' },
+    );
     await flushMicrotasks();
 
     expect(caughtError).not.toBeNull();
