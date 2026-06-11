@@ -94,6 +94,6 @@ El puerto `SimulacrosApi` (L1) SHALL asumir que la lista retornada nunca contien
 #### Scenario: Violación de no-overlap como degradación graceful
 
 - **WHEN** el backend retorna dos simulacros con `estado: "abierto"` simultáneamente (bug)
-- **THEN** la PWA registra un warning en consola
-- **AND** la UI muestra el primero como activo, el segundo como pendiente visual
-- **AND** el alumno puede entrar al primero sin error
+- **THEN** la PWA registra un warning en consola con los ids involucrados
+- **AND** ambos cards se renderizan como `abierto` (verde clickeable) — el cliente NO recomputa el estado de dominio per Requirement 2
+- **AND** el alumno puede entrar a cualquiera sin error; el primero por orden de lista es el "activo" canónico para fines de logging

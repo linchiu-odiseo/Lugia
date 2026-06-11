@@ -53,14 +53,14 @@
 
 ## 7. exam-list — UI en /home
 
-- [ ] 7.1 Crear `HomePageViewModel` con Signals: `simulacros`, `isLoading`, `serverError`, `lastRefreshAt` — delegar a `frontend-builder`
-- [ ] 7.2 Implementar refresh on `visibilitychange` en el view-model — delegar a `frontend-builder`
-- [ ] 7.3 Implementar polling cada 120s pausado cuando la pestaña no es visible — delegar a `frontend-builder`
-- [ ] 7.4 Implementar pull-to-refresh gesture en la UI mobile-lite — delegar a `frontend-builder`
-- [ ] 7.5 Renderizar cada simulacro con su estado: gris (pendiente, enviado, cerrado), verde clickeable (abierto), con countdown server-anchored — delegar a `frontend-builder`
-- [ ] 7.6 Manejar el caso `OfflineStorageUnavailableError` mostrando banner persistente — delegar a `frontend-builder`
-- [ ] 7.7 Manejar degradación graceful si llegan dos `abierto` simultáneos (warning + tratar el primero como activo)
-- [ ] 7.8 Tests feature de `HomePage` (jsdom + TestBed) — delegar a `test-engineer`
+- [x] 7.1 Crear `HomePageViewModel` con Signals: `simulacros`, `isLoading`, `serverError`, `lastRefreshAt` — delegar a `frontend-builder`
+- [x] 7.2 Implementar refresh on `visibilitychange` en el view-model — delegar a `frontend-builder`
+- [x] 7.3 Implementar polling cada 120s pausado cuando la pestaña no es visible — delegar a `frontend-builder`
+- [x] 7.4 Implementar pull-to-refresh gesture en la UI mobile-lite — delegar a `frontend-builder`
+- [x] 7.5 Renderizar cada simulacro con su estado: gris (pendiente, enviado, cerrado), verde clickeable (abierto), con countdown server-anchored — delegar a `frontend-builder` _(countdown derivado de `nowTick` con `Clock.now()` + tabular-nums)_
+- [x] 7.6 Manejar el caso `OfflineStorageUnavailableError` mostrando banner persistente — delegar a `frontend-builder` _(pre-check vía `markings.getEnviosPendientes()` al `start()`)_
+- [x] 7.7 Manejar degradación graceful si llegan dos `abierto` simultáneos (warning + tratar el primero como activo) _(solo `console.warn`; ambos siguen verde clickeable por R2 — spec ajustada)_
+- [x] 7.8 Tests feature de `HomePage` (jsdom + TestBed) — delegar a `test-engineer` _(12 view-model + 6 page nuevos; suite total 232/232)_
 
 ## 8. exam-marking — entidad + use case + UI
 

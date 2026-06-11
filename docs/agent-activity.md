@@ -19,3 +19,5 @@ Auto-generado por `.claude/hooks/log-agent-usage.ps1` en cada PostToolUse del to
 | 2026-06-11 16:06:26 | test-engineer | Tests Secci├│n 4 offline-storage + fix LogoutUseCase | opus-4-7 | 70,479 | -- | -- | $0.2729 |
 | 2026-06-11 16:12:30 | test-engineer | Tests rolling bearer interceptor | opus-4-7 | 52,094 | -- | -- | $0.2321 |
 | 2026-06-11 16:21:53 | test-engineer | Tests exam-list dominio + adapter HTTP | opus-4-7 | 68,483 | -- | -- | $0.2667 |
+| 2026-06-11 16:30:12 | frontend-builder | HomePage Fase 2 completa | opus-4-7 | 61,132 | -- | -- | $0.2679 |
+| 2026-06-11 16:39:29 | test-engineer | Tests feature HomePage Secci├│n 7 | opus-4-7 | 82,794 | -- | -- | $0.2711 |

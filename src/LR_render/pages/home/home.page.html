@@ -1,4 +1,23 @@
-<main class="home">
+<main
+  class="home"
+  #scrollContainer
+  (touchstart)="onTouchStart($event)"
+  (touchmove)="onTouchMove($event)"
+  (touchend)="onTouchEnd()"
+  (touchcancel)="onTouchEnd()"
+>
+  <div
+    class="pull-indicator"
+    [class.pull-indicator--visible]="isPulling() || vm.isLoading()"
+    [style.transform]="'translateY(' + pullOffset() + 'px)'"
+  >
+    @if (vm.isLoading()) {
+      <span>Actualizando…</span>
+    } @else if (isPulling()) {
+      <span>Suelta para actualizar</span>
+    }
+  </div>
+
   <header>
     <h1>NeonPanda</h1>
     @if (email(); as e) {
@@ -6,8 +25,54 @@
     }
   </header>
 
-  <section class="placeholder">
-    <p>Fase 1 lista. La cartilla de marcaciones llega en Fase 2.</p>
+  @if (vm.offlineStorageBlocked()) {
+    <div class="banner banner--blocking" role="alert">
+      Tu navegador no soporta marcaciones offline. No podrás entrar a simulacros.
+    </div>
+  }
+
+  <section class="simulacros">
+    <h2 class="section-title">Simulacros de hoy</h2>
+
+    @if (vm.serverError() === 'network') {
+      <div class="banner banner--error" role="alert">
+        <p>No se pudo conectar al servidor.</p>
+        <button type="button" class="retry" (click)="retry()">Reintentar</button>
+      </div>
+    } @else if (vm.isLoading() && vm.simulacros().length === 0) {
+      <p class="empty-state">Cargando simulacros…</p>
+    } @else if (vm.simulacros().length === 0) {
+      <p class="empty-state">No tienes simulacros asignados para hoy.</p>
+    } @else {
+      <ul class="card-list">
+        @for (card of vm.cards(); track card.id) {
+          <li
+            class="card"
+            [class.card--verde]="card.tone === 'verde'"
+            [class.card--gris]="card.tone === 'gris'"
+            [class.card--clickable]="card.clickable"
+            (click)="onSimulacroClick(card)"
+            (keydown.enter)="onSimulacroClick(card)"
+            [attr.role]="card.clickable ? 'button' : null"
+            [attr.tabindex]="card.clickable ? 0 : null"
+            [attr.aria-disabled]="card.clickable ? null : 'true'"
+          >
+            <div class="card__primary">
+              @if (card.estado === 'pendiente') {
+                <span class="card__icon" aria-hidden="true">⏰</span>
+              } @else if (card.estado === 'enviado') {
+                <span class="card__icon" aria-hidden="true">✓</span>
+              } @else if (card.estado === 'cerrado') {
+                <span class="card__icon" aria-hidden="true">⚠</span>
+              }
+              <span class="card__primary-text">{{ card.primaryText }}</span>
+            </div>
+            <h3 class="card__name">{{ card.name }}</h3>
+            <p class="card__secondary">{{ card.secondaryText }}</p>
+          </li>
+        }
+      </ul>
+    }
   </section>
 
   <footer>

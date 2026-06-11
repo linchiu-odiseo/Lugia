@@ -197,3 +197,4 @@ Ninguna crítica al momento. Las siguientes son refinamientos que pueden ajustar
 2. **Tamaño exacto del jitter** — propuesta: ±3s. Puede ampliarse vía constante si stress-tests del backend lo piden.
 3. **Comportamiento de queue de envíos en logout** — propuesta: descartar. Alternativa: confirmar antes de cerrar sesión. A definir cuando se diseñe la UX del botón "Cerrar sesión".
 4. **Estrategia exacta del service worker** — Fase 2 cubre shell mínimo (manifest + cache del app shell). Cacheo de datos / background sync queda para una iteración posterior si se necesita.
+5. **Campo `enviadoEn` en `Simulacro` entity** — la spec UI menciona "Enviado a las HH:MM" pero la entidad actual no expone ese timestamp. Se introducirá en sec.9 cuando `EnviarSimulacroUseCase` reciba la respuesta del POST con `clientSubmittedAt`. Mientras tanto el HomePage muestra `fin` como placeholder con `DEUDA:` anotada inline.
