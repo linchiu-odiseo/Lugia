@@ -51,3 +51,6 @@ Thumbs.db
 # Generated environment files (escritos por scripts/build-env.ts)
 /src/environments/environment.ts
 /src/environments/environment.production.ts
+
+# personal files
+/.authentic

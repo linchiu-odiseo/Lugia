@@ -1,10 +1,10 @@
 ## 1. PWA shell mobile-lite (desde día 1)
 
-- [ ] 1.1 Agregar `src/manifest.webmanifest` con nombre, íconos placeholder, theme color y `display: standalone`
-- [ ] 1.2 Registrar el manifest en `src/index.html` vía `<link rel="manifest">`
-- [ ] 1.3 Agregar service worker básico (cacheo del app shell, sin background sync todavía) vía `@angular/service-worker`
-- [ ] 1.4 Habilitar el SW en `app.config.ts` con `provideServiceWorker` (solo en producción)
-- [ ] 1.5 Verificar manualmente con DevTools que el manifest se valida y el SW se registra
+- [x] 1.1 Agregar `src/manifest.webmanifest` con nombre, íconos placeholder, theme color y `display: standalone` _(ya existía en `public/manifest.json` desde Fase 1)_
+- [x] 1.2 Registrar el manifest en `src/index.html` vía `<link rel="manifest">` _(ya registrado)_
+- [x] 1.3 Agregar service worker básico (cacheo del app shell, sin background sync todavía) vía `@angular/service-worker` _(ngsw-config.json + dependency en package.json + serviceWorker en angular.json — falta `npm install` por el usuario)_
+- [x] 1.4 Habilitar el SW en `app.config.ts` con `provideServiceWorker` (solo en producción) _(via `!isDevMode()`)_
+- [ ] 1.5 Verificar manualmente con DevTools que el manifest se valida y el SW se registra _(pendiente del usuario tras `npm install`)_
 
 ## 2. server-time-sync (sin UI)
 

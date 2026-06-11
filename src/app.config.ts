@@ -1,10 +1,12 @@
 import {
   ApplicationConfig,
   InjectionToken,
+  isDevMode,
   provideBrowserGlobalErrorListeners,
 } from '@angular/core';
 import { provideRouter } from '@angular/router';
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
+import { provideServiceWorker } from '@angular/service-worker';
 
 import { routes } from './LR_render/app.routes';
 
@@ -31,6 +33,10 @@ export const appConfig: ApplicationConfig = {
     provideBrowserGlobalErrorListeners(),
     provideRouter(routes),
     provideHttpClient(withInterceptors([authHeadersInterceptor])),
+    provideServiceWorker('ngsw-worker.js', {
+      enabled: !isDevMode(),
+      registrationStrategy: 'registerWhenStable:30000',
+    }),
 
     // Bind puertos L1 → implementaciones L3 (ambas ya son @Injectable root-scoped).
     { provide: AUTH_REPOSITORY, useExisting: HttpAuthRepository },
