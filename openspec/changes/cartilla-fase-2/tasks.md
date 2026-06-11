@@ -25,12 +25,12 @@
 
 ## 4. offline-storage
 
-- [ ] 4.1 Definir puerto `MarkingsStorage` en `src/L1_domain/ports/markings-storage.ts` con `setMarcacion`, `getMarcaciones`, `clearMarcaciones`, `enqueueEnvio`, `getEnviosPendientes`, `dequeueEnvio`, `wipeUserScope`
-- [ ] 4.2 Definir error `OfflineStorageUnavailableError` en `src/L1_domain/errors/offline-storage-unavailable.ts`
-- [ ] 4.3 Implementar adapter `IndexedDbMarkingsStorage` en `src/L3_periphery/storage/indexed-db-markings-storage.ts` con scope `cartilla.<userEmail>.*` y manejo de IndexedDB no disponible
-- [ ] 4.4 Registrar `MarkingsStorage` → `IndexedDbMarkingsStorage` en `app.config.ts`
-- [ ] 4.5 Extender `LogoutUseCase` (L2) para invocar `MarkingsStorage.wipeUserScope(userEmail)` antes de limpiar sesión
-- [ ] 4.6 Tests unitarios del use case extendido + tests feature del adapter (con jsdom + fake-indexeddb) en `tests/feature/markings-storage.spec.ts` — delegar a `test-engineer`
+- [x] 4.1 Definir puerto `MarkingsStorage` en `src/L1_domain/ports/markings-storage.ts` con `setMarcacion`, `getMarcaciones`, `clearMarcaciones`, `enqueueEnvio`, `getEnviosPendientes`, `dequeueEnvio`, `wipeUserScope` _(userEmail derivado del SessionStorage internamente — firmas limpias)_
+- [x] 4.2 Definir error `OfflineStorageUnavailableError` en `src/L1_domain/errors/offline-storage-unavailable.ts`
+- [x] 4.3 Implementar adapter `IndexedDbMarkingsStorage` en `src/L3_periphery/storage/indexed-db-markings-storage.ts` con scope `cartilla.<userEmail>.*` y manejo de IndexedDB no disponible
+- [x] 4.4 Registrar `MarkingsStorage` → `IndexedDbMarkingsStorage` en `app.config.ts`
+- [x] 4.5 Extender `LogoutUseCase` (L2) para invocar `MarkingsStorage.wipeUserScope(userEmail)` antes de limpiar sesión
+- [x] 4.6 Tests unitarios del use case extendido + tests feature del adapter (con jsdom + fake-indexeddb) en `tests/feature/markings-storage.spec.ts` — delegar a `test-engineer` _(suite total 130/130, 26 nuevos)_
 
 ## 5. auth-session — bearer rolling refresh (MODIFIED)
 

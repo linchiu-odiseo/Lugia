@@ -16,6 +16,7 @@ import { AuthRepository } from './L1_domain/ports/auth-repository';
 import { SessionStorage } from './L1_domain/ports/session-storage';
 import { Clock } from './L1_domain/ports/clock';
 import { Connectivity } from './L1_domain/ports/connectivity';
+import { MarkingsStorage } from './L1_domain/ports/markings-storage';
 
 // L2 use cases — clases TS puras sin @Injectable; las proveemos por factory.
 import { LoginUseCase } from './L2_application/use-cases/login.use-case';
@@ -25,6 +26,7 @@ import { GetActiveSessionUseCase } from './L2_application/use-cases/get-active-s
 // L3 implementaciones de los puertos + el interceptor HTTP único.
 import { HttpAuthRepository } from './L3_periphery/http/http-auth-repository';
 import { LocalStorageSessionStorage } from './L3_periphery/storage/local-storage-session-storage';
+import { IndexedDbMarkingsStorage } from './L3_periphery/storage/indexed-db-markings-storage';
 import { ServerAnchoredClock } from './L3_periphery/clock/server-anchored-clock';
 import { BrowserConnectivity } from './L3_periphery/connectivity/browser-connectivity';
 import { authHeadersInterceptor } from './L3_periphery/interceptors/auth-headers.interceptor';
@@ -33,6 +35,7 @@ export const AUTH_REPOSITORY = new InjectionToken<AuthRepository>('AUTH_REPOSITO
 export const SESSION_STORAGE = new InjectionToken<SessionStorage>('SESSION_STORAGE');
 export const CLOCK = new InjectionToken<Clock>('CLOCK');
 export const CONNECTIVITY = new InjectionToken<Connectivity>('CONNECTIVITY');
+export const MARKINGS_STORAGE = new InjectionToken<MarkingsStorage>('MARKINGS_STORAGE');
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -49,6 +52,7 @@ export const appConfig: ApplicationConfig = {
     { provide: SESSION_STORAGE, useExisting: LocalStorageSessionStorage },
     { provide: CLOCK, useExisting: ServerAnchoredClock },
     { provide: CONNECTIVITY, useExisting: BrowserConnectivity },
+    { provide: MARKINGS_STORAGE, useExisting: IndexedDbMarkingsStorage },
 
     // Use cases L2: pure TS, sin decorador — Angular los instancia vía factory.
     {
@@ -59,9 +63,12 @@ export const appConfig: ApplicationConfig = {
     },
     {
       provide: LogoutUseCase,
-      useFactory: (repo: AuthRepository, storage: SessionStorage) =>
-        new LogoutUseCase(repo, storage),
-      deps: [AUTH_REPOSITORY, SESSION_STORAGE],
+      useFactory: (
+        repo: AuthRepository,
+        storage: SessionStorage,
+        markings: MarkingsStorage,
+      ) => new LogoutUseCase(repo, storage, markings),
+      deps: [AUTH_REPOSITORY, SESSION_STORAGE, MARKINGS_STORAGE],
     },
     {
       provide: GetActiveSessionUseCase,

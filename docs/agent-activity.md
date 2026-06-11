@@ -16,3 +16,4 @@ Auto-generado por `.claude/hooks/log-agent-usage.ps1` en cada PostToolUse del to
 | 2026-06-11 15:41:11 | test-engineer | Tests para Clock + ServerTime | opus-4-7 | 32,058 | -- | -- | $0.1857 |
 | 2026-06-11 15:46:06 | frontend-builder | Componente badge de conectividad + inserci├│n en shell | opus-4-7 | 54,772 | -- | -- | $0.2090 |
 | 2026-06-11 15:48:03 | test-engineer | Tests del adapter BrowserConnectivity | opus-4-7 | 46,666 | -- | -- | $0.2423 |
+| 2026-06-11 16:06:26 | test-engineer | Tests Secci├│n 4 offline-storage + fix LogoutUseCase | opus-4-7 | 70,479 | -- | -- | $0.2729 |
