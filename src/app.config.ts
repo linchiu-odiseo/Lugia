@@ -15,6 +15,7 @@ import { routes } from './LR_render/app.routes';
 import { AuthRepository } from './L1_domain/ports/auth-repository';
 import { SessionStorage } from './L1_domain/ports/session-storage';
 import { Clock } from './L1_domain/ports/clock';
+import { Connectivity } from './L1_domain/ports/connectivity';
 
 // L2 use cases — clases TS puras sin @Injectable; las proveemos por factory.
 import { LoginUseCase } from './L2_application/use-cases/login.use-case';
@@ -25,11 +26,13 @@ import { GetActiveSessionUseCase } from './L2_application/use-cases/get-active-s
 import { HttpAuthRepository } from './L3_periphery/http/http-auth-repository';
 import { LocalStorageSessionStorage } from './L3_periphery/storage/local-storage-session-storage';
 import { ServerAnchoredClock } from './L3_periphery/clock/server-anchored-clock';
+import { BrowserConnectivity } from './L3_periphery/connectivity/browser-connectivity';
 import { authHeadersInterceptor } from './L3_periphery/interceptors/auth-headers.interceptor';
 
 export const AUTH_REPOSITORY = new InjectionToken<AuthRepository>('AUTH_REPOSITORY');
 export const SESSION_STORAGE = new InjectionToken<SessionStorage>('SESSION_STORAGE');
 export const CLOCK = new InjectionToken<Clock>('CLOCK');
+export const CONNECTIVITY = new InjectionToken<Connectivity>('CONNECTIVITY');
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -45,6 +48,7 @@ export const appConfig: ApplicationConfig = {
     { provide: AUTH_REPOSITORY, useExisting: HttpAuthRepository },
     { provide: SESSION_STORAGE, useExisting: LocalStorageSessionStorage },
     { provide: CLOCK, useExisting: ServerAnchoredClock },
+    { provide: CONNECTIVITY, useExisting: BrowserConnectivity },
 
     // Use cases L2: pure TS, sin decorador — Angular los instancia vía factory.
     {

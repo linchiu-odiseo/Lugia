@@ -14,3 +14,5 @@ Auto-generado por `.claude/hooks/log-agent-usage.ps1` en cada PostToolUse del to
 |---|---|---|---|---|---|---|---|
 | 2026-06-11 11:00:00 | general-purpose | Hexagonal boundaries audit (task 8.3, backfilled antes del hook) | opus-4-7 | 34,340 *est | 40 | 98.2s | $1.0302 |
 | 2026-06-11 15:41:11 | test-engineer | Tests para Clock + ServerTime | opus-4-7 | 32,058 | -- | -- | $0.1857 |
+| 2026-06-11 15:46:06 | frontend-builder | Componente badge de conectividad + inserci├│n en shell | opus-4-7 | 54,772 | -- | -- | $0.2090 |
+| 2026-06-11 15:48:03 | test-engineer | Tests del adapter BrowserConnectivity | opus-4-7 | 46,666 | -- | -- | $0.2423 |

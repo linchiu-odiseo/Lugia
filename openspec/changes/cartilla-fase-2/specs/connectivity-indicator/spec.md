@@ -27,7 +27,7 @@ La capa L1 SHALL definir el puerto `Connectivity` con una operación reactiva qu
 
 ### Requirement: Adapter `BrowserConnectivity` en L3
 
-La capa L3 SHALL implementar `BrowserConnectivity` que cumple el puerto `Connectivity` leyendo `navigator.onLine` para el estado inicial y suscribiéndose a los eventos `online` y `offline` del `window` para las transiciones. Internamente expone un Signal de Angular.
+La capa L3 SHALL implementar `BrowserConnectivity` que cumple el puerto `Connectivity` leyendo `navigator.onLine` para el estado inicial y suscribiéndose a los eventos `online` y `offline` del `window` para las transiciones. Internamente mantiene un `Set<listener>` simple — la integración con Signals de Angular ocurre en LR_render (el componente badge construye su propio Signal a partir de la suscripción al puerto).
 
 #### Scenario: Lectura inicial usa navigator.onLine
 
@@ -37,13 +37,13 @@ La capa L3 SHALL implementar `BrowserConnectivity` que cumple el puerto `Connect
 #### Scenario: Suscripción a eventos del browser
 
 - **WHEN** el browser dispara el evento `offline`
-- **THEN** el Signal interno cambia a `false`
+- **THEN** los listeners suscritos al puerto son notificados con `false`
 
 #### Scenario: Idempotencia ante eventos duplicados
 
 - **WHEN** el browser dispara el evento `online` dos veces seguidas estando ya online
-- **THEN** el Signal permanece `true`
-- **AND** no se notifica un cambio espurio
+- **THEN** los listeners NO son notificados otra vez
+- **AND** no se propaga un cambio espurio
 
 ### Requirement: Badge de conectividad en el shell de la UI
 

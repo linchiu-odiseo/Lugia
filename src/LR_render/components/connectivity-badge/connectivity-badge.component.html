@@ -1,0 +1,21 @@
+@if (isOnline()) {
+  <div
+    class="badge badge--online"
+    role="status"
+    aria-live="polite"
+    aria-label="Estado de conexión: en línea"
+  >
+    <span class="badge__dot" aria-hidden="true"></span>
+    <span class="badge__label">En línea</span>
+  </div>
+} @else {
+  <div
+    class="badge badge--offline"
+    role="status"
+    aria-live="polite"
+    aria-label="Estado de conexión: sin conexión"
+  >
+    <span class="badge__dot" aria-hidden="true"></span>
+    <span class="badge__label">Sin conexión</span>
+  </div>
+}

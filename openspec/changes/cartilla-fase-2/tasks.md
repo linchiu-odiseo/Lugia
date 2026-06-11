@@ -16,12 +16,12 @@
 
 ## 3. connectivity-indicator
 
-- [ ] 3.1 Definir puerto `Connectivity` en `src/L1_domain/ports/connectivity.ts` con observación reactiva de `isOnline`
-- [ ] 3.2 Implementar adapter `BrowserConnectivity` en `src/L3_periphery/connectivity/browser-connectivity.ts` usando `navigator.onLine` + eventos `online`/`offline`, exponiendo un Signal
-- [ ] 3.3 Registrar `Connectivity` → `BrowserConnectivity` en `app.config.ts`
-- [ ] 3.4 Crear componente `ConnectivityBadgeComponent` en `src/LR_render/components/connectivity-badge/` que lee el Signal y renderiza verde/rojo — delegar a `frontend-builder`
-- [ ] 3.5 Insertar el badge en el shell layout (solo visible cuando hay sesión activa)
-- [ ] 3.6 Tests feature L3 en `tests/feature/connectivity.spec.ts` (estado inicial, transición, idempotencia) — delegar a `test-engineer`
+- [x] 3.1 Definir puerto `Connectivity` en `src/L1_domain/ports/connectivity.ts` con observación reactiva de `isOnline`
+- [x] 3.2 Implementar adapter `BrowserConnectivity` en `src/L3_periphery/connectivity/browser-connectivity.ts` usando `navigator.onLine` + eventos `online`/`offline`, exponiendo un Signal _(observer pattern puro: Set<listener>; el componente badge construye su Signal local)_
+- [x] 3.3 Registrar `Connectivity` → `BrowserConnectivity` en `app.config.ts`
+- [x] 3.4 Crear componente `ConnectivityBadgeComponent` en `src/LR_render/components/connectivity-badge/` que lee el Signal y renderiza verde/rojo — delegar a `frontend-builder`
+- [x] 3.5 Insertar el badge en el shell layout (solo visible cuando hay sesión activa) _(visibilidad por ruta: no /login)_
+- [x] 3.6 Tests feature L3 en `tests/feature/connectivity.spec.ts` (estado inicial, transición, idempotencia) — delegar a `test-engineer`
 
 ## 4. offline-storage
 
