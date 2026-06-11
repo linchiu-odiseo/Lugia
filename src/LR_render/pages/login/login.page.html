@@ -1,0 +1,45 @@
+<main class="login">
+  <header>
+    <h1>NeonPanda</h1>
+    <p class="subtitle">Inicia sesión para continuar</p>
+  </header>
+
+  <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+    <label class="field">
+      <span class="field__label">Email</span>
+      <input
+        type="email"
+        formControlName="email"
+        autocomplete="email"
+        inputmode="email"
+        spellcheck="false"
+      />
+      @if (form.controls.email.touched && form.controls.email.errors?.['required']) {
+        <small class="field__hint">El email es obligatorio.</small>
+      }
+      @if (form.controls.email.touched && form.controls.email.errors?.['email']) {
+        <small class="field__hint">Email inválido.</small>
+      }
+    </label>
+
+    <label class="field">
+      <span class="field__label">Contraseña</span>
+      <input type="password" formControlName="password" autocomplete="current-password" />
+      @if (form.controls.password.touched && form.controls.password.errors?.['required']) {
+        <small class="field__hint">La contraseña es obligatoria.</small>
+      }
+    </label>
+
+    @if (vm.errorMessage(); as msg) {
+      <p class="error" role="alert">{{ msg }}</p>
+    }
+
+    <button type="submit" [disabled]="form.invalid || vm.isSubmitting()">
+      @if (vm.isSubmitting()) {
+        Ingresando…
+      } @else {
+        Ingresar
+      }
+    </button>
+  </form>
+</main>
