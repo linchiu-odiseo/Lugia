@@ -14,5 +14,11 @@ export const routes: Routes = [
     canActivate: [authGuard],
     loadComponent: () => import('./pages/home/home.page').then((m) => m.HomePage),
   },
+  {
+    path: 'simulacro/:id',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./pages/simulacro/simulacro.page').then((m) => m.SimulacroPage),
+  },
   { path: '**', redirectTo: '/login' },
 ];

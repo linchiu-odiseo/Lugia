@@ -25,6 +25,7 @@ import { LogoutUseCase } from './L2_application/use-cases/logout.use-case';
 import { GetActiveSessionUseCase } from './L2_application/use-cases/get-active-session.use-case';
 import { ActualizarBearerSiRenovadoUseCase } from './L2_application/use-cases/actualizar-bearer-si-renovado.use-case';
 import { ObtenerSimulacrosDelDiaUseCase } from './L2_application/use-cases/obtener-simulacros-del-dia.use-case';
+import { MarcarRespuestaUseCase } from './L2_application/use-cases/marcar-respuesta.use-case';
 
 // L3 implementaciones de los puertos + el interceptor HTTP único.
 import { HttpAuthRepository } from './L3_periphery/http/http-auth-repository';
@@ -92,6 +93,11 @@ export const appConfig: ApplicationConfig = {
       useFactory: (api: SimulacrosApi, clock: Clock) =>
         new ObtenerSimulacrosDelDiaUseCase(api, clock),
       deps: [SIMULACROS_API, CLOCK],
+    },
+    {
+      provide: MarcarRespuestaUseCase,
+      useFactory: (markings: MarkingsStorage) => new MarcarRespuestaUseCase(markings),
+      deps: [MARKINGS_STORAGE],
     },
   ],
 };

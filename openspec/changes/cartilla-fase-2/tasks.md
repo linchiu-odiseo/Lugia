@@ -64,17 +64,17 @@
 
 ## 8. exam-marking — entidad + use case + UI
 
-- [ ] 8.1 Definir entidad `Marcacion` en `src/L1_domain/entities/marcacion.ts` con `simulacroId`, `pregunta`, `alternativa`
-- [ ] 8.2 Definir value-object `Alternativa` en `src/L1_domain/value-objects/alternativa.ts` aceptando "A"|"B"|"C"|"D"|"E"|null
-- [ ] 8.3 Definir error `InvalidAlternativaError` en `src/L1_domain/errors/`
-- [ ] 8.4 Implementar `MarcarRespuestaUseCase` en `src/L2_application/simulacros/marcar-respuesta.ts` usando `MarkingsStorage`
-- [ ] 8.5 Crear ruta `/simulacro/:id` en `app.routes.ts` protegida por `authGuard`
-- [ ] 8.6 Implementar `SimulacroPageViewModel` con Signals: `simulacro`, `marcaciones`, `countdownRestante` — delegar a `frontend-builder`
-- [ ] 8.7 Renderizar grilla de `count` filas con bubbles A–E, marcación inmediata al toque, recuperación al montar — delegar a `frontend-builder`
-- [ ] 8.8 Implementar guards en el view-model: redirigir a `/home` si estado no es `abierto` con mensaje correspondiente — delegar a `frontend-builder`
-- [ ] 8.9 Botón "Volver a /home" sin envío — delegar a `frontend-builder`
-- [ ] 8.10 Tests unitarios L1+L2 (Marcacion, Alternativa, MarcarRespuestaUseCase) — delegar a `test-engineer`
-- [ ] 8.11 Tests feature de `SimulacroPage` (entrada permitida/bloqueada, marca/desmarca, persistencia) — delegar a `test-engineer`
+- [x] 8.1 Definir entidad `Marcacion` en `src/L1_domain/entities/marcacion.ts` con `simulacroId`, `pregunta`, `alternativa` _(+ `InvalidMarcacionError`)_
+- [x] 8.2 Definir value-object `Alternativa` en `src/L1_domain/value-objects/alternativa.ts` aceptando "A"|"B"|"C"|"D"|"E"|null _(fromString factory + desmarcada() helper + isMarked/equals)_
+- [x] 8.3 Definir error `InvalidAlternativaError` en `src/L1_domain/errors/`
+- [x] 8.4 Implementar `MarcarRespuestaUseCase` en `src/L2_application/simulacros/marcar-respuesta.ts` usando `MarkingsStorage` _(ubicado en `use-cases/` siguiendo patrón Fase 1)_
+- [x] 8.5 Crear ruta `/simulacro/:id` en `app.routes.ts` protegida por `authGuard`
+- [x] 8.6 Implementar `SimulacroPageViewModel` con Signals: `simulacro`, `marcaciones`, `countdownRestante` — delegar a `frontend-builder` _(+ ticker 1s detecta expire-during-session y redirige a /home)_
+- [x] 8.7 Renderizar grilla de `count` filas con bubbles A–E, marcación inmediata al toque, recuperación al montar — delegar a `frontend-builder` _(toggle: tap same → desmarcar; map denso inicializado por count)_
+- [x] 8.8 Implementar guards en el view-model: redirigir a `/home` si estado no es `abierto` con mensaje correspondiente — delegar a `frontend-builder` _(errorState 7 valores discrimina razón; DEUDA: mecanismo de toast en /home para mostrar el mensaje queda fuera de scope Fase 2)_
+- [x] 8.9 Botón "Volver a /home" sin envío — delegar a `frontend-builder` _(botón "Enviar" placeholder disabled hasta sec.9)_
+- [x] 8.10 Tests unitarios L1+L2 (Marcacion, Alternativa, MarcarRespuestaUseCase) — delegar a `test-engineer` _(39 tests: 15 Marcacion + 12 Alternativa + 12 use case)_
+- [x] 8.11 Tests feature de `SimulacroPage` (entrada permitida/bloqueada, marca/desmarca, persistencia) — delegar a `test-engineer` _(26 tests: 20 view-model + 6 page; suite total 305/305)_
 
 ## 9. exam-submission — envío + auto-envío T=0
 
