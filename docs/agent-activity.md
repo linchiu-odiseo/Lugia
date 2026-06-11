@@ -23,3 +23,5 @@ Auto-generado por `.claude/hooks/log-agent-usage.ps1` en cada PostToolUse del to
 | 2026-06-11 16:39:29 | test-engineer | Tests feature HomePage Secci├│n 7 | opus-4-7 | 82,794 | -- | -- | $0.2711 |
 | 2026-06-11 16:46:47 | frontend-builder | SimulacroPage Fase 2 cartilla | opus-4-7 | 67,151 | -- | -- | $0.2890 |
 | 2026-06-11 16:55:34 | test-engineer | Tests exam-marking L1+L2+page | opus-4-7 | 115,225 | -- | -- | $0.3256 |
+| 2026-06-11 17:04:55 | frontend-builder | Integrar Enviar + auto-env├¡o en SimulacroPage | opus-4-7 | 59,921 | -- | -- | $0.3109 |
+| 2026-06-11 17:20:56 | test-engineer | Tests Secci├│n 9 submission completa | opus-4-7 | 165,994 | -- | -- | $0.5104 |

@@ -5,6 +5,16 @@ import { Component } from '@angular/core';
 import { SimulacroPageViewModel } from '../../../../src/LR_render/view-models/simulacro.view-model';
 import { ObtenerSimulacrosDelDiaUseCase } from '../../../../src/L2_application/use-cases/obtener-simulacros-del-dia.use-case';
 import { MarcarRespuestaUseCase } from '../../../../src/L2_application/use-cases/marcar-respuesta.use-case';
+import {
+  EnviarSimulacroInput,
+  EnviarSimulacroOutput,
+  EnviarSimulacroUseCase,
+} from '../../../../src/L2_application/use-cases/enviar-simulacro.use-case';
+import {
+  AutoEnvioHandle,
+  ProgramarAutoEnvioInput,
+  ProgramarAutoEnvioUseCase,
+} from '../../../../src/L2_application/use-cases/programar-auto-envio.use-case';
 import { CLOCK, MARKINGS_STORAGE } from '../../../../src/app.config';
 import { Simulacro } from '../../../../src/L1_domain/entities/simulacro';
 import { EstadoSimulacro } from '../../../../src/L1_domain/value-objects/estado-simulacro';
@@ -12,6 +22,10 @@ import { ServerTime } from '../../../../src/L1_domain/value-objects/server-time'
 import { Alternativa } from '../../../../src/L1_domain/value-objects/alternativa';
 import { NetworkError } from '../../../../src/L1_domain/errors/network.error';
 import { SessionExpiredError } from '../../../../src/L1_domain/errors/session-expired.error';
+import { SimulacroCerradoError } from '../../../../src/L1_domain/errors/simulacro-cerrado.error';
+import { SimulacroNoAsignadoError } from '../../../../src/L1_domain/errors/simulacro-no-asignado.error';
+import { InvalidSubmissionTimeError } from '../../../../src/L1_domain/errors/invalid-submission-time.error';
+import { InvalidPayloadError } from '../../../../src/L1_domain/errors/invalid-payload.error';
 import { Clock } from '../../../../src/L1_domain/ports/clock';
 import {
   AlternativaValue,
@@ -138,6 +152,87 @@ class FakeMarkingsStorage implements MarkingsStorage {
   }
 }
 
+// Fake del EnviarSimulacroUseCase con control fino sobre resolución/rechazo
+// y registro de llamadas. Útil para tests de `submit()` y del callback
+// `onResult` del auto-envío.
+class FakeEnviarSimulacroUseCase {
+  public calls: EnviarSimulacroInput[] = [];
+  private plan:
+    | { kind: 'resolve'; result: EnviarSimulacroOutput }
+    | { kind: 'reject'; error: Error }
+    | { kind: 'pending'; resolve: (r: EnviarSimulacroOutput) => void; reject: (e: Error) => void }
+    | null = null;
+  // Para tests de "doble click", contamos las llamadas mientras la primera
+  // está pendiente — la promise se resuelve manualmente desde el test.
+  public pendingPromise: Promise<EnviarSimulacroOutput> | null = null;
+
+  willResolve(result: EnviarSimulacroOutput): void {
+    this.plan = { kind: 'resolve', result };
+  }
+
+  willReject(error: Error): void {
+    this.plan = { kind: 'reject', error };
+  }
+
+  // Devuelve un control { resolve, reject } para que el test decida cuándo
+  // completar la primera invocación. Útil para verificar idempotencia.
+  willStayPending(): { resolve: (r: EnviarSimulacroOutput) => void; reject: (e: Error) => void } {
+    let res!: (r: EnviarSimulacroOutput) => void;
+    let rej!: (e: Error) => void;
+    this.pendingPromise = new Promise<EnviarSimulacroOutput>((r, e) => {
+      res = r;
+      rej = e;
+    });
+    this.plan = { kind: 'pending', resolve: res, reject: rej };
+    return { resolve: res, reject: rej };
+  }
+
+  async execute(input: EnviarSimulacroInput): Promise<EnviarSimulacroOutput> {
+    this.calls.push(input);
+    if (this.plan === null) {
+      throw new Error('FakeEnviarSimulacroUseCase: configurar plan antes de invocar execute');
+    }
+    if (this.plan.kind === 'reject') throw this.plan.error;
+    if (this.plan.kind === 'resolve') return this.plan.result;
+    // pending: devuelve la promise que el test controlará a mano.
+    if (this.pendingPromise === null) {
+      throw new Error('FakeEnviarSimulacroUseCase: pendingPromise no inicializada');
+    }
+    return this.pendingPromise;
+  }
+}
+
+// Fake del ProgramarAutoEnvioUseCase: NO dispara un timer real. Captura el
+// input (sobre todo callbacks) para que el test pueda invocarlos a mano.
+// Esto desacopla los tests del view-model de la lógica de jitter (cubierta
+// en su propio spec).
+class FakeProgramarAutoEnvioUseCase {
+  public calls: ProgramarAutoEnvioInput[] = [];
+  public lastHandle: AutoEnvioHandle | null = null;
+  public cancelCalls = 0;
+
+  execute(input: ProgramarAutoEnvioInput): AutoEnvioHandle {
+    this.calls.push(input);
+    const handle: AutoEnvioHandle = {
+      cancel: () => {
+        this.cancelCalls++;
+      },
+    };
+    this.lastHandle = handle;
+    return handle;
+  }
+
+  // Helpers para que el test "fire" el auto-envío manualmente.
+  fireOnResult(result: EnviarSimulacroOutput): void {
+    const last = this.calls[this.calls.length - 1];
+    last.onResult?.(result);
+  }
+  fireOnError(err: unknown): void {
+    const last = this.calls[this.calls.length - 1];
+    last.onError?.(err);
+  }
+}
+
 // Helpers
 const buildSimulacro = (
   id: string,
@@ -159,6 +254,8 @@ describe('SimulacroPageViewModel', () => {
   let fakeClock: FakeClock;
   let fakeMarkings: FakeMarkingsStorage;
   let fakeMarcar: FakeMarcarRespuestaUseCase;
+  let fakeEnviar: FakeEnviarSimulacroUseCase;
+  let fakeProgramar: FakeProgramarAutoEnvioUseCase;
 
   // Instanciamos el VM dentro del contexto de inyección para que inject()
   // resuelva contra los providers del TestBed.
@@ -170,6 +267,8 @@ describe('SimulacroPageViewModel', () => {
     fakeClock = new FakeClock();
     fakeMarkings = new FakeMarkingsStorage();
     fakeMarcar = new FakeMarcarRespuestaUseCase(fakeMarkings);
+    fakeEnviar = new FakeEnviarSimulacroUseCase();
+    fakeProgramar = new FakeProgramarAutoEnvioUseCase();
 
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
@@ -180,6 +279,8 @@ describe('SimulacroPageViewModel', () => {
         ]),
         { provide: ObtenerSimulacrosDelDiaUseCase, useValue: fakeObtener },
         { provide: MarcarRespuestaUseCase, useValue: fakeMarcar },
+        { provide: EnviarSimulacroUseCase, useValue: fakeEnviar },
+        { provide: ProgramarAutoEnvioUseCase, useValue: fakeProgramar },
         { provide: CLOCK, useValue: fakeClock },
         { provide: MARKINGS_STORAGE, useValue: fakeMarkings },
       ],
@@ -387,7 +488,11 @@ describe('SimulacroPageViewModel', () => {
   });
 
   describe('ticker — expiración durante la sesión', () => {
-    it('cuando now() >= simulacro.fin, setea errorState=expired-during-session y redirige a /home', async () => {
+    // Tras 9.7, el ticker se ABSTIENE de redirigir si hay un auto-envío
+    // vivo (autoEnvioHandle !== null). Esto previene el race contra el
+    // setTimeout del auto-envío. Los tests reflejan esta coordinación.
+
+    it('con auto-envío vivo, el ticker NO redirige aunque now >= fin (deja que el handle dispare)', async () => {
       const inicio = new Date('2026-06-11T10:00:00Z');
       const fin = new Date('2026-06-11T10:00:05Z');
       fakeClock.setNow(inicio);
@@ -401,11 +506,91 @@ describe('SimulacroPageViewModel', () => {
       const router = TestBed.inject(Router);
       const navigateSpy = vi.spyOn(router, 'navigate').mockResolvedValue(true);
 
-      // Avanzamos el Clock al `fin` y luego al primer tick que detecta expire.
+      // El auto-envío sigue vivo (handle no nullificado); el ticker debe
+      // abstenerse aunque crucemos `fin`.
       fakeClock.setNow(new Date(fin.getTime()));
       await vi.advanceTimersByTimeAsync(1_000);
 
-      expect(vm.errorState()).toBe('expired-during-session');
+      expect(vm.errorState()).toBeNull();
+      expect(navigateSpy).not.toHaveBeenCalled();
+      vm.stop();
+    });
+
+    it('mientras el reloj no llegue a fin, errorState sigue null y el tick no redirige', async () => {
+      const inicio = new Date('2026-06-11T10:00:00Z');
+      const fin = new Date('2026-06-11T11:00:00Z');
+      fakeClock.setNow(inicio);
+      const sim = buildSimulacro('sim-1', 'abierto', { inicio, fin });
+      fakeObtener.willResolve([sim]);
+
+      vi.useFakeTimers();
+      const vm = createVm();
+      await vm.start('sim-1');
+
+      const router = TestBed.inject(Router);
+      const navigateSpy = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+
+      // Tick pero seguimos muy lejos de fin.
+      fakeClock.setNow(new Date('2026-06-11T10:00:01Z'));
+      await vi.advanceTimersByTimeAsync(1_000);
+
+      expect(vm.errorState()).toBeNull();
+      expect(navigateSpy).not.toHaveBeenCalled();
+      vm.stop();
+    });
+  });
+
+  describe('ticker — expiración cuando no hay auto-envío vivo (ya disparó queued)', () => {
+    it('tras un auto-envío que terminó queued, el ticker se sigue absteniendo (submissionState=queued)', async () => {
+      const inicio = new Date('2026-06-11T10:00:00Z');
+      const fin = new Date('2026-06-11T10:00:05Z');
+      fakeClock.setNow(inicio);
+      const sim = buildSimulacro('sim-1', 'abierto', { inicio, fin });
+      fakeObtener.willResolve([sim]);
+
+      vi.useFakeTimers();
+      const vm = createVm();
+      await vm.start('sim-1');
+
+      // El auto-envío disparó y terminó en queued (sin red).
+      fakeProgramar.fireOnResult({
+        status: 'queued',
+        clientSubmittedAt: fin.toISOString(),
+      });
+      expect(vm.submissionState()).toBe('queued');
+
+      const router = TestBed.inject(Router);
+      const navigateSpy = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+
+      fakeClock.setNow(new Date(fin.getTime() + 5_000));
+      await vi.advanceTimersByTimeAsync(1_000);
+
+      // El ticker se abstiene cuando submissionState=queued: el banner
+      // debe seguir visible y el alumno decide cuándo volver.
+      expect(vm.errorState()).toBeNull();
+      expect(navigateSpy).not.toHaveBeenCalled();
+    });
+
+    it('tras un auto-envío exitoso, el handle queda null y submissionState=sent (ya navegó)', async () => {
+      const inicio = new Date('2026-06-11T10:00:00Z');
+      const fin = new Date('2026-06-11T10:00:05Z');
+      fakeClock.setNow(inicio);
+      const sim = buildSimulacro('sim-1', 'abierto', { inicio, fin });
+      fakeObtener.willResolve([sim]);
+
+      vi.useFakeTimers();
+      const vm = createVm();
+      await vm.start('sim-1');
+
+      const router = TestBed.inject(Router);
+      const navigateSpy = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+
+      fakeProgramar.fireOnResult({
+        status: 'enviado',
+        clientSubmittedAt: fin.toISOString(),
+      });
+
+      expect(vm.submissionState()).toBe('sent');
       expect(navigateSpy).toHaveBeenCalledWith(['/home']);
       vm.stop();
     });
@@ -518,6 +703,254 @@ describe('SimulacroPageViewModel', () => {
 
       expect(navigateSpy).not.toHaveBeenCalled();
       expect(vm.errorState()).toBeNull();
+    });
+  });
+
+  describe('submit() — envío manual', () => {
+    const seededOk = (): EnviarSimulacroOutput => ({
+      status: 'enviado',
+      clientSubmittedAt: '2026-06-11T10:30:00.000Z',
+    });
+    const seededQueued = (): EnviarSimulacroOutput => ({
+      status: 'queued',
+      clientSubmittedAt: '2026-06-11T10:30:00.000Z',
+    });
+
+    it('éxito (status enviado) → submissionState=sent y navigate /home', async () => {
+      const sim = buildSimulacro('sim-1', 'abierto');
+      fakeObtener.willResolve([sim]);
+      const vm = createVm();
+      await vm.start('sim-1');
+      fakeEnviar.willResolve(seededOk());
+      const router = TestBed.inject(Router);
+      const navigateSpy = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+
+      await vm.submit();
+
+      expect(fakeEnviar.calls).toEqual([{ simulacroId: 'sim-1' }]);
+      expect(vm.submissionState()).toBe('sent');
+      expect(navigateSpy).toHaveBeenCalledWith(['/home']);
+      expect(vm.isSubmitting()).toBe(false);
+      vm.stop();
+    });
+
+    it('queued (sin red) → submissionState=queued y NO navega', async () => {
+      const sim = buildSimulacro('sim-1', 'abierto');
+      fakeObtener.willResolve([sim]);
+      const vm = createVm();
+      await vm.start('sim-1');
+      fakeEnviar.willResolve(seededQueued());
+      const router = TestBed.inject(Router);
+      const navigateSpy = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+
+      await vm.submit();
+
+      expect(vm.submissionState()).toBe('queued');
+      expect(navigateSpy).not.toHaveBeenCalled();
+      expect(vm.isSubmitting()).toBe(false);
+      vm.stop();
+    });
+
+    it('SimulacroCerradoError → errorState=cerrado y navigate /home', async () => {
+      const sim = buildSimulacro('sim-1', 'abierto');
+      fakeObtener.willResolve([sim]);
+      const vm = createVm();
+      await vm.start('sim-1');
+      fakeEnviar.willReject(new SimulacroCerradoError());
+      const router = TestBed.inject(Router);
+      const navigateSpy = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+
+      await vm.submit();
+
+      expect(vm.errorState()).toBe('cerrado');
+      expect(navigateSpy).toHaveBeenCalledWith(['/home']);
+      vm.stop();
+    });
+
+    it('SimulacroNoAsignadoError → errorState=not-found y navigate /home', async () => {
+      const sim = buildSimulacro('sim-1', 'abierto');
+      fakeObtener.willResolve([sim]);
+      const vm = createVm();
+      await vm.start('sim-1');
+      fakeEnviar.willReject(new SimulacroNoAsignadoError());
+      const router = TestBed.inject(Router);
+      const navigateSpy = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+
+      await vm.submit();
+
+      expect(vm.errorState()).toBe('not-found');
+      expect(navigateSpy).toHaveBeenCalledWith(['/home']);
+      vm.stop();
+    });
+
+    it('InvalidSubmissionTimeError → errorState=invalid-submission-time y navigate /home', async () => {
+      const sim = buildSimulacro('sim-1', 'abierto');
+      fakeObtener.willResolve([sim]);
+      const vm = createVm();
+      await vm.start('sim-1');
+      fakeEnviar.willReject(new InvalidSubmissionTimeError());
+      const router = TestBed.inject(Router);
+      const navigateSpy = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+
+      await vm.submit();
+
+      expect(vm.errorState()).toBe('invalid-submission-time');
+      expect(navigateSpy).toHaveBeenCalledWith(['/home']);
+      vm.stop();
+    });
+
+    it('InvalidPayloadError → errorState=invalid-payload y navigate /home', async () => {
+      const sim = buildSimulacro('sim-1', 'abierto');
+      fakeObtener.willResolve([sim]);
+      const vm = createVm();
+      await vm.start('sim-1');
+      fakeEnviar.willReject(new InvalidPayloadError());
+      const router = TestBed.inject(Router);
+      const navigateSpy = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+
+      await vm.submit();
+
+      expect(vm.errorState()).toBe('invalid-payload');
+      expect(navigateSpy).toHaveBeenCalledWith(['/home']);
+      vm.stop();
+    });
+
+    it('SessionExpiredError → errorState=session-expired y navigate /login', async () => {
+      const sim = buildSimulacro('sim-1', 'abierto');
+      fakeObtener.willResolve([sim]);
+      const vm = createVm();
+      await vm.start('sim-1');
+      fakeEnviar.willReject(new SessionExpiredError());
+      const router = TestBed.inject(Router);
+      const navigateSpy = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+
+      await vm.submit();
+
+      expect(vm.errorState()).toBe('session-expired');
+      expect(navigateSpy).toHaveBeenCalledWith(['/login']);
+      vm.stop();
+    });
+
+    it('NetworkError (defensa: no debería llegar acá) → errorState=network y navigate /home', async () => {
+      const sim = buildSimulacro('sim-1', 'abierto');
+      fakeObtener.willResolve([sim]);
+      const vm = createVm();
+      await vm.start('sim-1');
+      fakeEnviar.willReject(new NetworkError());
+      const router = TestBed.inject(Router);
+      const navigateSpy = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+
+      await vm.submit();
+
+      expect(vm.errorState()).toBe('network');
+      expect(navigateSpy).toHaveBeenCalledWith(['/home']);
+      vm.stop();
+    });
+
+    it('doble click: la segunda invocación NO dispara un segundo POST mientras la primera está en vuelo', async () => {
+      const sim = buildSimulacro('sim-1', 'abierto');
+      fakeObtener.willResolve([sim]);
+      const vm = createVm();
+      await vm.start('sim-1');
+      const ctrl = fakeEnviar.willStayPending();
+
+      const first = vm.submit();
+      // Segunda invocación: aún hay una en vuelo (isSubmitting=true).
+      const second = vm.submit();
+
+      // Hasta acá: SOLO una llamada al use case.
+      expect(fakeEnviar.calls).toHaveLength(1);
+
+      // Resolvemos la primera.
+      ctrl.resolve({
+        status: 'enviado',
+        clientSubmittedAt: '2026-06-11T10:30:00.000Z',
+      });
+      await first;
+      await second;
+
+      // Ambas resueltas, pero el use case se invocó UNA sola vez.
+      expect(fakeEnviar.calls).toHaveLength(1);
+      vm.stop();
+    });
+
+    it('submit() cancela el auto-envío programado al entrar', async () => {
+      const sim = buildSimulacro('sim-1', 'abierto');
+      fakeObtener.willResolve([sim]);
+      const vm = createVm();
+      await vm.start('sim-1');
+
+      // Se programó un auto-envío al cargar.
+      expect(fakeProgramar.calls).toHaveLength(1);
+      expect(fakeProgramar.cancelCalls).toBe(0);
+
+      fakeEnviar.willResolve({
+        status: 'enviado',
+        clientSubmittedAt: '2026-06-11T10:30:00.000Z',
+      });
+      await vm.submit();
+
+      // submit() invocó cancel() en el handle del auto-envío.
+      expect(fakeProgramar.cancelCalls).toBe(1);
+      vm.stop();
+    });
+  });
+
+  describe('auto-envío disparado por el timer', () => {
+    it('onResult con status enviado → submissionState=sent y navigate /home', async () => {
+      const sim = buildSimulacro('sim-1', 'abierto');
+      fakeObtener.willResolve([sim]);
+      const vm = createVm();
+      await vm.start('sim-1');
+
+      expect(fakeProgramar.calls).toHaveLength(1);
+      const router = TestBed.inject(Router);
+      const navigateSpy = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+
+      // Simulamos que el timer disparó y enviar fue exitoso.
+      fakeProgramar.fireOnResult({
+        status: 'enviado',
+        clientSubmittedAt: '2026-06-11T12:00:00.000Z',
+      });
+
+      expect(vm.submissionState()).toBe('sent');
+      expect(navigateSpy).toHaveBeenCalledWith(['/home']);
+      vm.stop();
+    });
+
+    it('onResult con status queued → submissionState=queued y NO navega', async () => {
+      const sim = buildSimulacro('sim-1', 'abierto');
+      fakeObtener.willResolve([sim]);
+      const vm = createVm();
+      await vm.start('sim-1');
+
+      const router = TestBed.inject(Router);
+      const navigateSpy = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+
+      fakeProgramar.fireOnResult({
+        status: 'queued',
+        clientSubmittedAt: '2026-06-11T12:00:00.000Z',
+      });
+
+      expect(vm.submissionState()).toBe('queued');
+      expect(navigateSpy).not.toHaveBeenCalled();
+      vm.stop();
+    });
+
+    it('onError SimulacroCerradoError → errorState=cerrado y navigate /home', async () => {
+      const sim = buildSimulacro('sim-1', 'abierto');
+      fakeObtener.willResolve([sim]);
+      const vm = createVm();
+      await vm.start('sim-1');
+
+      const router = TestBed.inject(Router);
+      const navigateSpy = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+
+      fakeProgramar.fireOnError(new SimulacroCerradoError());
+
+      expect(vm.errorState()).toBe('cerrado');
+      expect(navigateSpy).toHaveBeenCalledWith(['/home']);
+      vm.stop();
     });
   });
 });

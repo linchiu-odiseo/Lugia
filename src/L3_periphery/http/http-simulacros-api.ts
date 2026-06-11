@@ -13,6 +13,10 @@ import { ServerTime } from '../../L1_domain/value-objects/server-time';
 import { InvalidSimulacroError } from '../../L1_domain/errors/invalid-simulacro.error';
 import { NetworkError } from '../../L1_domain/errors/network.error';
 import { SessionExpiredError } from '../../L1_domain/errors/session-expired.error';
+import { InvalidSubmissionTimeError } from '../../L1_domain/errors/invalid-submission-time.error';
+import { InvalidPayloadError } from '../../L1_domain/errors/invalid-payload.error';
+import { SimulacroCerradoError } from '../../L1_domain/errors/simulacro-cerrado.error';
+import { SimulacroNoAsignadoError } from '../../L1_domain/errors/simulacro-no-asignado.error';
 import { environment } from '../../environments/environment';
 
 interface SimulacroDto {
@@ -28,6 +32,17 @@ interface SimulacroDto {
 interface SimulacrosListResponseDto {
   serverTime: string;
   simulacros: SimulacroDto[];
+}
+
+interface EnvioOkDto {
+  status: 'enviado';
+  clientSubmittedAt: string;
+  serverReceivedAt: string;
+}
+
+interface EnvioErrorDto {
+  message?: string;
+  code?: 'INVALID_TIME' | 'INVALID_SHAPE' | 'CLOSED';
 }
 
 @Injectable({ providedIn: 'root' })
@@ -50,11 +65,27 @@ export class HttpSimulacrosApi implements SimulacrosApi {
     }
   }
 
-  // Stub: la implementación completa (mapeo 200/409/400/403/404 a errores
-  // de dominio) llega en sec.9 junto con EnviarSimulacroUseCase. Por ahora
-  // un stub explícito que el caller no debería invocar.
-  async enviar(_req: EnvioRequest): Promise<EnvioResult> {
-    throw new Error('HttpSimulacrosApi.enviar() pendiente — implementar en sec.9.');
+  async enviar(req: EnvioRequest): Promise<EnvioResult> {
+    try {
+      const dto = await firstValueFrom(
+        this.http.post<EnvioOkDto>(
+          `${environment.apiBaseUrl}/simulacros/${encodeURIComponent(req.simulacroId)}/envio`,
+          { answers: req.answers, clientSubmittedAt: req.clientSubmittedAt },
+        ),
+      );
+      return {
+        status: 'enviado',
+        clientSubmittedAt: dto.clientSubmittedAt,
+        serverReceivedAt: dto.serverReceivedAt,
+      };
+    } catch (err) {
+      const classified = this.classifyEnvioError(err, req);
+      // 409 (idempotencia) llega como marker interno que colapsamos a éxito.
+      if (classified instanceof IdempotentEnvioMarker) {
+        return classified.result;
+      }
+      throw classified;
+    }
   }
 
   private toSimulacro(dto: SimulacroDto): Simulacro {
@@ -89,5 +120,50 @@ export class HttpSimulacrosApi implements SimulacrosApi {
     }
     if (err instanceof InvalidSimulacroError) return err;
     return new NetworkError();
+  }
+
+  // Clasificación del POST /envio. 409 es idempotencia: el backend acepta
+  // y devuelve el estado ya enviado — lo tratamos como éxito reutilizando
+  // los campos del body. Solo clasificamos por (status, endpoint, code);
+  // NUNCA por el `message` del body.
+  private classifyEnvioError(err: unknown, req: EnvioRequest): Error {
+    if (err instanceof HttpErrorResponse) {
+      if (err.status === 0 || err.status >= 500) return new NetworkError();
+      if (err.status === 401) return new SessionExpiredError();
+      const body = (err.error ?? {}) as EnvioErrorDto;
+      if (err.status === 409) {
+        // Idempotencia: el envío ya existía. Reusamos los campos del body
+        // si están presentes; si no, fallback al request.
+        const ok: EnvioOkDto = {
+          status: 'enviado',
+          clientSubmittedAt:
+            (err.error as Partial<EnvioOkDto>)?.clientSubmittedAt ?? req.clientSubmittedAt,
+          serverReceivedAt: (err.error as Partial<EnvioOkDto>)?.serverReceivedAt ?? '',
+        };
+        return new IdempotentEnvioMarker(ok);
+      }
+      if (err.status === 400 && body.code === 'INVALID_TIME') {
+        return new InvalidSubmissionTimeError();
+      }
+      if (err.status === 400 && body.code === 'INVALID_SHAPE') {
+        return new InvalidPayloadError();
+      }
+      if (err.status === 400) return new InvalidPayloadError();
+      if (err.status === 403 && body.code === 'CLOSED') {
+        return new SimulacroCerradoError();
+      }
+      if (err.status === 404) return new SimulacroNoAsignadoError();
+    }
+    return new NetworkError();
+  }
+}
+
+// Marker interno para colapsar 409 (idempotencia) en éxito sin perder los
+// campos del body. El método público convierte esto antes de devolver al
+// caller, así el use case y los tests nunca lo ven.
+class IdempotentEnvioMarker extends Error {
+  constructor(public readonly result: EnvioOkDto) {
+    super('idempotent');
+    this.name = 'IdempotentEnvioMarker';
   }
 }

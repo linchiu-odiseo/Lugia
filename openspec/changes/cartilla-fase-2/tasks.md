@@ -78,17 +78,17 @@
 
 ## 9. exam-submission — envío + auto-envío T=0
 
-- [ ] 9.1 Definir errores `InvalidSubmissionTimeError`, `SimulacroCerradoError`, `SimulacroNoAsignadoError`, `InvalidPayloadError` en `src/L1_domain/errors/`
-- [ ] 9.2 Extender `HttpSimulacrosApi.enviar()` mapeando 200/409 → éxito, 400 INVALID_TIME → InvalidSubmissionTime, 400 INVALID_SHAPE → InvalidPayload, 403 CLOSED → SimulacroCerrado, 404 → SimulacroNoAsignado
-- [ ] 9.3 Implementar `EnviarSimulacroUseCase` en `src/L2_application/simulacros/enviar-simulacro.ts` (lee marcaciones, calcula `clientSubmittedAt` con `Clock`, intenta POST, encola si falla por red, borra marcaciones tras éxito)
-- [ ] 9.4 Implementar `RetomarEnviosPendientesUseCase` en `src/L2_application/simulacros/retomar-envios-pendientes.ts` (lee cola, despacha cada envío con su `clientSubmittedAt` original)
-- [ ] 9.5 Implementar `ProgramarAutoEnvioUseCase` en `src/L2_application/simulacros/programar-auto-envio.ts` con jitter ±3s y `clientSubmittedAt = fin`
-- [ ] 9.6 Disparar `RetomarEnviosPendientesUseCase` al arrancar la app y cuando `Connectivity.isOnline` cambia a `true`
-- [ ] 9.7 Integrar `ProgramarAutoEnvioUseCase` en `SimulacroPageViewModel` (programar al entrar, cancelar al enviar manualmente) — delegar a `frontend-builder`
-- [ ] 9.8 Botón "Enviar" en `SimulacroPage` que invoca `EnviarSimulacroUseCase`, navega a `/home` tras éxito — delegar a `frontend-builder`
-- [ ] 9.9 UI de estado "Pendiente de envío..." cuando el envío quedó encolado — delegar a `frontend-builder`
-- [ ] 9.10 Tests unitarios L1+L2 (todos los use cases, mapeo de errores) — delegar a `test-engineer`
-- [ ] 9.11 Tests feature del flujo completo de envío con `HttpTestingController` — delegar a `test-engineer`
+- [x] 9.1 Definir errores `InvalidSubmissionTimeError`, `SimulacroCerradoError`, `SimulacroNoAsignadoError`, `InvalidPayloadError` en `src/L1_domain/errors/`
+- [x] 9.2 Extender `HttpSimulacrosApi.enviar()` mapeando 200/409 → éxito, 400 INVALID_TIME → InvalidSubmissionTime, 400 INVALID_SHAPE → InvalidPayload, 403 CLOSED → SimulacroCerrado, 404 → SimulacroNoAsignado _(409 colapsa a éxito vía marker interno; 400 sin code → InvalidPayload)_
+- [x] 9.3 Implementar `EnviarSimulacroUseCase` en `src/L2_application/simulacros/enviar-simulacro.ts` (lee marcaciones, calcula `clientSubmittedAt` con `Clock`, intenta POST, encola si falla por red, borra marcaciones tras éxito) _(retorna `status: 'enviado' \| 'queued'`; soporta `clientSubmittedAtOverride` para auto-envío)_
+- [x] 9.4 Implementar `RetomarEnviosPendientesUseCase` en `src/L2_application/simulacros/retomar-envios-pendientes.ts` (lee cola, despacha cada envío con su `clientSubmittedAt` original) _(4xx no recuperables: dequeue + clearMarcaciones + log; NetworkError: deja en cola)_
+- [x] 9.5 Implementar `ProgramarAutoEnvioUseCase` en `src/L2_application/simulacros/programar-auto-envio.ts` con jitter ±3s y `clientSubmittedAt = fin` _(handle con `cancel()` para el botón Enviar manual)_
+- [x] 9.6 Disparar `RetomarEnviosPendientesUseCase` al arrancar la app y cuando `Connectivity.isOnline` cambia a `true` _(L3 `EnvioRetryDispatcher` + `provideAppInitializer` en app.config)_
+- [x] 9.7 Integrar `ProgramarAutoEnvioUseCase` en `SimulacroPageViewModel` (programar al entrar, cancelar al enviar manualmente) — delegar a `frontend-builder` _(ticker de expiración se abstiene mientras hay auto-envío vivo o submit en vuelo, evita race con setTimeout)_
+- [x] 9.8 Botón "Enviar" en `SimulacroPage` que invoca `EnviarSimulacroUseCase`, navega a `/home` tras éxito — delegar a `frontend-builder` _(idempotente frente a doble click; cancela auto-envío antes de invocar)_
+- [x] 9.9 UI de estado "Pendiente de envío..." cuando el envío quedó encolado — delegar a `frontend-builder` _(DEUDA: banner NO rehidrata al volver a la página; estado se pierde con el view-model provider-local)_
+- [x] 9.10 Tests unitarios L1+L2 (todos los use cases, mapeo de errores) — delegar a `test-engineer` _(26 tests: 10 enviar + 8 retomar + 8 programar auto-envio)_
+- [x] 9.11 Tests feature del flujo completo de envío con `HttpTestingController` — delegar a `test-engineer` _(45 nuevos/refactored: 17 adapter enviar + 10 dispatcher + 22 view-model submit/auto-envio + page providers; suite total 376/376)_
 
 ## 10. Actualizar contrato y documentación
 

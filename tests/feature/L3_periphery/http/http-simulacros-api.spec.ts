@@ -194,15 +194,6 @@ describe('HttpSimulacrosApi', () => {
     });
   });
 
-  describe('enviar — stub explícito (sec.9 lo implementa)', () => {
-    it('llamar enviar() lanza Error con mensaje "pendiente — implementar en sec.9"', async () => {
-      await expect(
-        adapter.enviar({
-          simulacroId: 'sim-1',
-          answers: { '1': 'A' },
-          clientSubmittedAt: '2026-06-11T11:55:00Z',
-        }),
-      ).rejects.toThrow(/sec\.9/);
-    });
-  });
+  // Los tests de `enviar()` viven en su propio archivo
+  // `http-simulacros-api-enviar.spec.ts` (sec.9). Acá solo cubrimos GET /simulacros.
 });

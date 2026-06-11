@@ -38,13 +38,34 @@
       }
     </section>
 
+    @if (vm.submissionState() === 'queued') {
+      <div class="queued-banner" role="status" aria-live="polite">
+        <span class="queued-banner__icon" aria-hidden="true">●</span>
+        <div class="queued-banner__copy">
+          <p class="queued-banner__title">Pendiente de envío</p>
+          <p class="queued-banner__detail">
+            Tu envío se procesará cuando vuelva la red.
+          </p>
+        </div>
+      </div>
+    }
+
     <footer class="footer">
       <button type="button" class="btn btn--secondary" (click)="onVolverClick()">
         Volver a inicio
       </button>
-      <!-- TODO sec.9: botón "Enviar" que dispara EnviarSimulacroUseCase. -->
-      <button type="button" class="btn btn--primary" disabled aria-disabled="true">
-        Enviar (próximamente)
+      <button
+        type="button"
+        class="btn btn--primary"
+        [disabled]="vm.isSubmitting() || vm.submissionState() === 'queued'"
+        [attr.aria-disabled]="vm.isSubmitting() || vm.submissionState() === 'queued'"
+        (click)="onEnviarClick()"
+      >
+        @if (vm.isSubmitting()) {
+          Enviando…
+        } @else {
+          Enviar
+        }
       </button>
     </footer>
   } @else if (vm.isLoading()) {

@@ -40,4 +40,8 @@ export class SimulacroPage {
   protected onVolverClick(): void {
     this.vm.volver();
   }
+
+  protected onEnviarClick(): void {
+    void this.vm.submit();
+  }
 }

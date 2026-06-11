@@ -192,15 +192,31 @@ export class InMemoryMarkingsStorage implements MarkingsStorage {
 }
 
 // Doble manual del puerto `SimulacrosApi`. Permite preconfigurar el próximo
-// resultado/rejection de `obtenerDelDia()` y verificar #calls.
-// `enviar()` se deja como stub que rechaza — los tests de sec.9 reemplazarán
-// este fake con uno completo.
+// resultado/rejection de `obtenerDelDia()` y `enviar()`, y registra todas
+// las llamadas a `enviar()` (con su payload exacto) para que los tests
+// puedan verificar que se preservó `clientSubmittedAt` original entre
+// intento, encolado y retry.
+//
+// La cola interna `enviarPlan` soporta dos modos:
+//   - "scalar": el mismo resultado/error se devuelve para cada llamada
+//   - "sequence": uno por llamada en orden, útil para tests del retomar
+//     use case con mezcla de éxito + NetworkError.
 export class FakeSimulacrosApi implements SimulacrosApi {
   private nextObtener:
     | { kind: 'resolve'; result: SimulacrosListResult }
     | { kind: 'reject'; error: Error }
     | null = null;
   private obtenerCalls = 0;
+
+  private enviarScalar:
+    | { kind: 'resolve'; result: EnvioResult }
+    | { kind: 'reject'; error: Error }
+    | null = null;
+  private enviarSequence: (
+    | { kind: 'resolve'; result: EnvioResult }
+    | { kind: 'reject'; error: Error }
+  )[] = [];
+  private enviarCalls: EnvioRequest[] = [];
 
   willResolveObtenerDelDia(result: SimulacrosListResult): void {
     this.nextObtener = { kind: 'resolve', result };
@@ -214,6 +230,26 @@ export class FakeSimulacrosApi implements SimulacrosApi {
     return this.obtenerCalls;
   }
 
+  willResolveEnviar(result: EnvioResult): void {
+    this.enviarScalar = { kind: 'resolve', result };
+  }
+
+  willRejectEnviar(error: Error): void {
+    this.enviarScalar = { kind: 'reject', error };
+  }
+
+  // Sembrar una secuencia: 1 entry por cada llamada esperada a enviar().
+  // Útil para RetomarEnviosPendientesUseCase con N envíos en cola.
+  willEnviarInSequence(
+    plan: readonly ({ kind: 'resolve'; result: EnvioResult } | { kind: 'reject'; error: Error })[],
+  ): void {
+    this.enviarSequence = [...plan];
+  }
+
+  getEnviarCalls(): readonly EnvioRequest[] {
+    return this.enviarCalls;
+  }
+
   async obtenerDelDia(): Promise<SimulacrosListResult> {
     this.obtenerCalls++;
     if (!this.nextObtener) {
@@ -225,8 +261,23 @@ export class FakeSimulacrosApi implements SimulacrosApi {
     return this.nextObtener.result;
   }
 
-  async enviar(_req: EnvioRequest): Promise<EnvioResult> {
-    throw new Error('FakeSimulacrosApi.enviar() pendiente — sec.9 lo cubre.');
+  async enviar(req: EnvioRequest): Promise<EnvioResult> {
+    this.enviarCalls.push(req);
+    if (this.enviarSequence.length > 0) {
+      const next = this.enviarSequence.shift();
+      if (!next) {
+        throw new Error('FakeSimulacrosApi: enviarSequence agotada.');
+      }
+      if (next.kind === 'reject') throw next.error;
+      return next.result;
+    }
+    if (this.enviarScalar) {
+      if (this.enviarScalar.kind === 'reject') throw this.enviarScalar.error;
+      return this.enviarScalar.result;
+    }
+    throw new Error(
+      'FakeSimulacrosApi: configurar willResolveEnviar / willRejectEnviar / willEnviarInSequence antes de llamar enviar()',
+    );
   }
 }
 

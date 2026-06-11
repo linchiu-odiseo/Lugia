@@ -6,6 +6,12 @@ import { convertToParamMap, ParamMap } from '@angular/router';
 import { SimulacroPage } from '../../../../../src/LR_render/pages/simulacro/simulacro.page';
 import { ObtenerSimulacrosDelDiaUseCase } from '../../../../../src/L2_application/use-cases/obtener-simulacros-del-dia.use-case';
 import { MarcarRespuestaUseCase } from '../../../../../src/L2_application/use-cases/marcar-respuesta.use-case';
+import { EnviarSimulacroUseCase } from '../../../../../src/L2_application/use-cases/enviar-simulacro.use-case';
+import {
+  AutoEnvioHandle,
+  ProgramarAutoEnvioInput,
+  ProgramarAutoEnvioUseCase,
+} from '../../../../../src/L2_application/use-cases/programar-auto-envio.use-case';
 import { CLOCK, MARKINGS_STORAGE } from '../../../../../src/app.config';
 import { Simulacro } from '../../../../../src/L1_domain/entities/simulacro';
 import { EstadoSimulacro } from '../../../../../src/L1_domain/value-objects/estado-simulacro';
@@ -72,6 +78,22 @@ class FakeClock implements Clock {
   }
   setServerTime(_st: ServerTime): void {
     /* no-op */
+  }
+}
+
+// Fakes mínimos para sec.9: el SimulacroPage instancia el view-model que
+// inyecta EnviarSimulacroUseCase y ProgramarAutoEnvioUseCase. Estos tests
+// no ejercitan submit/auto-envío (eso vive en el spec del view-model), pero
+// los providers son obligatorios para que el inject() no rompa.
+class FakeEnviarSimulacroUseCase {
+  async execute(): Promise<{ status: 'enviado'; clientSubmittedAt: string }> {
+    return { status: 'enviado', clientSubmittedAt: new Date().toISOString() };
+  }
+}
+
+class FakeProgramarAutoEnvioUseCase {
+  execute(_input: ProgramarAutoEnvioInput): AutoEnvioHandle {
+    return { cancel: () => undefined };
   }
 }
 
@@ -162,6 +184,8 @@ describe('SimulacroPage', () => {
         { provide: ActivatedRoute, useValue: buildActivatedRouteStub(idParam) },
         { provide: ObtenerSimulacrosDelDiaUseCase, useValue: fakeObtener },
         { provide: MarcarRespuestaUseCase, useValue: fakeMarcar },
+        { provide: EnviarSimulacroUseCase, useValue: new FakeEnviarSimulacroUseCase() },
+        { provide: ProgramarAutoEnvioUseCase, useValue: new FakeProgramarAutoEnvioUseCase() },
         { provide: CLOCK, useValue: fakeClock },
         { provide: MARKINGS_STORAGE, useValue: fakeMarkings },
       ],

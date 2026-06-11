@@ -2,12 +2,21 @@ import { Injectable, Signal, computed, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { ObtenerSimulacrosDelDiaUseCase } from '../../L2_application/use-cases/obtener-simulacros-del-dia.use-case';
 import { MarcarRespuestaUseCase } from '../../L2_application/use-cases/marcar-respuesta.use-case';
+import { EnviarSimulacroUseCase } from '../../L2_application/use-cases/enviar-simulacro.use-case';
+import {
+  AutoEnvioHandle,
+  ProgramarAutoEnvioUseCase,
+} from '../../L2_application/use-cases/programar-auto-envio.use-case';
 import { CLOCK, MARKINGS_STORAGE } from '../../app.config';
 import { Simulacro } from '../../L1_domain/entities/simulacro';
 import { Alternativa } from '../../L1_domain/value-objects/alternativa';
 import { AlternativaValue, AnswersMap } from '../../L1_domain/ports/markings-storage';
 import { NetworkError } from '../../L1_domain/errors/network.error';
 import { SessionExpiredError } from '../../L1_domain/errors/session-expired.error';
+import { SimulacroCerradoError } from '../../L1_domain/errors/simulacro-cerrado.error';
+import { SimulacroNoAsignadoError } from '../../L1_domain/errors/simulacro-no-asignado.error';
+import { InvalidSubmissionTimeError } from '../../L1_domain/errors/invalid-submission-time.error';
+import { InvalidPayloadError } from '../../L1_domain/errors/invalid-payload.error';
 
 // Razón de redirect al /home, lo usa el view-model para no renderizar UI de
 // error en la página. Si en el futuro queremos un toast global, el `flash`
@@ -20,7 +29,17 @@ export type SimulacroErrorState =
   | 'expired-during-session'
   | 'session-expired'
   | 'network'
+  | 'invalid-submission-time'
+  | 'invalid-payload'
   | 'unknown';
+
+// Estado del flujo de envío. 'idle' antes de cualquier intento;
+// 'sending' mientras el POST está en vuelo; 'sent' tras éxito (la página
+// va a /home, por lo que el alumno no llega a verlo casi); 'queued' cuando
+// el POST falló por NetworkError y el envío quedó en cola para retry — el
+// alumno se queda en la página viendo el banner naranja hasta que decida
+// volver manualmente o expire el ticker.
+export type SubmissionState = 'idle' | 'sending' | 'sent' | 'queued' | 'error';
 
 // El countdown re-renderiza cada segundo. Mismo patrón que HomePageViewModel:
 // nowTick es un signal puro alimentado por el puerto Clock (server-anchored).
@@ -42,6 +61,8 @@ const SHOW_SECONDS_BELOW_MS = 5 * 60_000;
 export class SimulacroPageViewModel {
   private readonly obtenerSimulacros = inject(ObtenerSimulacrosDelDiaUseCase);
   private readonly marcarRespuesta = inject(MarcarRespuestaUseCase);
+  private readonly enviarSimulacro = inject(EnviarSimulacroUseCase);
+  private readonly programarAutoEnvio = inject(ProgramarAutoEnvioUseCase);
   private readonly markings = inject(MARKINGS_STORAGE);
   private readonly clock = inject(CLOCK);
   private readonly router = inject(Router);
@@ -51,6 +72,8 @@ export class SimulacroPageViewModel {
   readonly isLoading = signal(false);
   readonly errorState = signal<SimulacroErrorState | null>(null);
   readonly nowTick = signal<Date>(this.clock.now());
+  readonly isSubmitting = signal(false);
+  readonly submissionState = signal<SubmissionState>('idle');
 
   // Lista derivada de números de pregunta 1..count. Recomputa solo cuando
   // cambia el simulacro — barato.
@@ -77,6 +100,7 @@ export class SimulacroPageViewModel {
   });
 
   private countdownTimer: ReturnType<typeof setInterval> | null = null;
+  private autoEnvioHandle: AutoEnvioHandle | null = null;
   private started = false;
   private stopped = false;
 
@@ -134,11 +158,13 @@ export class SimulacroPageViewModel {
     this.simulacro.set(encontrado);
     await this.loadMarcaciones(encontrado);
     this.startCountdownTicker();
+    this.scheduleAutoEnvio(encontrado);
   }
 
   stop(): void {
     this.stopped = true;
     this.stopCountdownTicker();
+    this.cancelAutoEnvio();
   }
 
   // Toggle de marca. Si la nueva letra coincide con la actual → desmarca
@@ -171,6 +197,124 @@ export class SimulacroPageViewModel {
 
   volver(): void {
     void this.router.navigate(['/home']);
+  }
+
+  // Envío manual disparado por el botón "Enviar". Idempotente frente a
+  // doble click (si ya hay un POST en vuelo no relanza). Cancela primero
+  // el auto-envío para que el manual gane: nunca queremos que el timer
+  // dispare un segundo POST mientras el alumno ya está enviando.
+  //
+  // Si el use case retorna `status === 'queued'` significa que el POST
+  // falló por NetworkError; el use case ya encoló el envío. La página NO
+  // navega — el alumno se queda viendo el banner naranja. El dispatcher
+  // global (EnvioRetryDispatcher) hace el retry cuando vuelve la red; el
+  // alumno puede tocar "Volver" cuando quiera, el envío ya está en cola.
+  async submit(): Promise<void> {
+    if (this.isSubmitting()) return;
+    const s = this.simulacro();
+    if (s === null) return;
+    if (!s.estado.is('abierto')) return;
+
+    this.cancelAutoEnvio();
+    this.isSubmitting.set(true);
+    this.submissionState.set('sending');
+
+    try {
+      const result = await this.enviarSimulacro.execute({ simulacroId: s.id });
+      if (result.status === 'enviado') {
+        this.submissionState.set('sent');
+        void this.router.navigate(['/home']);
+      } else {
+        this.submissionState.set('queued');
+      }
+    } catch (err) {
+      this.handleSubmissionError(err);
+    } finally {
+      this.isSubmitting.set(false);
+    }
+  }
+
+  // Programa el auto-envío en el momento de `simulacro.fin`. Los callbacks
+  // viven en el view-model para que cuando el timer dispare la UI reaccione
+  // en signals locales — el use case no conoce ni el Router ni el estado.
+  //
+  // Edge case: si el alumno ya inició un envío manual (`isSubmitting=true`)
+  // cuando el timer dispara, el manual ya canceló este handle en `submit()`,
+  // así que el callback NO debería correr. Lo defensivo aquí es no relanzar
+  // estado de envío encima si ya hay uno en vuelo.
+  private scheduleAutoEnvio(simulacro: Simulacro): void {
+    this.cancelAutoEnvio();
+    this.autoEnvioHandle = this.programarAutoEnvio.execute({
+      simulacro,
+      onResult: (result) => {
+        // El timer ya disparó: el handle representa un cancelable agotado.
+        // Lo soltamos para que `maybeRedirectIfExpired` no quede bloqueado
+        // indefinidamente si el auto-envío terminó en `enviado` y vuelve
+        // alguna corrida del ticker antes de `stop()`.
+        this.autoEnvioHandle = null;
+        if (this.isSubmitting()) return;
+        if (this.stopped) return;
+        if (result.status === 'enviado') {
+          this.submissionState.set('sent');
+          void this.router.navigate(['/home']);
+        } else {
+          this.submissionState.set('queued');
+        }
+      },
+      onError: (err) => {
+        this.autoEnvioHandle = null;
+        if (this.isSubmitting()) return;
+        if (this.stopped) return;
+        this.handleSubmissionError(err);
+      },
+    });
+  }
+
+  private cancelAutoEnvio(): void {
+    if (this.autoEnvioHandle !== null) {
+      this.autoEnvioHandle.cancel();
+      this.autoEnvioHandle = null;
+    }
+  }
+
+  // Mapea errores del envío a errorState + redirect. NetworkError no debería
+  // llegar acá: EnviarSimulacroUseCase lo captura y devuelve `status: queued`.
+  // Aun así lo dejamos por defensa: si llegara, lo tratamos como red caída.
+  private handleSubmissionError(err: unknown): void {
+    this.submissionState.set('error');
+    if (err instanceof SimulacroCerradoError) {
+      this.errorState.set('cerrado');
+      void this.router.navigate(['/home']);
+      return;
+    }
+    if (err instanceof SimulacroNoAsignadoError) {
+      this.errorState.set('not-found');
+      void this.router.navigate(['/home']);
+      return;
+    }
+    if (err instanceof InvalidSubmissionTimeError) {
+      this.errorState.set('invalid-submission-time');
+      void this.router.navigate(['/home']);
+      return;
+    }
+    if (err instanceof InvalidPayloadError) {
+      this.errorState.set('invalid-payload');
+      void this.router.navigate(['/home']);
+      return;
+    }
+    if (err instanceof SessionExpiredError) {
+      this.errorState.set('session-expired');
+      void this.router.navigate(['/login']);
+      return;
+    }
+    if (err instanceof NetworkError) {
+      this.errorState.set('network');
+      void this.router.navigate(['/home']);
+      return;
+    }
+    this.errorState.set('unknown');
+    void this.router.navigate(['/home']);
+    throw err;
   }
 
   private async loadMarcaciones(s: Simulacro): Promise<void> {
@@ -209,12 +353,20 @@ export class SimulacroPageViewModel {
   //
   // NO hacemos polling al backend desde acá: agregaría carga sin valor —
   // /home ya refresca cada 120s y al volver vemos el estado actualizado.
-  // En sec.9 esta misma detección dispara `ProgramarAutoEnvioUseCase`.
+  //
+  // Coordinación con el auto-envío: cuando hay un `autoEnvioHandle` vivo o
+  // un envío en vuelo o ya quedó `queued`, NO redirigimos — dejamos que el
+  // callback del auto-envío decida (navega tras éxito, mantiene la página
+  // si quedó en cola). Sin esto, el ticker correría primero y cancelaría
+  // el auto-envío en `stop()` antes de que el timer dispare.
   private maybeRedirectIfExpired(now: Date): void {
     const s = this.simulacro();
     if (s === null) return;
     if (now.getTime() < s.fin.getTime()) return;
     if (this.errorState() !== null) return;
+    if (this.autoEnvioHandle !== null) return;
+    if (this.isSubmitting()) return;
+    if (this.submissionState() === 'queued') return;
     this.errorState.set('expired-during-session');
     this.stopCountdownTicker();
     void this.router.navigate(['/home']);
