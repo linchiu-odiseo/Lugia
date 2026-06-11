@@ -34,10 +34,10 @@
 
 ## 5. auth-session — bearer rolling refresh (MODIFIED)
 
-- [ ] 5.1 Definir `ActualizarBearerSiRenovadoUseCase` en `src/L2_application/auth/actualizar-bearer-si-renovado.ts` que recibe un string opcional y actualiza la sesión persistida si no está vacío
-- [ ] 5.2 Extender `auth-headers.interceptor.ts` para leer header `X-New-Bearer` en responses exitosas y despachar el use case
-- [ ] 5.3 Asegurar que la lógica de logout silencioso ante 401 sigue intacta (no se rompe la modificación)
-- [ ] 5.4 Tests feature en `tests/feature/auth-rolling-refresh.spec.ts` (header presente, ausente, vacío, en distintos endpoints) — delegar a `test-engineer`
+- [x] 5.1 Definir `ActualizarBearerSiRenovadoUseCase` en `src/L2_application/auth/actualizar-bearer-si-renovado.ts` que recibe un string opcional y actualiza la sesión persistida si no está vacío _(archivado en `src/L2_application/use-cases/` siguiendo el patrón existente; el path en tasks.md era una sugerencia)_
+- [x] 5.2 Extender `auth-headers.interceptor.ts` para leer header `X-New-Bearer` en responses exitosas y despachar el use case
+- [x] 5.3 Asegurar que la lógica de logout silencioso ante 401 sigue intacta (no se rompe la modificación) _(el `tap` no consume el evento ni transforma el error; el observable original continúa idéntico)_
+- [x] 5.4 Tests feature en `tests/feature/auth-rolling-refresh.spec.ts` (header presente, ausente, vacío, en distintos endpoints) — delegar a `test-engineer` _(8 use case + 8 interceptor + arreglo de auth-headers.spec pre-existente; suite total 146/146)_
 
 ## 6. exam-list — entidad + use case + adapter HTTP
 

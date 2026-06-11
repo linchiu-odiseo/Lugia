@@ -7,6 +7,8 @@ import {
 } from '@angular/common/http/testing';
 import { authHeadersInterceptor } from '../../../../src/L3_periphery/interceptors/auth-headers.interceptor';
 import { LocalStorageSessionStorage } from '../../../../src/L3_periphery/storage/local-storage-session-storage';
+import { ActualizarBearerSiRenovadoUseCase } from '../../../../src/L2_application/use-cases/actualizar-bearer-si-renovado.use-case';
+import { SessionStorage } from '../../../../src/L1_domain/ports/session-storage';
 import { Session } from '../../../../src/L1_domain/entities/session';
 import { BearerToken } from '../../../../src/L1_domain/value-objects/bearer-token';
 import { environment } from '../../../../src/environments/environment';
@@ -29,6 +31,14 @@ describe('authHeadersInterceptor', () => {
         provideHttpClient(withInterceptors([authHeadersInterceptor])),
         provideHttpClientTesting(),
         LocalStorageSessionStorage,
+        // El interceptor inyecta `ActualizarBearerSiRenovadoUseCase` para el
+        // rolling refresh (Fase 2). Los tests de Fase 1 abajo no asertean
+        // sobre el renew, pero el provider debe existir o la DI explota.
+        {
+          provide: ActualizarBearerSiRenovadoUseCase,
+          useFactory: (s: SessionStorage) => new ActualizarBearerSiRenovadoUseCase(s),
+          deps: [LocalStorageSessionStorage],
+        },
       ],
     });
     http = TestBed.inject(HttpClient);

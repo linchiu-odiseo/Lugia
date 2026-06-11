@@ -22,6 +22,7 @@ import { MarkingsStorage } from './L1_domain/ports/markings-storage';
 import { LoginUseCase } from './L2_application/use-cases/login.use-case';
 import { LogoutUseCase } from './L2_application/use-cases/logout.use-case';
 import { GetActiveSessionUseCase } from './L2_application/use-cases/get-active-session.use-case';
+import { ActualizarBearerSiRenovadoUseCase } from './L2_application/use-cases/actualizar-bearer-si-renovado.use-case';
 
 // L3 implementaciones de los puertos + el interceptor HTTP único.
 import { HttpAuthRepository } from './L3_periphery/http/http-auth-repository';
@@ -73,6 +74,12 @@ export const appConfig: ApplicationConfig = {
     {
       provide: GetActiveSessionUseCase,
       useFactory: (storage: SessionStorage) => new GetActiveSessionUseCase(storage),
+      deps: [SESSION_STORAGE],
+    },
+    {
+      provide: ActualizarBearerSiRenovadoUseCase,
+      useFactory: (storage: SessionStorage) =>
+        new ActualizarBearerSiRenovadoUseCase(storage),
       deps: [SESSION_STORAGE],
     },
   ],
