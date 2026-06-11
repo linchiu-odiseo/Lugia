@@ -31,6 +31,7 @@ Por cada archivo `.ts` bajo `src/<layer>/`, verifica que NO contenga imports pro
   - `src/L3_periphery/`
 
 Grep concreto recomendado:
+
 - `from ['"]@angular` dentro de `src/L1_domain` o `src/L2_application` → violación
 - `from ['"]rxjs` dentro de `src/L1_domain` o `src/L2_application` → violación
 - `from ['"]\.\.\/L3_periphery` o equivalente desde `src/LR_render` → violación
@@ -97,6 +98,7 @@ Devuelve siempre un veredicto estructurado, incluso si todo pasa:
 ```
 
 **Veredicto:**
+
 - 0 violaciones críticas + 0 smells → APROBADO.
 - 0 violaciones críticas + smells → APROBADO con observaciones.
 - ≥1 violación crítica → RECHAZADO.

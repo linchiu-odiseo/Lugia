@@ -47,7 +47,8 @@ export class LoginViewModel {
       await this.router.navigate(['/home']);
     } catch (err) {
       if (err instanceof InvalidCredentialsError) this.errorMessage.set('Credenciales inválidas');
-      else if (err instanceof NetworkError) this.errorMessage.set('No se pudo conectar al servidor. Inténtalo de nuevo.');
+      else if (err instanceof NetworkError)
+        this.errorMessage.set('No se pudo conectar al servidor. Inténtalo de nuevo.');
       else throw err;
     } finally {
       this.isSubmitting.set(false);
@@ -86,7 +87,7 @@ export class LoginPage {
 
 ```html
 @if (vm.errorMessage()) {
-  <p class="error">{{ vm.errorMessage() }}</p>
+<p class="error">{{ vm.errorMessage() }}</p>
 }
 <button type="submit" [disabled]="form.invalid || vm.isSubmitting()">
   @if (vm.isSubmitting()) { Ingresando… } @else { Ingresar }

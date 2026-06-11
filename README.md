@@ -26,15 +26,15 @@ npm run dev
 
 ## Comandos
 
-| Comando                  | Qué hace                                                       |
-|--------------------------|----------------------------------------------------------------|
-| `npm run dev`            | Dev server en `http://localhost:4200` (preflight: build-env)  |
-| `npm test`               | Vitest sobre `tests/`                                          |
-| `npm run lint`           | ESLint flat config sobre `src/` y `tests/`                     |
-| `npm run format`         | Prettier write                                                 |
-| `npm run format:check`   | Prettier check (CI-friendly)                                   |
-| `npm run build`          | Bundle producción en `dist/` (preflight: build-env)            |
-| `npm run build-env`      | Regenera `src/environments/` desde `.env`                      |
+| Comando                | Qué hace                                                     |
+| ---------------------- | ------------------------------------------------------------ |
+| `npm run dev`          | Dev server en `http://localhost:4200` (preflight: build-env) |
+| `npm test`             | Vitest sobre `tests/`                                        |
+| `npm run lint`         | ESLint flat config sobre `src/` y `tests/`                   |
+| `npm run format`       | Prettier write                                               |
+| `npm run format:check` | Prettier check (CI-friendly)                                 |
+| `npm run build`        | Bundle producción en `dist/` (preflight: build-env)          |
+| `npm run build-env`    | Regenera `src/environments/` desde `.env`                    |
 
 ## Estructura
 
@@ -68,10 +68,10 @@ Hexagonal estricta en 4 capas. Las reglas de import están enforzadas por ESLint
 
 ## Variables de entorno
 
-| Variable        | Origen | Ejemplo dev                               |
-|-----------------|--------|-------------------------------------------|
-| `API_BASE_URL`  | `.env` | `http://localhost:2004/v3`                |
-| `API_KEY`       | `.env` | `apifake_<provided-by-backend>`           |
+| Variable       | Origen | Ejemplo dev                     |
+| -------------- | ------ | ------------------------------- |
+| `API_BASE_URL` | `.env` | `http://localhost:2004/v3`      |
+| `API_KEY`      | `.env` | `apifake_<provided-by-backend>` |
 
 `.env` está en `.gitignore`. Documentación de variables en `.env.example`.
 

@@ -4,17 +4,18 @@
 
 ## Naming
 
-| Tipo                         | Convención            | Ejemplo                              |
-|------------------------------|-----------------------|--------------------------------------|
-| Clases / Interfaces / Tipos  | `PascalCase`          | `Session`, `AuthRepository`          |
-| Métodos / Funciones / Vars   | `camelCase`           | `isExpired`, `bearerToken`           |
-| Constantes module-level      | `SCREAMING_SNAKE_CASE`| `STORAGE_KEY`, `API_TIMEOUT_MS`      |
-| Archivos                     | `kebab-case`          | `http-auth-repository.ts`            |
-| Componentes Angular (clase)  | `PascalCase` sin sufijo | `LoginPage`, `App` (no `LoginComponent`) |
-| Componentes Angular (archivo)| `kebab-case` sin sufijo `.component` (Angular 22 default) | `login.page.ts`, `app.ts` |
-| Carpetas                     | `kebab-case` o `snake_case` para layers | `L1_domain/`, `value-objects/` |
+| Tipo                          | Convención                                                | Ejemplo                                  |
+| ----------------------------- | --------------------------------------------------------- | ---------------------------------------- |
+| Clases / Interfaces / Tipos   | `PascalCase`                                              | `Session`, `AuthRepository`              |
+| Métodos / Funciones / Vars    | `camelCase`                                               | `isExpired`, `bearerToken`               |
+| Constantes module-level       | `SCREAMING_SNAKE_CASE`                                    | `STORAGE_KEY`, `API_TIMEOUT_MS`          |
+| Archivos                      | `kebab-case`                                              | `http-auth-repository.ts`                |
+| Componentes Angular (clase)   | `PascalCase` sin sufijo                                   | `LoginPage`, `App` (no `LoginComponent`) |
+| Componentes Angular (archivo) | `kebab-case` sin sufijo `.component` (Angular 22 default) | `login.page.ts`, `app.ts`                |
+| Carpetas                      | `kebab-case` o `snake_case` para layers                   | `L1_domain/`, `value-objects/`           |
 
 **Sufijos por rol** (file naming):
+
 - `*.page.ts` — pages standalone routeables (`login.page.ts`)
 - `*.view-model.ts` — view-models con Signals (`login.view-model.ts`)
 - `*.use-case.ts` — use cases L2 (`login.use-case.ts`)
@@ -61,11 +62,13 @@ Una clase / interface por archivo. Si dos cosas siempre se usan juntas y no tien
 **Default: no escribas comentarios.** Si removiéndolo el código no se vuelve confuso, no agrega valor.
 
 Cuándo SÍ vale un comentario:
+
 - **WHY no obvio:** una constraint oculta, un workaround específico, una decisión arquitectónica contraintuitiva.
 - **Invariante sutil:** algo que el siguiente lector violaría sin querer.
 - **Referencia a discusión externa:** link a issue o decisión documentada en `openspec/changes/`.
 
 NUNCA:
+
 - Explicar QUÉ hace el código (los nombres lo dicen).
 - "Used by X" / "Added for Y flow" — eso vive en el commit / PR / issue.
 - Docstrings de varios párrafos en métodos pequeños.

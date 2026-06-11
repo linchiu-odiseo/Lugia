@@ -15,7 +15,7 @@ src/
 ## Reglas de dependencia
 
 | Capa | PUEDE importar de        | NO PUEDE importar de                                |
-|------|--------------------------|-----------------------------------------------------|
+| ---- | ------------------------ | --------------------------------------------------- |
 | L1   | nada interno             | L2, L3, LR, `@angular/*`, `rxjs`, browser APIs      |
 | L2   | L1                       | L3, LR, `@angular/*`, `rxjs`                        |
 | L3   | L1, L2, Angular          | LR                                                  |
@@ -77,8 +77,12 @@ export class Session {
     if (!userEmail.includes('@')) throw new InvalidSessionError('email malformado');
   }
 
-  isExpired(now: Date): boolean { /* política real */ }
-  principal(): string { return this.userEmail; }
+  isExpired(now: Date): boolean {
+    /* política real */
+  }
+  principal(): string {
+    return this.userEmail;
+  }
 }
 ```
 
@@ -103,14 +107,23 @@ Mappers SOLO si hay traducción real: nombres distintos, tipos distintos, valida
 // ❌ MAL — no aporta nada
 class LogoutUseCase {
   constructor(private repo: AuthRepository) {}
-  execute() { return this.repo.logout(); }
+  execute() {
+    return this.repo.logout();
+  }
 }
 
 // ✅ BIEN — si hay orquestación
 class LogoutUseCase {
-  constructor(private repo: AuthRepository, private storage: SessionStorage) {}
+  constructor(
+    private repo: AuthRepository,
+    private storage: SessionStorage,
+  ) {}
   async execute() {
-    try { await this.repo.logout(); } catch { /* best-effort */ }
+    try {
+      await this.repo.logout();
+    } catch {
+      /* best-effort */
+    }
     await this.storage.clear();
   }
 }

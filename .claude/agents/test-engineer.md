@@ -17,12 +17,12 @@ Lee siempre primero:
 
 ## Distribución de tests
 
-| Capa | Carpeta                       | Entorno     | Patrón                                    |
-|------|-------------------------------|-------------|-------------------------------------------|
-| L1   | `tests/unit/L1_domain/`       | Vitest node | Construcción + métodos + invariantes      |
-| L2   | `tests/unit/L2_application/`  | Vitest node | Use cases con dobles manuales de puertos  |
+| Capa | Carpeta                       | Entorno                  | Patrón                                                                          |
+| ---- | ----------------------------- | ------------------------ | ------------------------------------------------------------------------------- |
+| L1   | `tests/unit/L1_domain/`       | Vitest node              | Construcción + métodos + invariantes                                            |
+| L2   | `tests/unit/L2_application/`  | Vitest node              | Use cases con dobles manuales de puertos                                        |
 | L3   | `tests/feature/L3_periphery/` | Vitest+jsdom + `TestBed` | Adapters con `HttpTestingController`, storage real con `localStorage` mockeable |
-| LR   | `tests/feature/LR_render/`    | Vitest+jsdom + `TestBed` | Componentes con `ComponentFixture`        |
+| LR   | `tests/feature/LR_render/`    | Vitest+jsdom + `TestBed` | Componentes con `ComponentFixture`                                              |
 
 ## Reglas estrictas
 
@@ -31,9 +31,15 @@ Lee siempre primero:
   ```ts
   class InMemorySessionStorage implements SessionStorage {
     private store: Session | null = null;
-    async read() { return this.store; }
-    async write(s: Session) { this.store = s; }
-    async clear() { this.store = null; }
+    async read() {
+      return this.store;
+    }
+    async write(s: Session) {
+      this.store = s;
+    }
+    async clear() {
+      this.store = null;
+    }
   }
   ```
 
@@ -94,7 +100,9 @@ describe('LoginUseCase', () => {
     const prev = new Session(new BearerToken('5|old'), 'otra@panda.test', new Date());
     await storage.write(prev);
     repo.willReject(new InvalidCredentialsError());
-    await expect(useCase.execute({ email: 'x', password: 'y' })).rejects.toThrow(InvalidCredentialsError);
+    await expect(useCase.execute({ email: 'x', password: 'y' })).rejects.toThrow(
+      InvalidCredentialsError,
+    );
     expect((await storage.read())?.userEmail).toBe('otra@panda.test');
   });
 });
@@ -120,7 +128,10 @@ describe('HttpAuthRepository', () => {
   it('mapea 401 a InvalidCredentialsError sin depender del mensaje', async () => {
     const pending = repo.login({ email: 'x', password: 'y' });
     const req = httpMock.expectOne((r) => r.url.endsWith('/auth/login') && r.method === 'POST');
-    req.flush({ message: 'cualquier-string-del-backend' }, { status: 401, statusText: 'Unauthorized' });
+    req.flush(
+      { message: 'cualquier-string-del-backend' },
+      { status: 401, statusText: 'Unauthorized' },
+    );
     await expect(pending).rejects.toThrow(InvalidCredentialsError);
   });
 });
@@ -132,7 +143,9 @@ describe('HttpAuthRepository', () => {
 describe('LoginPage', () => {
   class FakeLoginUseCase {
     public lastCalledWith?: { email: string; password: string };
-    async execute(input: { email: string; password: string }) { this.lastCalledWith = input; }
+    async execute(input: { email: string; password: string }) {
+      this.lastCalledWith = input;
+    }
   }
 
   it('al submit válido invoca LoginUseCase y navega a /home', async () => {
