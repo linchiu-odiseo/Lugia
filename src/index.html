@@ -16,17 +16,22 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <link rel="manifest" href="manifest.json" />
     <!--
-      Content Security Policy (Fase 1, dev).
+      Content Security Policy.
       Defensa contra XSS roba-bearer (design D4): cualquier script inyectado
       no podrá emitir requests a hosts arbitrarios, solo a 'self' (la propia
-      PWA) y al backend de API-FAKE explícitamente listado.
-      PROD: el CSP de producción debe enviarse como HTTP header desde el
-      servidor que sirve el bundle (con el `connect-src` apuntando al backend
-      productivo), o reescribirse vía Angular fileReplacements en build.
+      PWA) y al backend explícitamente listado en `connect-src`.
+
+      El origin del backend en `connect-src` lo MANTIENE SINCRONIZADO el
+      script `scripts/build-env.mjs` con `API_BASE_URL` del `.env`. NO editar
+      a mano: el próximo `npm run dev`/`build`/`test` lo va a reescribir.
+
+      PROD: este meta CSP queda incluido en el bundle. Si el server que
+      sirve la PWA en producción además inyecta un CSP via HTTP header, ese
+      header gana — útil para directivas más estrictas que requieran nonce.
     -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' http://localhost:2004; img-src 'self' data:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://least-elevation-pressed-aside.trycloudflare.com; img-src 'self' data:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'"
     />
     <link rel="icon" type="image/x-icon" href="favicon.ico" />
   </head>

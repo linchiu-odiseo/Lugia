@@ -1,5 +1,9 @@
-// Lee `.env` en la raíz del repo y genera
-// `src/environments/environment.ts` y `environment.production.ts`.
+// Lee `.env` en la raíz del repo y genera:
+//   - `src/environments/environment.ts` y `environment.production.ts`
+//   - sincroniza el `connect-src` del CSP en `src/index.html` con el origin
+//     derivado de `API_BASE_URL`, para que cambiar `.env` no requiera
+//     editar el HTML a mano (el browser bloquearía las requests si el CSP
+//     apunta a un origin distinto del que usa el código TS).
 //
 // Ejecutado automáticamente por los hooks `predev`, `prebuild`, `pretest` de
 // `package.json`. Falla con exit 1 si falta `.env` o si quedan variables sin
@@ -83,3 +87,44 @@ writeFileSync(
 );
 
 console.log(`✓ Generated src/environments/environment{,.production}.ts from .env`);
+
+// --- Sincronizar CSP del index.html con API_BASE_URL ---
+//
+// El meta CSP del index.html restringe `connect-src` para mitigar XSS
+// roba-bearer. Cuando .env cambia el host de la API, este script reescribe
+// el origin que aparece en `connect-src` para que el browser permita las
+// requests. Es idempotente: si el origin ya está sincronizado, no toca el
+// archivo (evita ruido en git status).
+
+let apiOrigin;
+try {
+  apiOrigin = new URL(env.API_BASE_URL).origin;
+} catch {
+  console.error(`✘ API_BASE_URL inválida en .env: "${env.API_BASE_URL}".`);
+  process.exit(1);
+}
+
+const indexPath = resolve(repoRoot, 'src/index.html');
+const indexBefore = readFileSync(indexPath, 'utf8');
+
+// Regex sobre el atributo content del meta CSP. Capta cualquier sub-string
+// dentro de `connect-src 'self' <ORIGIN>;` o `connect-src 'self' <ORIGIN>"`
+// (último item de la lista de directivas) y lo reemplaza por apiOrigin.
+const cspConnectSrcRe = /(connect-src\s+'self'\s+)([^;"']+)/;
+const match = indexBefore.match(cspConnectSrcRe);
+if (!match) {
+  console.error(
+    '✘ No se encontró `connect-src \'self\' <origin>` en src/index.html. ' +
+      'Revisar el meta Content-Security-Policy.',
+  );
+  process.exit(1);
+}
+
+const currentOrigin = match[2].trim();
+if (currentOrigin === apiOrigin) {
+  console.log(`✓ CSP connect-src ya apunta a ${apiOrigin} (sin cambios)`);
+} else {
+  const indexAfter = indexBefore.replace(cspConnectSrcRe, `$1${apiOrigin}`);
+  writeFileSync(indexPath, indexAfter);
+  console.log(`✓ CSP connect-src actualizado: ${currentOrigin} → ${apiOrigin}`);
+}
