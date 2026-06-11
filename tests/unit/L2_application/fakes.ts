@@ -11,6 +11,14 @@ import {
   MarkingsStorage,
 } from '../../../src/L1_domain/ports/markings-storage';
 import { Session } from '../../../src/L1_domain/entities/session';
+import { Clock } from '../../../src/L1_domain/ports/clock';
+import {
+  EnvioRequest,
+  EnvioResult,
+  SimulacrosApi,
+  SimulacrosListResult,
+} from '../../../src/L1_domain/ports/simulacros-api';
+import { ServerTime } from '../../../src/L1_domain/value-objects/server-time';
 
 export class InMemorySessionStorage implements SessionStorage {
   private store: Session | null = null;
@@ -180,5 +188,65 @@ export class InMemoryMarkingsStorage implements MarkingsStorage {
     }
     this.marcaciones.clear();
     this.queue.clear();
+  }
+}
+
+// Doble manual del puerto `SimulacrosApi`. Permite preconfigurar el próximo
+// resultado/rejection de `obtenerDelDia()` y verificar #calls.
+// `enviar()` se deja como stub que rechaza — los tests de sec.9 reemplazarán
+// este fake con uno completo.
+export class FakeSimulacrosApi implements SimulacrosApi {
+  private nextObtener:
+    | { kind: 'resolve'; result: SimulacrosListResult }
+    | { kind: 'reject'; error: Error }
+    | null = null;
+  private obtenerCalls = 0;
+
+  willResolveObtenerDelDia(result: SimulacrosListResult): void {
+    this.nextObtener = { kind: 'resolve', result };
+  }
+
+  willRejectObtenerDelDia(error: Error): void {
+    this.nextObtener = { kind: 'reject', error };
+  }
+
+  getObtenerCalls(): number {
+    return this.obtenerCalls;
+  }
+
+  async obtenerDelDia(): Promise<SimulacrosListResult> {
+    this.obtenerCalls++;
+    if (!this.nextObtener) {
+      throw new Error(
+        'FakeSimulacrosApi: configurar willResolveObtenerDelDia o willRejectObtenerDelDia antes de llamar obtenerDelDia()',
+      );
+    }
+    if (this.nextObtener.kind === 'reject') throw this.nextObtener.error;
+    return this.nextObtener.result;
+  }
+
+  async enviar(_req: EnvioRequest): Promise<EnvioResult> {
+    throw new Error('FakeSimulacrosApi.enviar() pendiente — sec.9 lo cubre.');
+  }
+}
+
+// Doble manual del puerto `Clock`. Registra las llamadas a setServerTime
+// para que los tests del use case puedan assertear que el side-effect ocurrió.
+// `now()` devuelve el último ServerTime seteado, o new Date() como fallback.
+export class FakeClock implements Clock {
+  private currentServerTime: ServerTime | null = null;
+  private setServerTimeCalls: ServerTime[] = [];
+
+  now(): Date {
+    return this.currentServerTime ? this.currentServerTime.value : new Date();
+  }
+
+  setServerTime(serverTime: ServerTime): void {
+    this.currentServerTime = serverTime;
+    this.setServerTimeCalls.push(serverTime);
+  }
+
+  getSetServerTimeCalls(): readonly ServerTime[] {
+    return this.setServerTimeCalls;
   }
 }

@@ -17,15 +17,18 @@ import { SessionStorage } from './L1_domain/ports/session-storage';
 import { Clock } from './L1_domain/ports/clock';
 import { Connectivity } from './L1_domain/ports/connectivity';
 import { MarkingsStorage } from './L1_domain/ports/markings-storage';
+import { SimulacrosApi } from './L1_domain/ports/simulacros-api';
 
 // L2 use cases — clases TS puras sin @Injectable; las proveemos por factory.
 import { LoginUseCase } from './L2_application/use-cases/login.use-case';
 import { LogoutUseCase } from './L2_application/use-cases/logout.use-case';
 import { GetActiveSessionUseCase } from './L2_application/use-cases/get-active-session.use-case';
 import { ActualizarBearerSiRenovadoUseCase } from './L2_application/use-cases/actualizar-bearer-si-renovado.use-case';
+import { ObtenerSimulacrosDelDiaUseCase } from './L2_application/use-cases/obtener-simulacros-del-dia.use-case';
 
 // L3 implementaciones de los puertos + el interceptor HTTP único.
 import { HttpAuthRepository } from './L3_periphery/http/http-auth-repository';
+import { HttpSimulacrosApi } from './L3_periphery/http/http-simulacros-api';
 import { LocalStorageSessionStorage } from './L3_periphery/storage/local-storage-session-storage';
 import { IndexedDbMarkingsStorage } from './L3_periphery/storage/indexed-db-markings-storage';
 import { ServerAnchoredClock } from './L3_periphery/clock/server-anchored-clock';
@@ -37,6 +40,7 @@ export const SESSION_STORAGE = new InjectionToken<SessionStorage>('SESSION_STORA
 export const CLOCK = new InjectionToken<Clock>('CLOCK');
 export const CONNECTIVITY = new InjectionToken<Connectivity>('CONNECTIVITY');
 export const MARKINGS_STORAGE = new InjectionToken<MarkingsStorage>('MARKINGS_STORAGE');
+export const SIMULACROS_API = new InjectionToken<SimulacrosApi>('SIMULACROS_API');
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -54,6 +58,7 @@ export const appConfig: ApplicationConfig = {
     { provide: CLOCK, useExisting: ServerAnchoredClock },
     { provide: CONNECTIVITY, useExisting: BrowserConnectivity },
     { provide: MARKINGS_STORAGE, useExisting: IndexedDbMarkingsStorage },
+    { provide: SIMULACROS_API, useExisting: HttpSimulacrosApi },
 
     // Use cases L2: pure TS, sin decorador — Angular los instancia vía factory.
     {
@@ -81,6 +86,12 @@ export const appConfig: ApplicationConfig = {
       useFactory: (storage: SessionStorage) =>
         new ActualizarBearerSiRenovadoUseCase(storage),
       deps: [SESSION_STORAGE],
+    },
+    {
+      provide: ObtenerSimulacrosDelDiaUseCase,
+      useFactory: (api: SimulacrosApi, clock: Clock) =>
+        new ObtenerSimulacrosDelDiaUseCase(api, clock),
+      deps: [SIMULACROS_API, CLOCK],
     },
   ],
 };

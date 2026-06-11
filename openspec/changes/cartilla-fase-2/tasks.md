@@ -41,15 +41,15 @@
 
 ## 6. exam-list — entidad + use case + adapter HTTP
 
-- [ ] 6.1 Definir entidad `Simulacro` en `src/L1_domain/entities/simulacro.ts` con `id`, `area`, `name`, `count`, `inicio`, `fin`, `estado`
-- [ ] 6.2 Definir value-object `EstadoSimulacro` en `src/L1_domain/value-objects/estado-simulacro.ts` con `pendiente | abierto | enviado | cerrado` y validación
-- [ ] 6.3 Definir error `InvalidSimulacroError` en `src/L1_domain/errors/`
-- [ ] 6.4 Definir puerto `SimulacrosApi` en `src/L1_domain/ports/simulacros-api.ts` con `obtenerDelDia()` y `enviar(simulacroId, answers, clientSubmittedAt)`
-- [ ] 6.5 Implementar `ObtenerSimulacrosDelDiaUseCase` en `src/L2_application/simulacros/obtener-del-dia.ts` (incluye captura del `serverTime` y entrega al `Clock`)
-- [ ] 6.6 Implementar adapter `HttpSimulacrosApi` en `src/L3_periphery/http/http-simulacros-api.ts` parseando la respuesta y manejando 401 (SessionExpiredError) y errores de red (NetworkError)
-- [ ] 6.7 Registrar `SimulacrosApi` → `HttpSimulacrosApi` en `app.config.ts`
-- [ ] 6.8 Tests unitarios L1+L2 (entidad, value-object, use case con puerto mock) — delegar a `test-engineer`
-- [ ] 6.9 Tests feature del adapter con `HttpTestingController` — delegar a `test-engineer`
+- [x] 6.1 Definir entidad `Simulacro` en `src/L1_domain/entities/simulacro.ts` con `id`, `area`, `name`, `count`, `inicio`, `fin`, `estado`
+- [x] 6.2 Definir value-object `EstadoSimulacro` en `src/L1_domain/value-objects/estado-simulacro.ts` con `pendiente | abierto | enviado | cerrado` y validación
+- [x] 6.3 Definir error `InvalidSimulacroError` en `src/L1_domain/errors/` _(+ `SessionExpiredError` requerido por el adapter)_
+- [x] 6.4 Definir puerto `SimulacrosApi` en `src/L1_domain/ports/simulacros-api.ts` con `obtenerDelDia()` y `enviar(simulacroId, answers, clientSubmittedAt)`
+- [x] 6.5 Implementar `ObtenerSimulacrosDelDiaUseCase` en `src/L2_application/simulacros/obtener-del-dia.ts` (incluye captura del `serverTime` y entrega al `Clock`) _(ubicado en `use-cases/` siguiendo patrón Fase 1)_
+- [x] 6.6 Implementar adapter `HttpSimulacrosApi` en `src/L3_periphery/http/http-simulacros-api.ts` parseando la respuesta y manejando 401 (SessionExpiredError) y errores de red (NetworkError) _(stub explícito en `enviar()` hasta sec.9)_
+- [x] 6.7 Registrar `SimulacrosApi` → `HttpSimulacrosApi` en `app.config.ts`
+- [x] 6.8 Tests unitarios L1+L2 (entidad, value-object, use case con puerto mock) — delegar a `test-engineer` _(52 tests: 24 Simulacro + 19 EstadoSimulacro + 9 use case)_
+- [x] 6.9 Tests feature del adapter con `HttpTestingController` — delegar a `test-engineer` _(17 tests con DTOs parametrizados; suite total 213/213)_
 
 ## 7. exam-list — UI en /home
 

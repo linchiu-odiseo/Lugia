@@ -3,9 +3,7 @@
 // para desmarcado. El backend espera este mismo shape en el POST de envío.
 export type AlternativaValue = 'A' | 'B' | 'C' | 'D' | 'E' | null;
 
-export interface AnswersMap {
-  [pregunta: string]: AlternativaValue;
-}
+export type AnswersMap = Record<string, AlternativaValue>;
 
 // Envío encolado cuando el POST al backend falla por red. El cliente
 // conserva el `clientSubmittedAt` original (anclado al server-time del
