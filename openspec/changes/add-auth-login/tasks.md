@@ -95,6 +95,6 @@
 ## 9. Cierre del cambio
 
 - [ ] 9.1 Documentar resultados de verificación 8.x en `openspec/changes/add-auth-login/verification.md`
-- [ ] 9.2 Confirmar que cada tarea de 4.x–7.x corresponde a un commit quirúrgico con mensaje detallado siguiendo `agents/coding-style.md`
+- [x] 9.2 Commits organizados por **capa/sección** (no per-task individual) — desviación consciente del estricto "1 commit por concern" porque se hicieron retroactivos tras detectar que faltaba disciplina de commit a mitad de Fase 1. 8 commits hechos siguiendo el formato `<type>(<layer>): <subject> + body + Refs:`: `1191f5d` chore(infra) bootstrap, `a0db606` docs(spec) openspec, `b35b1ed` docs(meta) project docs + subagentes, `be53e1e` feat(L1), `8c243df` feat(L2), `26cc72d` feat(L3), `de96e43` feat(LR), `1dfda6f` chore(infra) tools/-mcp. Cada commit referencia el rango de tasks que cubre y el body explica cada concern dentro del commit. **De aquí en adelante:** commit surgical inmediato después de cada sección SDD (no batches retroactivos) — `feedback-workflow-discipline` en memoria.
 - [x] 9.3 `docs/phase-2-followups.md` creado con 18 follow-ups organizados por área: arquitectura (token expiration, /auth/me on startup), testing (coverage thresholds, vitest projects split), seguridad (CSP via HTTP header, storage del bearer), offline (IndexedDB SessionStorage, service worker), UX (i18n, mensajes 401, registro, MFA), observabilidad (telemetría, métricas), commits y CI (commitlint, GitHub Actions), tooling (.mjs → .ts, MCP).
-- [ ] 9.4 Ejecutar `openspec validate add-auth-login` (si el comando existe) o revisión manual final del cambio
+- [x] 9.4 `openspec validate add-auth-login` → "Change 'add-auth-login' is valid".
