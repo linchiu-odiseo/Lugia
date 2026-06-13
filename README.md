@@ -1,4 +1,4 @@
-# NeonPanda
+# Lugia
 
 PWA Angular para cartilla de marcaciones de simulacros. Fase 1 (login + home protegido) → Fase 2 (cartilla offline-capable). Backend: API-FAKE (Laravel + Sanctum + Postgres) en Docker.
 
@@ -7,7 +7,7 @@ PWA Angular para cartilla de marcaciones de simulacros. Fase 1 (login + home pro
 ```bash
 # 1. Clonar e instalar
 git clone <repo-url>
-cd NeonPanda
+cd Lugia
 npm install
 
 # 2. Configurar variables

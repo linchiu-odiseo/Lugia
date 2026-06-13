@@ -11,7 +11,7 @@
 
 ## 2. Bootstrap del proyecto Angular
 
-- [x] 2.1 Ejecutar `ng new` en la raíz del repo (Angular 22 generado: standalone por defecto, routing, scss, strict, vitest como runner; analytics deshabilitado, SSR descartado). Comando real: `ng new neonpanda --directory=. --standalone --routing --style=scss --strict --skip-tests=false` previa mudanza temporal de `openspec/`.
+- [x] 2.1 Ejecutar `ng new` en la raíz del repo (Angular 22 generado: standalone por defecto, routing, scss, strict, vitest como runner; analytics deshabilitado, SSR descartado). Comando real: `ng new lugia --directory=. --standalone --routing --style=scss --strict --skip-tests=false` previa mudanza temporal de `openspec/`.
 - [x] 2.2 Reorganizar `src/` con la nueva convención de Angular 22 (componentes sin sufijo `.component`):
   - `main.ts` y `index.html` YA están en la raíz de `src/` (ng new 22 los planta ahí) — no requieren acción
   - Crear `src/L1_domain/`, `src/L2_application/`, `src/L3_periphery/` con `.gitkeep` (vacías hasta secciones 4–6)
@@ -58,7 +58,7 @@
 
 ## 6. L3_periphery — adapters Angular
 
-- [x] 6.1 `LocalStorageSessionStorage` con clave `neonpanda.session`, parsing defensivo (JSON inválido, campos faltantes, fecha inválida, BearerToken inválido → todos devuelven `null` y limpian la clave).
+- [x] 6.1 `LocalStorageSessionStorage` con clave `lugia.session`, parsing defensivo (JSON inválido, campos faltantes, fecha inválida, BearerToken inválido → todos devuelven `null` y limpian la clave).
 - [x] 6.2 `HttpAuthRepository` con `login` (mapea 200→Session, 401→InvalidCredentialsError, 5xx/0→NetworkError clasificando por status no por mensaje) y `logout` (POST best-effort, no clasifica).
 - [x] 6.3 `authHeadersInterceptor` functional: lee storage async (via `from()`+`switchMap`), inyecta `X-API-Key` siempre que URL `startsWith(apiBaseUrl)` y `Authorization: Bearer` solo si hay sesión. Requests a otros hosts pasan sin tocar headers.
 - [x] 6.4 `authGuard` functional async: consume `GetActiveSessionUseCase` por DI, retorna `true` si hay sesión o `UrlTree('/login')` si no.

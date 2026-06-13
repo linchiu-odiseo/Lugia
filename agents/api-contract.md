@@ -1,4 +1,4 @@
-# API-FAKE — Contrato consumido por NeonPanda
+# API-FAKE — Contrato consumido por Lugia
 
 > **Fuente de verdad para subagentes** (`frontend-builder`, `test-engineer`).
 > Cualquier adapter en `src/L3_periphery/http/` debe cumplir este contrato.

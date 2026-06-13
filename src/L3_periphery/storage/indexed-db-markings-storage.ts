@@ -8,7 +8,7 @@ import {
 import { OfflineStorageUnavailableError } from '../../L1_domain/errors/offline-storage-unavailable.error';
 import { LocalStorageSessionStorage } from './local-storage-session-storage';
 
-const DB_NAME = 'neonpanda-cartilla';
+const DB_NAME = 'lugia-cartilla';
 const DB_VERSION = 1;
 const STORE = 'data';
 

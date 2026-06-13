@@ -1,6 +1,6 @@
 ## Why
 
-Fase 1 dejó al alumno logueado en `/home`, pero la PWA no hace nada productivo todavía. **Fase 2 entrega la funcionalidad central del producto**: que el alumno marque sus simulacros del día desde el celular, durante la ventana horaria asignada, con tolerancia a pérdida de red. Sin esto, NeonPanda no resuelve el problema real (cartilla virtual de marcaciones para simulacros). Lo construimos ahora porque ya existe el shell de autenticación y el contrato con el equipo de backend está acordado y locked.
+Fase 1 dejó al alumno logueado en `/home`, pero la PWA no hace nada productivo todavía. **Fase 2 entrega la funcionalidad central del producto**: que el alumno marque sus simulacros del día desde el celular, durante la ventana horaria asignada, con tolerancia a pérdida de red. Sin esto, Lugia no resuelve el problema real (cartilla virtual de marcaciones para simulacros). Lo construimos ahora porque ya existe el shell de autenticación y el contrato con el equipo de backend está acordado y locked.
 
 ## What Changes
 

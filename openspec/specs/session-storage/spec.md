@@ -36,7 +36,7 @@ El mecanismo de persistencia SHALL exponerse como un puerto `SessionStorage` def
 
 ### Requirement: Integridad del dato persistido
 
-El `SessionStorage` SHALL serializar la `Session` como JSON bajo una clave única (`neonpanda.session`). Al leer, si el JSON no se puede parsear o no representa una `Session` válida, la entrada SHALL descartarse y la operación de lectura SHALL devolver `null`.
+El `SessionStorage` SHALL serializar la `Session` como JSON bajo una clave única (`lugia.session`). Al leer, si el JSON no se puede parsear o no representa una `Session` válida, la entrada SHALL descartarse y la operación de lectura SHALL devolver `null`.
 
 #### Scenario: Lectura exitosa
 
@@ -45,7 +45,7 @@ El `SessionStorage` SHALL serializar la `Session` como JSON bajo una clave únic
 
 #### Scenario: JSON corrupto
 
-- **WHEN** la clave `neonpanda.session` contiene texto no parseable como JSON
+- **WHEN** la clave `lugia.session` contiene texto no parseable como JSON
 - **THEN** `sessionStorage.read()` devuelve `null`
 - **AND** la clave se elimina
 
@@ -57,10 +57,10 @@ El `SessionStorage` SHALL serializar la `Session` como JSON bajo una clave únic
 
 ### Requirement: Clave de almacenamiento estable y namespaced
 
-La clave usada en el storage SHALL ser exactamente `neonpanda.session`. Cambiarla SHALL considerarse un breaking change y requerir migración explícita.
+La clave usada en el storage SHALL ser exactamente `lugia.session`. Cambiarla SHALL considerarse un breaking change y requerir migración explícita.
 
 #### Scenario: Clave única para evitar colisiones
 
 - **WHEN** se inspecciona la implementación de `LocalStorageSessionStorage`
-- **THEN** usa la constante `STORAGE_KEY = 'neonpanda.session'` sin variantes ni prefijos dinámicos
+- **THEN** usa la constante `STORAGE_KEY = 'lugia.session'` sin variantes ni prefijos dinámicos
 

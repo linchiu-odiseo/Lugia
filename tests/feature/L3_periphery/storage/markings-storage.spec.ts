@@ -22,7 +22,7 @@ import { OfflineStorageUnavailableError } from '../../../../src/L1_domain/errors
 import { Session } from '../../../../src/L1_domain/entities/session';
 import { BearerToken } from '../../../../src/L1_domain/value-objects/bearer-token';
 
-const DB_NAME = 'neonpanda-cartilla';
+const DB_NAME = 'lugia-cartilla';
 const STORE = 'data';
 
 // Doble de `LocalStorageSessionStorage` que devuelve la sesión actualmente

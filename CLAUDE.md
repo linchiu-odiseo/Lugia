@@ -1,10 +1,10 @@
-# NeonPanda — guía para Claude Code
+# Lugia — guía para Claude Code
 
 > Esta nota la lee Claude Code al arrancar en este repo. Resume el proyecto, el stack y las reglas para que cualquier sesión (humana o agente) pueda colaborar sin pedir contexto desde cero.
 
 ## Qué es esto
 
-**NeonPanda** es una PWA Angular para móviles que sirve como **cartilla virtual de marcaciones** para simulacros (exámenes de práctica). El alumno marca las alternativas A–E por pregunta en pantalla; el enunciado viene impreso en una hoja física que entrega el profesor. Backend: **API-FAKE** (Laravel + Sanctum + Postgres) en Docker, editable.
+**Lugia** es una PWA Angular para móviles que sirve como **cartilla virtual de marcaciones** para simulacros (exámenes de práctica). El alumno marca las alternativas A–E por pregunta en pantalla; el enunciado viene impreso en una hoja física que entrega el profesor. Backend: **API-FAKE** (Laravel + Sanctum + Postgres) en Docker, editable.
 
 **Fase actual: Fase 2 ARCHIVADA (cartilla)** — completada el 2026-06-12. Capacidades implementadas: `/home` con lista de simulacros del día (4 estados: pendiente|abierto|enviado|cerrado), countdown server-anchored, polling 120s + focus refresh + pull-to-refresh. `/simulacro/:id` con grilla A–E offline-first + protección accidental-change (long-press 500ms). Envío con `clientSubmittedAt` server-anchored, auto-envío T=0 (jitter ±3s), queue offline en IndexedDB. Bearer rolling 6h vía `X-New-Bearer`. Conectividad badge + server-time sync. 400/400 tests passing, lint y format clean.
 
@@ -25,7 +25,7 @@ Fase 1 (archivada 2026-06-11): login funcional + redirect a `/home` protegido po
 ## Estructura del repo
 
 ```
-NeonPanda/
+Lugia/
 ├── src/
 │   ├── L1_domain/          dominio puro (entidades, value-objects, ports, errores)
 │   ├── L2_application/     use cases puros

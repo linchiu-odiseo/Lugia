@@ -1,6 +1,6 @@
 ## Why
 
-NeonPanda es un MVP de PWA móvil en Angular que debe consumir API-FAKE (Laravel + Sanctum + Postgres en Docker) como cartilla virtual de marcaciones para simulacros. La Fase 1 del MVP requiere un flujo de autenticación funcional verificable de punta a punta en este equipo: sin login no hay sesión, sin sesión no hay forma de habilitar la cartilla en Fase 2. Esta es además la primera línea de código del proyecto, por lo que debe establecer los cimientos arquitectónicos (hexagonal estricto L1/L2/L3/LR, Angular standalone + Signals, ESLint+Prettier, subagentes, convención de commits) que toda la base de código heredará.
+Lugia es un MVP de PWA móvil en Angular que debe consumir API-FAKE (Laravel + Sanctum + Postgres en Docker) como cartilla virtual de marcaciones para simulacros. La Fase 1 del MVP requiere un flujo de autenticación funcional verificable de punta a punta en este equipo: sin login no hay sesión, sin sesión no hay forma de habilitar la cartilla en Fase 2. Esta es además la primera línea de código del proyecto, por lo que debe establecer los cimientos arquitectónicos (hexagonal estricto L1/L2/L3/LR, Angular standalone + Signals, ESLint+Prettier, subagentes, convención de commits) que toda la base de código heredará.
 
 ## What Changes
 

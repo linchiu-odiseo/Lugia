@@ -1,4 +1,4 @@
-# Glosario de dominio — NeonPanda
+# Glosario de dominio — Lugia
 
 > Vocabulario compartido por código, tests y conversaciones del equipo.
 > Si un término no está acá, no es de dominio: probablemente es de framework, infraestructura o convención de código (ver `architecture-rules.md` / `coding-style.md`).
@@ -31,7 +31,7 @@
 
 **Usuario** — Alumno autenticado. Identidad mínima en Fase 1: `email` + `name`.
 
-**Sesión (Session)** — Entidad de dominio (L1) que representa un usuario autenticado activo. Contiene `bearerToken`, `userEmail`, `issuedAt`. Una sola sesión activa simultánea por dispositivo. Persistida en `localStorage` bajo la clave `neonpanda.session`.
+**Sesión (Session)** — Entidad de dominio (L1) que representa un usuario autenticado activo. Contiene `bearerToken`, `userEmail`, `issuedAt`. Una sola sesión activa simultánea por dispositivo. Persistida en `localStorage` bajo la clave `lugia.session`.
 
 **Bearer token (BearerToken)** — Value-object L1. Sanctum personal access token devuelto por `POST /auth/login`. String opaco. En Fase 2 tiene TTL nominal de 6h con renovación rolling vía header `X-New-Bearer` en respuestas autenticadas. Si el backend lo incluye, el interceptor dispara `ActualizarBearerSiRenovadoUseCase` silenciosamente.
 

@@ -3,7 +3,7 @@ import { SessionStorage } from '../../L1_domain/ports/session-storage';
 import { Session } from '../../L1_domain/entities/session';
 import { BearerToken } from '../../L1_domain/value-objects/bearer-token';
 
-const STORAGE_KEY = 'neonpanda.session';
+const STORAGE_KEY = 'lugia.session';
 
 interface PersistedShape {
   bearerToken?: string;

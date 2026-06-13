@@ -7,7 +7,7 @@
   },
   "newProjectRoot": "projects",
   "projects": {
-    "neonpanda": {
+    "lugia": {
       "projectType": "application",
       "schematics": {
         "@schematics/angular:component": {
@@ -61,10 +61,10 @@
           "builder": "@angular/build:dev-server",
           "configurations": {
             "production": {
-              "buildTarget": "neonpanda:build:production"
+              "buildTarget": "lugia:build:production"
             },
             "development": {
-              "buildTarget": "neonpanda:build:development"
+              "buildTarget": "lugia:build:development"
             }
           },
           "defaultConfiguration": "development"

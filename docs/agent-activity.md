@@ -1,4 +1,4 @@
-# Agent activity log — NeonPanda
+# Agent activity log — Lugia
 
 Auto-generado por `.claude/hooks/log-agent-usage.ps1` en cada PostToolUse del tool `Agent`.
 **Tokens reportados son del subagente**, no del orchestrator. Para el total de la sesión y costo combinado, usa `/cost` en Claude Code.
@@ -29,4 +29,4 @@ Auto-generado por `.claude/hooks/log-agent-usage.ps1` en cada PostToolUse del to
 | 2026-06-11 17:28:50 | hexagonal-guard  | Audit hexagonal boundaries                                       | opus-4-7 | 80,356       | --    | --       | $0.5024   |
 | 2026-06-12 16:02:53 | test-engineer    | Tests para protecci├│n anti-cambio accidental                    | opus-4-7 | 110,013      | --    | --       | $0.2325   |
 | 2026-06-12 17:46:36 | sdd-verify       | Verify cartilla-fase-2 SDD change                                | opus-4-7 | 59,438       | --    | --       | $0.2172   |
-| 2026-06-12 17:56:19 | sdd-archive | Archive cartilla-fase-2 SDD change | opus-4-7 | 88,354 | -- | -- | $0.2238 |
+| 2026-06-12 17:56:19 | sdd-archive      | Archive cartilla-fase-2 SDD change                               | opus-4-7 | 88,354       | --    | --       | $0.2238   |

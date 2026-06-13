@@ -26,7 +26,7 @@ Todos los 9 pasos del checklist resultaron ✅ en el browser del usuario.
 |---|---|---|
 | 8.5 | Login con credenciales válidas | Redirige a `/home`, saludo con email correcto. |
 | 8.6 | Refresh en `/home` | Sesión preservada, no redirige a `/login`. |
-| 8.7 | Logout desde `/home` | `neonpanda.session` desaparece de `localStorage`, navega a `/login`. |
+| 8.7 | Logout desde `/home` | `lugia.session` desaparece de `localStorage`, navega a `/login`. |
 | 8.8 | Acceso directo a `/home` sin sesión | `authGuard` redirige a `/login`. |
 | 8.9 | Acceso directo a `/login` con sesión | `publicOnlyGuard` redirige a `/home`. |
 | 8.10 | Credenciales inválidas | Mensaje "Credenciales inválidas", password limpio, email conservado, botón habilitado. |
@@ -42,7 +42,7 @@ Los 5 spec files de `openspec/changes/add-auth-login/specs/` definen escenarios 
 - **`auth-ui/spec.md`** — Form reactivo con validación, navegación post-login, mensajes legibles tras error, shell de `HomePage`, Signals en view-models, strings es-PE. Cubierto por `login.page.spec.ts`, `home.page.spec.ts` + E2E manual 8.5, 8.7, 8.10, 8.11.
 - **`http-client/spec.md`** — Inyección automática de `X-API-Key` siempre y `Authorization: Bearer` cuando hay sesión, `HttpAuthRepository` con mapeo DTO/error, configuración HTTP centralizada, prohibido `fetch` directo. Cubierto por `http-auth-repository.spec.ts`, `auth-headers.interceptor.spec.ts` + E2E 8.12, 8.13.
 - **`route-protection/spec.md`** — Rutas protegidas exigen sesión, rutas públicas accesibles sin login (excepto si ya hay sesión), raíz redirige según estado, guard depende de use case no de storage. Cubierto por `auth.guard.spec.ts`, `public-only.guard.spec.ts` + E2E 8.5, 8.6, 8.8, 8.9.
-- **`session-storage/spec.md`** — Persistencia entre recargas, aislamiento tras puerto, integridad del JSON, clave estable `neonpanda.session`. Cubierto por `local-storage-session-storage.spec.ts` + E2E 8.6, 8.7.
+- **`session-storage/spec.md`** — Persistencia entre recargas, aislamiento tras puerto, integridad del JSON, clave estable `lugia.session`. Cubierto por `local-storage-session-storage.spec.ts` + E2E 8.6, 8.7.
 
 ## Decisiones registradas durante apply
 

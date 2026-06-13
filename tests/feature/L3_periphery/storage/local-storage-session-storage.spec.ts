@@ -3,7 +3,7 @@ import { LocalStorageSessionStorage } from '../../../../src/L3_periphery/storage
 import { Session } from '../../../../src/L1_domain/entities/session';
 import { BearerToken } from '../../../../src/L1_domain/value-objects/bearer-token';
 
-const STORAGE_KEY = 'neonpanda.session';
+const STORAGE_KEY = 'lugia.session';
 
 describe('LocalStorageSessionStorage', () => {
   let storage: LocalStorageSessionStorage;
@@ -29,7 +29,7 @@ describe('LocalStorageSessionStorage', () => {
       expect(restored?.issuedAt.toISOString()).toBe('2026-06-11T12:00:00.000Z');
     });
 
-    it('usa la clave exacta `neonpanda.session`', async () => {
+    it('usa la clave exacta `lugia.session`', async () => {
       const session = new Session(new BearerToken('6|abc'), 'a@b.com', new Date());
       await storage.write(session);
       expect(localStorage.getItem(STORAGE_KEY)).not.toBeNull();

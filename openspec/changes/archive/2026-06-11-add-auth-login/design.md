@@ -1,6 +1,6 @@
 ## Context
 
-NeonPanda parte de cero: no hay código previo, ni siquiera un `package.json`. Este cambio establece simultáneamente (a) el primer flujo funcional del producto y (b) los cimientos arquitectónicos que toda la base de código heredará. API-FAKE corre en Docker en la PC del usuario, expone `POST /auth/login` (Sanctum bearer) y exige `X-API-Key` en cada request por middleware. El usuario tiene cero experiencia previa en Angular pero conoce arquitectura limpia y SDD, y quiere verificar el flujo localmente antes de avanzar a Fase 2 (cartilla).
+Lugia parte de cero: no hay código previo, ni siquiera un `package.json`. Este cambio establece simultáneamente (a) el primer flujo funcional del producto y (b) los cimientos arquitectónicos que toda la base de código heredará. API-FAKE corre en Docker en la PC del usuario, expone `POST /auth/login` (Sanctum bearer) y exige `X-API-Key` en cada request por middleware. El usuario tiene cero experiencia previa en Angular pero conoce arquitectura limpia y SDD, y quiere verificar el flujo localmente antes de avanzar a Fase 2 (cartilla).
 
 ## Goals / Non-Goals
 
@@ -44,7 +44,7 @@ src/
 
 ### D2: Bootstrap con Angular CLI estándar, no esquema custom
 
-`ng new neonpanda --standalone --routing --style=scss --strict --skip-tests=false`
+`ng new lugia --standalone --routing --style=scss --strict --skip-tests=false`
 
 Luego se reorganiza el `src/` generado en las 4 carpetas. `app/` desaparece — su contenido se distribuye entre `LR_render/` y configuración raíz.
 
@@ -62,7 +62,7 @@ Karma+Jasmine es el default de Angular CLI pero es lento y el ecosistema migra a
 
 ### D4: Almacenamiento del bearer — `localStorage` con caveat documentado
 
-El bearer + email del usuario se persisten en `localStorage` bajo la clave `neonpanda.session`. Se acepta el riesgo XSS (Phase 1, app interna, sin contenido inyectable de terceros).
+El bearer + email del usuario se persisten en `localStorage` bajo la clave `lugia.session`. Se acepta el riesgo XSS (Phase 1, app interna, sin contenido inyectable de terceros).
 
 **Mitigaciones:**
 - CSP estricta (`default-src 'self'`) en `index.html`.

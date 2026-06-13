@@ -1,11 +1,11 @@
 # Solicitud de contrato API-FAKE para `add-auth-login` (Fase 1)
 
 **Para:** equipo backend de API-FAKE
-**De:** equipo frontend NeonPanda
+**De:** equipo frontend Lugia
 **Cambio relacionado:** `openspec/changes/add-auth-login`
 **Estado:** ✅ CONFIRMADO por backend (2026-06-11) — endpoints abiertos y operativos en API-FAKE Docker
 
-Este documento definió los endpoints, headers y formatos que la PWA NeonPanda necesita en API-FAKE (Docker local) para completar la Fase 1 (login funcional). El backend confirmó valores concretos; quedan registrados en la sección 0.
+Este documento definió los endpoints, headers y formatos que la PWA Lugia necesita en API-FAKE (Docker local) para completar la Fase 1 (login funcional). El backend confirmó valores concretos; quedan registrados en la sección 0.
 
 ---
 
@@ -214,14 +214,14 @@ curl -i -X POST $API_BASE_URL/auth/login \
 curl -i -X POST $API_BASE_URL/auth/login \
   -H "X-API-Key: $API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"email":"user@neonpanda.test","password":"secret"}'
+  -d '{"email":"user@lugia.test","password":"secret"}'
 # esperado: 200, body con { token, user }
 
 # 3. Credenciales inválidas
 curl -i -X POST $API_BASE_URL/auth/login \
   -H "X-API-Key: $API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"email":"user@neonpanda.test","password":"wrong"}'
+  -d '{"email":"user@lugia.test","password":"wrong"}'
 # esperado: 401, body { "message": "Credenciales inválidas" }
 
 # 4. Logout con bearer válido
