@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="es-PE" translate="no">
   <head>
     <meta charset="utf-8" />
     <title>NeonPanda</title>
@@ -8,6 +8,15 @@
       name="viewport"
       content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"
     />
+    <!--
+      Bloquea auto-traducción del navegador (Chrome Android principalmente):
+      sin esto, traductores agresivos convierten letras sueltas "A B C D E"
+      de las bubbles del simulacro en notas de solfeo ("do", "mi", "re") y
+      rompen la cartilla. `translate="no"` en <html> cubre todo el árbol DOM;
+      la meta `google content="notranslate"` además suprime el banner
+      "¿Traducir esta página?" específico de Chrome.
+    -->
+    <meta name="google" content="notranslate" />
     <meta name="theme-color" content="#0b0f17" />
     <meta name="color-scheme" content="dark" />
     <meta name="apple-mobile-web-app-capable" content="yes" />

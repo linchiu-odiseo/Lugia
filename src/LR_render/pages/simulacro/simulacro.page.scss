@@ -94,6 +94,12 @@
   background: rgba(30, 41, 59, 0.55);
   border: 1px solid rgba(55, 65, 81, 0.5);
   font-variant-numeric: tabular-nums;
+  // Transición suave entre estados locked/editing para que el cambio de
+  // protección se sienta intencional y no como un flash.
+  transition:
+    border-color 180ms ease,
+    background 180ms ease,
+    box-shadow 180ms ease;
 
   &__numero {
     text-align: right;
@@ -106,6 +112,34 @@
     display: flex;
     justify-content: space-between;
     gap: 0.4rem;
+  }
+
+  // Anti-cambio accidental: fila ya marcada → bloqueada. Visualmente queda
+  // como el estado default (la burbuja marcada es el indicador suficiente);
+  // la protección se descubre al intentar cambiar y ver el toast.
+  &--locked {
+    // sin overrides — comportamiento default ya cubre.
+  }
+
+  // Modo edición activado por long-press. Borde de acento + glow sutil para
+  // que el alumno sepa que esta fila acepta cambios ahora mismo. Auto-cierra
+  // a los 5s o al aplicar el cambio.
+  &--editing {
+    border-color: #f472b6;
+    background: rgba(244, 114, 182, 0.12);
+    box-shadow: 0 0 0 2px rgba(244, 114, 182, 0.18);
+  }
+
+  // Hint inline que aparece debajo de las bubbles cuando la fila entra a
+  // edición. Spannea ambas columnas del grid para quedar centrado bajo la
+  // fila completa.
+  &__hint {
+    grid-column: 1 / -1;
+    margin-top: 0.4rem;
+    font-size: 0.72rem;
+    color: #f9a8d4;
+    text-align: center;
+    letter-spacing: 0.02em;
   }
 }
 
@@ -202,6 +236,45 @@
   }
   50% {
     opacity: 0.35;
+  }
+}
+
+// Toast de descubrimiento del gesto long-press. Aparece una sola vez por
+// sesión la primera vez que el alumno intenta cambiar una respuesta en una
+// fila bloqueada con tap simple. Se posiciona inline al final del main para
+// no requerir z-index ni manejo de portales; el simulacro tiene flex column
+// así que cae naturalmente entre el grid y el footer.
+.hint-toast {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.7rem 0.9rem;
+  border-radius: 0.55rem;
+  background: rgba(244, 114, 182, 0.16);
+  border: 1px solid rgba(244, 114, 182, 0.45);
+  color: #fbcfe8;
+  cursor: pointer;
+  // Fade-in suave para que el toast no aparezca de golpe. Se oculta cuando
+  // el view-model pone `showHintToast` en false (por timer o por dismiss).
+  animation: hint-toast-fade-in 220ms ease-out;
+
+  &__copy {
+    margin: 0;
+    font-size: 0.85rem;
+    line-height: 1.35;
+    text-align: center;
+  }
+}
+
+@keyframes hint-toast-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 

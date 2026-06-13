@@ -431,12 +431,18 @@ describe('SimulacroPageViewModel', () => {
       vm.stop();
     });
 
-    it('marcar la misma letra que ya está marcada → desmarca (toggle a null)', async () => {
+    it('marcar la misma letra en modo edición → desmarca (toggle a null) y la fila vuelve a unmarked', async () => {
       const sim = buildSimulacro('sim-1', 'abierto', { count: 5 });
       fakeObtener.willResolve([sim]);
       fakeMarkings.seedMarcaciones('sim-1', { '5': 'C' });
       const vm = createVm();
       await vm.start('sim-1');
+
+      // Fila empieza locked (tiene marca C). Para cambiar/desmarcar hay
+      // que entrar a edición primero — sin eso, el tap es no-op.
+      expect(vm.rowState(5)).toBe('locked');
+      vm.enterEditing(5);
+      expect(vm.rowState(5)).toBe('editing');
 
       await vm.marcar(5, 'C');
 
@@ -447,15 +453,23 @@ describe('SimulacroPageViewModel', () => {
         alternativa: null,
       });
       expect(vm.marcaciones()['5']).toBeNull();
+      // Tras aplicar el cambio, sale de edición y como ya no hay marca
+      // queda en `unmarked`.
+      expect(vm.rowState(5)).toBe('unmarked');
       vm.stop();
     });
 
-    it('marcar letra distinta a la actual → reemplaza la letra (sin desmarcar)', async () => {
+    it('marcar letra distinta en modo edición → reemplaza la letra y la fila vuelve a locked', async () => {
       const sim = buildSimulacro('sim-1', 'abierto', { count: 5 });
       fakeObtener.willResolve([sim]);
       fakeMarkings.seedMarcaciones('sim-1', { '5': 'C' });
       const vm = createVm();
       await vm.start('sim-1');
+
+      // Fila empieza locked. Entramos a edición y luego cambiamos.
+      expect(vm.rowState(5)).toBe('locked');
+      vm.enterEditing(5);
+      expect(vm.rowState(5)).toBe('editing');
 
       await vm.marcar(5, 'A');
 
@@ -466,6 +480,8 @@ describe('SimulacroPageViewModel', () => {
         alternativa: 'A',
       });
       expect(vm.marcaciones()['5']).toBe('A');
+      // Cambio aplicado → fila vuelve a locked con la nueva marca.
+      expect(vm.rowState(5)).toBe('locked');
       vm.stop();
     });
 
@@ -480,6 +496,296 @@ describe('SimulacroPageViewModel', () => {
 
       expect(vm.marcaciones()['1']).toBe('B');
       expect(vm.marcaciones()['3']).toBe('D');
+      vm.stop();
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Protección contra cambios accidentales (Requirement en exam-marking)
+  //
+  // Las filas tienen 3 estados: `unmarked` | `locked` | `editing`. El primer
+  // marcado entra a `locked`; modificar requiere `editing` (entrada por
+  // long-press en el page). En el view-model probamos directo la máquina
+  // de estados sin simular el long-press.
+  // -----------------------------------------------------------------------
+  describe('protección contra cambios accidentales — máquina de estados de fila', () => {
+    it('rowState() default es `unmarked` para una pregunta sin marca', async () => {
+      const sim = buildSimulacro('sim-1', 'abierto', { count: 5 });
+      fakeObtener.willResolve([sim]);
+      const vm = createVm();
+      await vm.start('sim-1');
+
+      expect(vm.rowState(3)).toBe('unmarked');
+      expect(vm.editingRow()).toBeNull();
+      vm.stop();
+    });
+
+    it('tras marcar(5, C), rowState(5) pasa a `locked`', async () => {
+      const sim = buildSimulacro('sim-1', 'abierto', { count: 5 });
+      fakeObtener.willResolve([sim]);
+      const vm = createVm();
+      await vm.start('sim-1');
+
+      await vm.marcar(5, 'C');
+
+      expect(vm.rowState(5)).toBe('locked');
+      vm.stop();
+    });
+
+    it('enterEditing(5) sobre fila locked → rowState=editing, editingRow=5', async () => {
+      const sim = buildSimulacro('sim-1', 'abierto', { count: 5 });
+      fakeObtener.willResolve([sim]);
+      fakeMarkings.seedMarcaciones('sim-1', { '5': 'C' });
+      const vm = createVm();
+      await vm.start('sim-1');
+
+      vm.enterEditing(5);
+
+      expect(vm.rowState(5)).toBe('editing');
+      expect(vm.editingRow()).toBe(5);
+      vm.stop();
+    });
+
+    it('enterEditing(5) sobre fila unmarked → no-op (rowState sigue unmarked, editingRow sigue null)', async () => {
+      const sim = buildSimulacro('sim-1', 'abierto', { count: 5 });
+      fakeObtener.willResolve([sim]);
+      const vm = createVm();
+      await vm.start('sim-1');
+
+      vm.enterEditing(5);
+
+      expect(vm.rowState(5)).toBe('unmarked');
+      expect(vm.editingRow()).toBeNull();
+      vm.stop();
+    });
+
+    it('enterEditing(5) seguido de enterEditing(7) → 5 vuelve a locked, 7 pasa a editing', async () => {
+      const sim = buildSimulacro('sim-1', 'abierto', { count: 10 });
+      fakeObtener.willResolve([sim]);
+      fakeMarkings.seedMarcaciones('sim-1', { '5': 'C', '7': 'B' });
+      const vm = createVm();
+      await vm.start('sim-1');
+
+      vm.enterEditing(5);
+      expect(vm.editingRow()).toBe(5);
+
+      vm.enterEditing(7);
+
+      expect(vm.rowState(5)).toBe('locked');
+      expect(vm.rowState(7)).toBe('editing');
+      expect(vm.editingRow()).toBe(7);
+      vm.stop();
+    });
+
+    it('tras EDITING_AUTO_LOCK_MS (5000ms) sin acción, la fila editing vuelve a locked automáticamente', async () => {
+      const sim = buildSimulacro('sim-1', 'abierto', { count: 5 });
+      fakeObtener.willResolve([sim]);
+      fakeMarkings.seedMarcaciones('sim-1', { '5': 'C' });
+      vi.useFakeTimers();
+      const vm = createVm();
+      await vm.start('sim-1');
+
+      vm.enterEditing(5);
+      expect(vm.rowState(5)).toBe('editing');
+
+      // 4999ms: aún en editing.
+      vi.advanceTimersByTime(4_999);
+      expect(vm.rowState(5)).toBe('editing');
+
+      // 1ms más completa los 5s → auto-lock.
+      vi.advanceTimersByTime(1);
+      expect(vm.rowState(5)).toBe('locked');
+      expect(vm.editingRow()).toBeNull();
+      vm.stop();
+    });
+
+    it('enterEditing(5) + marcar(5, A) con A!=C → locked con A, y el timer de auto-lock fue cancelado', async () => {
+      const sim = buildSimulacro('sim-1', 'abierto', { count: 5 });
+      fakeObtener.willResolve([sim]);
+      fakeMarkings.seedMarcaciones('sim-1', { '5': 'C' });
+      vi.useFakeTimers();
+      const vm = createVm();
+      await vm.start('sim-1');
+
+      vm.enterEditing(5);
+      await vm.marcar(5, 'A');
+
+      expect(vm.marcaciones()['5']).toBe('A');
+      expect(vm.rowState(5)).toBe('locked');
+      expect(vm.editingRow()).toBeNull();
+
+      // Avanzar 5s no debería disparar nada extra: el timer ya fue cancelado.
+      vi.advanceTimersByTime(5_000);
+      expect(vm.rowState(5)).toBe('locked');
+      expect(vm.editingRow()).toBeNull();
+      vm.stop();
+    });
+
+    it('enterEditing(5) + marcar(5, C) (misma actual) → fila pasa a unmarked (toggle off)', async () => {
+      const sim = buildSimulacro('sim-1', 'abierto', { count: 5 });
+      fakeObtener.willResolve([sim]);
+      fakeMarkings.seedMarcaciones('sim-1', { '5': 'C' });
+      const vm = createVm();
+      await vm.start('sim-1');
+
+      vm.enterEditing(5);
+      await vm.marcar(5, 'C');
+
+      expect(vm.marcaciones()['5']).toBeNull();
+      expect(vm.rowState(5)).toBe('unmarked');
+      expect(vm.editingRow()).toBeNull();
+      vm.stop();
+    });
+
+    it('marcar(5, B) sobre fila locked → no invoca use case, marcación NO cambia, dispara showHintToast', async () => {
+      const sim = buildSimulacro('sim-1', 'abierto', { count: 5 });
+      fakeObtener.willResolve([sim]);
+      fakeMarkings.seedMarcaciones('sim-1', { '5': 'A' });
+      const vm = createVm();
+      await vm.start('sim-1');
+
+      expect(vm.rowState(5)).toBe('locked');
+      expect(vm.showHintToast()).toBe(false);
+
+      await vm.marcar(5, 'B');
+
+      expect(fakeMarcar.calls).toHaveLength(0);
+      expect(vm.marcaciones()['5']).toBe('A');
+      expect(vm.showHintToast()).toBe(true);
+      vm.stop();
+    });
+
+    it('tras HINT_TOAST_VISIBLE_MS (4000ms), showHintToast vuelve a false', async () => {
+      const sim = buildSimulacro('sim-1', 'abierto', { count: 5 });
+      fakeObtener.willResolve([sim]);
+      fakeMarkings.seedMarcaciones('sim-1', { '5': 'A' });
+      vi.useFakeTimers();
+      const vm = createVm();
+      await vm.start('sim-1');
+
+      await vm.marcar(5, 'B'); // dispara el toast
+      expect(vm.showHintToast()).toBe(true);
+
+      // 3999ms: aún visible.
+      vi.advanceTimersByTime(3_999);
+      expect(vm.showHintToast()).toBe(true);
+
+      // 1ms más → el timer cierra el toast.
+      vi.advanceTimersByTime(1);
+      expect(vm.showHintToast()).toBe(false);
+      vm.stop();
+    });
+
+    it('segundo tap sobre fila locked NO re-dispara el toast (idempotente por sesión)', async () => {
+      const sim = buildSimulacro('sim-1', 'abierto', { count: 5 });
+      fakeObtener.willResolve([sim]);
+      fakeMarkings.seedMarcaciones('sim-1', { '5': 'A' });
+      vi.useFakeTimers();
+      const vm = createVm();
+      await vm.start('sim-1');
+
+      // Primer intento: dispara el toast.
+      await vm.marcar(5, 'B');
+      expect(vm.showHintToast()).toBe(true);
+
+      // Avanzamos hasta que el toast se cierra.
+      vi.advanceTimersByTime(4_000);
+      expect(vm.showHintToast()).toBe(false);
+
+      // Segundo intento sobre la misma fila locked: NO debe re-aparecer.
+      await vm.marcar(5, 'D');
+      expect(vm.showHintToast()).toBe(false);
+      vm.stop();
+    });
+
+    it('dismissHintToast() esconde el toast inmediatamente y limpia el timer', async () => {
+      const sim = buildSimulacro('sim-1', 'abierto', { count: 5 });
+      fakeObtener.willResolve([sim]);
+      fakeMarkings.seedMarcaciones('sim-1', { '5': 'A' });
+      vi.useFakeTimers();
+      const vm = createVm();
+      await vm.start('sim-1');
+
+      await vm.marcar(5, 'B'); // dispara el toast
+      expect(vm.showHintToast()).toBe(true);
+
+      vm.dismissHintToast();
+      expect(vm.showHintToast()).toBe(false);
+
+      // Avanzar el tiempo no debe ni re-abrir el toast ni causar side effects.
+      vi.advanceTimersByTime(10_000);
+      expect(vm.showHintToast()).toBe(false);
+      vm.stop();
+    });
+
+    it('stop() con editingRow activo limpia el timer (avanzar 5s no causa side effects)', async () => {
+      const sim = buildSimulacro('sim-1', 'abierto', { count: 5 });
+      fakeObtener.willResolve([sim]);
+      fakeMarkings.seedMarcaciones('sim-1', { '5': 'C' });
+      vi.useFakeTimers();
+      const vm = createVm();
+      await vm.start('sim-1');
+
+      vm.enterEditing(5);
+      expect(vm.editingRow()).toBe(5);
+
+      vm.stop();
+      expect(vm.editingRow()).toBeNull();
+
+      // Avanzar 5s: el timer fue cancelado, nada extra sucede.
+      vi.advanceTimersByTime(5_000);
+      expect(vm.editingRow()).toBeNull();
+    });
+
+    it('stop() con showHintToast activo limpia el timer del toast', async () => {
+      const sim = buildSimulacro('sim-1', 'abierto', { count: 5 });
+      fakeObtener.willResolve([sim]);
+      fakeMarkings.seedMarcaciones('sim-1', { '5': 'A' });
+      vi.useFakeTimers();
+      const vm = createVm();
+      await vm.start('sim-1');
+
+      await vm.marcar(5, 'B'); // dispara el toast
+      expect(vm.showHintToast()).toBe(true);
+
+      vm.stop();
+      expect(vm.showHintToast()).toBe(false);
+
+      // Avanzar 4s: el timer original habría escondido el toast a los 4000ms;
+      // como ya está cerrado y el timer cancelado, sigue cerrado sin re-trigger.
+      vi.advanceTimersByTime(4_000);
+      expect(vm.showHintToast()).toBe(false);
+    });
+
+    it('enterEditing() cuando stopped=true es no-op', async () => {
+      const sim = buildSimulacro('sim-1', 'abierto', { count: 5 });
+      fakeObtener.willResolve([sim]);
+      fakeMarkings.seedMarcaciones('sim-1', { '5': 'C' });
+      const vm = createVm();
+      await vm.start('sim-1');
+
+      vm.stop();
+      // Tras stop(), editingRow está en null y los timers cancelados; un
+      // enterEditing posterior no debe reabrir nada.
+      vm.enterEditing(5);
+
+      expect(vm.editingRow()).toBeNull();
+    });
+
+    it('recuperación al montar: filas con marcas previas reportan rowState=locked directamente', async () => {
+      const sim = buildSimulacro('sim-1', 'abierto', { count: 5 });
+      fakeObtener.willResolve([sim]);
+      fakeMarkings.seedMarcaciones('sim-1', { '2': 'A', '4': 'D' });
+      const vm = createVm();
+      await vm.start('sim-1');
+
+      // Las preguntas seedeadas vienen `locked` sin necesidad de tocar nada.
+      expect(vm.rowState(2)).toBe('locked');
+      expect(vm.rowState(4)).toBe('locked');
+      // Las preguntas sin marca siguen unmarked.
+      expect(vm.rowState(1)).toBe('unmarked');
+      expect(vm.rowState(3)).toBe('unmarked');
+      expect(vm.rowState(5)).toBe('unmarked');
       vm.stop();
     });
   });

@@ -41,6 +41,18 @@ export type SimulacroErrorState =
 // volver manualmente o expire el ticker.
 export type SubmissionState = 'idle' | 'sending' | 'sent' | 'queued' | 'error';
 
+// Estado de protección por fila contra cambios accidentales. La grilla
+// permite marcar en 1 tap cualquier pregunta vacía, pero modificar una ya
+// marcada requiere un gesto deliberado (long-press) que pone la fila en
+// `editing` por un tiempo limitado. Ver Requirement "Protección contra
+// cambios accidentales" en exam-marking.spec.md.
+//
+//   unmarked → marca con 1 tap → locked
+//   locked   → long-press 500ms en la fila → editing
+//   editing  → tap en burbuja aplica cambio → locked (o unmarked si borró)
+//   editing  → 5s sin acción / scroll / long-press otra fila → locked
+export type SimulacroRowState = 'unmarked' | 'locked' | 'editing';
+
 // El countdown re-renderiza cada segundo. Mismo patrón que HomePageViewModel:
 // nowTick es un signal puro alimentado por el puerto Clock (server-anchored).
 const COUNTDOWN_TICK_MS = 1_000;
@@ -49,6 +61,17 @@ const COUNTDOWN_TICK_MS = 1_000;
 // queremos ver los segundos para que el alumno sienta la urgencia; por encima
 // con minutos basta y la pantalla no parpadea cada segundo en algo irrelevante.
 const SHOW_SECONDS_BELOW_MS = 5 * 60_000;
+
+// Cuánto dura el modo `editing` antes de auto-bloquearse si el alumno no
+// toca nada. Elegido balanceando "tiempo suficiente para reaccionar" vs
+// "volver pronto a la protección". 5s es lo que mostraba el preview de UX.
+const EDITING_AUTO_LOCK_MS = 5_000;
+
+// Cuánto se queda visible el toast de descubrimiento ("mantén presionada
+// la fila...") la primera vez que el alumno intenta cambiar una fila
+// bloqueada con tap simple. Después de esto el alumno ya entendió el
+// gesto y el toast no vuelve a aparecer en la sesión.
+const HINT_TOAST_VISIBLE_MS = 4_000;
 
 // View-model de /simulacro/:id. Provider-local a SimulacroPage (no providedIn
 // root) para que cada montaje arranque limpio sus timers y estado.
@@ -74,6 +97,18 @@ export class SimulacroPageViewModel {
   readonly nowTick = signal<Date>(this.clock.now());
   readonly isSubmitting = signal(false);
   readonly submissionState = signal<SubmissionState>('idle');
+
+  // Número de la pregunta cuya fila está actualmente en modo `editing`, o
+  // null si ninguna lo está. Solo puede haber una a la vez — entrar a
+  // edición en otra cierra la anterior automáticamente.
+  readonly editingRow = signal<number | null>(null);
+
+  // Visibilidad del toast de descubrimiento del gesto long-press. Se
+  // muestra una sola vez por sesión (montaje) cuando el alumno intenta
+  // cambiar una fila bloqueada por primera vez. `hintShownInSession`
+  // garantiza la idempotencia: una vez true, no se vuelve a disparar.
+  readonly showHintToast = signal(false);
+  private hintShownInSession = false;
 
   // Lista derivada de números de pregunta 1..count. Recomputa solo cuando
   // cambia el simulacro — barato.
@@ -101,6 +136,8 @@ export class SimulacroPageViewModel {
 
   private countdownTimer: ReturnType<typeof setInterval> | null = null;
   private autoEnvioHandle: AutoEnvioHandle | null = null;
+  private editingTimer: ReturnType<typeof setTimeout> | null = null;
+  private hintToastTimer: ReturnType<typeof setTimeout> | null = null;
   private started = false;
   private stopped = false;
 
@@ -165,18 +202,79 @@ export class SimulacroPageViewModel {
     this.stopped = true;
     this.stopCountdownTicker();
     this.cancelAutoEnvio();
+    this.cancelEditingTimer();
+    this.cancelHintToastTimer();
+    this.editingRow.set(null);
+    this.showHintToast.set(false);
   }
 
-  // Toggle de marca. Si la nueva letra coincide con la actual → desmarca
-  // (null). Si difiere o no había marca previa → marca la nueva.
+  // Estado actual de la fila para una pregunta. Reactivo: depende de los
+  // signals `marcaciones` y `editingRow`. El template lo invoca para
+  // decidir clases CSS y comportamiento.
+  rowState(pregunta: number): SimulacroRowState {
+    if (this.editingRow() === pregunta) return 'editing';
+    const marca = this.marcaciones()[String(pregunta)] ?? null;
+    return marca === null ? 'unmarked' : 'locked';
+  }
+
+  // Entrar a modo edición en una fila. Solo aplica si la fila está `locked`
+  // (no tiene sentido en `unmarked` — el primer tap ya cambia, no protege).
+  // Cierra cualquier edición previa (solo una fila a la vez), arma el
+  // timeout de auto-bloqueo, y dispara un pulso háptico si el navegador lo
+  // soporta. Sin efecto si el componente ya se destruyó.
+  enterEditing(pregunta: number): void {
+    if (this.stopped) return;
+    if (this.rowState(pregunta) !== 'locked') return;
+
+    this.cancelEditingTimer();
+    this.editingRow.set(pregunta);
+    this.tryHapticPulse();
+
+    this.editingTimer = setTimeout(() => {
+      this.editingTimer = null;
+      if (this.editingRow() === pregunta) {
+        this.editingRow.set(null);
+      }
+    }, EDITING_AUTO_LOCK_MS);
+  }
+
+  // Salir de modo edición sin aplicar cambios. Llamada desde el page al
+  // detectar scroll/cancel del gesto, o internamente desde `marcar` tras
+  // aplicar el cambio.
+  exitEditing(): void {
+    this.cancelEditingTimer();
+    this.editingRow.set(null);
+  }
+
+  // Cierra el toast de descubrimiento. El template lo llama si el alumno
+  // toca el toast (para que pueda esconderlo manualmente además del timer).
+  dismissHintToast(): void {
+    this.cancelHintToastTimer();
+    this.showHintToast.set(false);
+  }
+
+  // Aplica una marca/desmarca/cambio en una pregunta SI la fila lo permite:
   //
-  // Actualizamos el signal localmente con el resultado para que la UI
-  // reaccione sin esperar a re-leer todo el map del storage; el use case
-  // ya valida y persiste antes de devolver.
+  //   - `unmarked`: marca con la letra recibida → la fila pasa a `locked`.
+  //   - `editing`:  toggle con la letra (si coincide con la actual desmarca,
+  //                 si difiere cambia) → la fila vuelve a `locked` o
+  //                 `unmarked` según el resultado, cancelando el timeout.
+  //   - `locked`:   NO aplica el cambio. La primera vez por sesión dispara
+  //                 el toast de descubrimiento del gesto long-press.
+  //
+  // Esta es la única puerta para mutaciones de marcaciones desde la UI —
+  // así el invariante de "no se cambia sin gesto deliberado" no depende de
+  // disciplina del template.
   async marcar(pregunta: number, letra: AlternativaValue): Promise<void> {
     if (this.stopped) return;
     const s = this.simulacro();
     if (s === null) return;
+
+    const state = this.rowState(pregunta);
+    if (state === 'locked') {
+      this.maybeShowHintToast();
+      return;
+    }
 
     const actual = this.marcaciones()[String(pregunta)] ?? null;
     const proxima: AlternativaValue = actual === letra ? null : letra;
@@ -193,6 +291,10 @@ export class SimulacroPageViewModel {
     });
 
     this.marcaciones.update((prev) => ({ ...prev, [String(pregunta)]: proxima }));
+    // Volver a `locked` (o `unmarked` derivado por rowState) cancelando el
+    // timer de edición si estábamos en `editing`. Si veníamos de `unmarked`
+    // estas llamadas son no-op pero seguras.
+    this.exitEditing();
   }
 
   volver(): void {
@@ -274,6 +376,56 @@ export class SimulacroPageViewModel {
     if (this.autoEnvioHandle !== null) {
       this.autoEnvioHandle.cancel();
       this.autoEnvioHandle = null;
+    }
+  }
+
+  private cancelEditingTimer(): void {
+    if (this.editingTimer !== null) {
+      clearTimeout(this.editingTimer);
+      this.editingTimer = null;
+    }
+  }
+
+  private cancelHintToastTimer(): void {
+    if (this.hintToastTimer !== null) {
+      clearTimeout(this.hintToastTimer);
+      this.hintToastTimer = null;
+    }
+  }
+
+  // Dispara el toast de descubrimiento si todavía no se mostró en la
+  // sesión. Idempotente: tap repetido en filas bloqueadas no re-muestra.
+  // El timer se arma siempre para que si el alumno cierra el toast
+  // manualmente vía dismissHintToast(), el timer no lo abra de nuevo.
+  private maybeShowHintToast(): void {
+    if (this.hintShownInSession) return;
+    this.hintShownInSession = true;
+    this.showHintToast.set(true);
+    this.cancelHintToastTimer();
+    this.hintToastTimer = setTimeout(() => {
+      this.hintToastTimer = null;
+      this.showHintToast.set(false);
+    }, HINT_TOAST_VISIBLE_MS);
+  }
+
+  // Pulso háptico opcional al entrar a modo edición. `navigator.vibrate`
+  // existe en Chrome Android y Firefox; en iOS Safari devuelve undefined o
+  // ignora la llamada. Encapsulado con guard para no romper el view-model
+  // en entornos de test (jsdom) o navegadores sin la API.
+  private tryHapticPulse(): void {
+    if (typeof navigator === 'undefined') return;
+    const vibrate = (navigator as Navigator & { vibrate?: (pattern: number | number[]) => boolean })
+      .vibrate;
+    if (typeof vibrate !== 'function') return;
+    try {
+      // Pasamos [40] (array) en vez de 40 (number) porque la definición de
+      // tipos en lib.dom.d.ts de Angular 22 espera Iterable<number>.
+      // Funcionalmente equivalente: un pulso único de 40ms.
+      vibrate.call(navigator, [40]);
+    } catch {
+      // Algunos navegadores tiran si la pestaña no está visible o si el
+      // usuario no interactuó aún. No nos importa — el feedback háptico
+      // es nice-to-have, no funcional.
     }
   }
 

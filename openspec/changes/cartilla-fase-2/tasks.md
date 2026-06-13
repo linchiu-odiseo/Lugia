@@ -102,6 +102,31 @@
 - [x] 11.2 Correr `npm test` y resolver cualquier test rojo _(376/376 verde, 35 test files)_
 - [x] 11.3 Correr `npm run format:check` _(prettier write aplicado a 50 archivos; check final ok)_
 - [x] 11.4 Auditar con `hexagonal-guard` sobre `src/` y resolver violaciones reportadas _(APROBADO sin violaciones críticas; 8 smells documentados en design.md como follow-ups)_
-- [ ] 11.5 Verificar manualmente el flujo end-to-end con backend mock o API-FAKE real _(pendiente del usuario; requiere backend con los endpoints nuevos)_
-- [ ] 11.6 (Opcional) Verificar instalable en mobile via `cloudflared` tunnel (per `[[project-mobile-tunnel-choice]]`) _(opcional, pendiente del usuario)_
+- [x] 11.5 Verificar manualmente el flujo end-to-end con backend mock o API-FAKE real _(10 curl tests contra endpoints reales: login OK, GET /simulacros con 3 estados (abierto/pendiente/cerrado), POST /envio 409 idempotencia, 401 bearer inválido, 404 ID inexistente, 403 CLOSED, 400 INVALID_TIME, 400 INVALID_SHAPE × 2. Todos los `code` presentes. POST 200 directo no testeado por idempotencia previa del dev backend. `X-New-Bearer` no exercised por TTL alto del token recién emitido — no bloqueante)_
+- [x] 11.6 (Opcional) Verificar instalable en mobile via `cloudflared` tunnel (per `[[project-mobile-tunnel-choice]]`) _(usuario instaló al home screen del celular; PWA arranca en standalone)_
 - [ ] 11.7 Listo para `sdd-verify` y luego `sdd-archive`
+
+## 12. Polish de QA mobile (post 11.5)
+
+> Sección buffer para hallazgos de verificación manual en celular real (cloudflared + PWA instalada). Surge durante 11.5/11.6.
+
+- [x] 12.1 Bloquear auto-traducción del navegador en `src/index.html` — fix de "A B C D E renderizado como notas de solfeo (do, mi)" en Chrome Android con traductor activo. Tres atributos: `lang="es-PE"`, `translate="no"` en `<html>`, y `<meta name="google" content="notranslate" />` en `<head>`.
+- [x] 12.2 Pulir feel nativo en standalone: deshabilitar long-press menu (`-webkit-touch-callout: none`) y selección de texto en superficies táctiles (botones, bubbles), preservando `user-select: text` en `input`/`textarea` y mensajes para accesibilidad. (Tap highlight y overscroll ya están desactivados en `styles.scss` desde Fase 1.) _(aplicado en `src/styles.scss`, excepciones para `input`, `textarea`, `[role="alert"]`, `[role="status"]`, `.field__hint`, `.error`)_
+- [x] 12.3 Documentar en `docs/` el flujo "instalar al home screen" como camino requerido del alumno para experiencia tipo nativa (vs uso en pestaña). Eventual follow-up Fase 2.x: prompt UI "Instalar esta app" en `/home` usando `beforeinstallprompt`. _(documentado en `docs/phase-2-followups.md` como sección de cabecera)_
+
+- [x] 12.4 Protección contra cambios accidentales en la grilla — view-model: máquina de estados de fila (`unmarked`/`locked`/`editing`). Signals `editingRow`, `hintShownInSession`, `showHintToast`. Métodos `enterEditing(p)`, `exitEditing()`, `rowState(p)`, `dismissHintToast()`. `marcar()` gating: aplica solo en `unmarked`/`editing`; en `locked` dispara el toast la primera vez. Timeout de auto-bloqueo 5s. Cleanup en `stop()`. Spec actualizada en `openspec/changes/cartilla-fase-2/specs/exam-marking/spec.md` (Requirement "Protección contra cambios accidentales" + 5 scenarios + 2 scenarios existentes refactorizados).
+- [x] 12.5 Long-press 500ms + visual de estados + toast — page.ts: handlers `onRowPointerDown/Move/Up/Cancel` con threshold 10px + flag `suppressNextClick` para evitar doble acción del mismo gesto. HTML: bind a `<div class="fila">`, clases dinámicas `fila--locked`/`fila--editing`, hint inline `Toca para cambiar — vuelve a bloquearse en 5s` en filas en edición, `<aside class="hint-toast">` con auto-fade a los 4s. SCSS: borde de acento + glow box-shadow en editing, transición 180ms, toast con fade-in animation. Haptic `navigator.vibrate([40])` al entrar a edición (degrada silencioso en iOS / jsdom).
+- [x] 12.6 Tests view-model L1+L2 — delegar a `test-engineer`. _(2 tests existentes refactorizados + 16 nuevos en `tests/feature/LR_render/view-models/simulacro.view-model.spec.ts`: transiciones unmarked→locked, locked→editing, auto-lock 5s, switch entre filas, no-op en stopped, toast idempotente, dismiss manual, cleanup de timers en stop.)_
+- [x] 12.7 Tests feature de la página — delegar a `test-engineer`. _(8 nuevos en `tests/feature/LR_render/pages/simulacro/simulacro.page.spec.ts`: helper `firePointerEvent` para simular gestos, mock de `navigator.vibrate`, long-press exitoso, cancelación por movimiento >10px, cancelación por release antes de 500ms, no-op en filas unmarked, tap en locked dispara toast sin cambio, tap en editing aplica cambio, supresión del click post-long-press.)_
+
+> **Resultado validación 12.4–12.7**: 400/400 tests verde (35 archivos). `npm run lint` y `npm run format:check` limpios.
+
+> **Hallazgos de QA mobile diferidos a Fase 2.x** (documentados en `docs/phase-2-followups.md`):
+>
+> - `EnviarSimulacroUseCase` confía en storage opacamente — solo se reproduce con reseed dev (count cambia con mismo id). Fix: pasar `count` y normalizar map. No urgente para prod.
+> - `IndexedDbMarkingsStorage` no detecta connection-closed forzoso (DevTools "Clear site data" con página viva). Fix: escuchar `db.onclose` + lazy-reopen. Edge case operacional.
+
+> **Fuera de scope de Fase 2** (decisiones tomadas en QA mobile):
+>
+> - **Suprimir prompt "¿Guardar contraseña?" de Chrome** — no es suprimible desde la web sin romper accesibilidad o gestores de contraseñas legítimos. PWAs grandes (Twitter/Instagram/Facebook) coexisten con él. Se acepta como ruido de plataforma.
+> - **Suprimir warning "contraseña insegura"** — feature del navegador no desactivable por el sitio. Salida real: cambiar el password del usuario de prueba a uno no comprometido (requiere coordinar con backend). DECISIÓN PENDIENTE del usuario.

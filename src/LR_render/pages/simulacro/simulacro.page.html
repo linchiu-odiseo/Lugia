@@ -13,7 +13,17 @@
 
     <section class="grilla" aria-label="Cartilla de marcaciones">
       @for (pregunta of vm.preguntas(); track pregunta) {
-        <div class="fila" [attr.aria-label]="'Pregunta ' + pregunta" role="radiogroup">
+        <div
+          class="fila"
+          [class.fila--locked]="vm.rowState(pregunta) === 'locked'"
+          [class.fila--editing]="vm.rowState(pregunta) === 'editing'"
+          [attr.aria-label]="'Pregunta ' + pregunta"
+          role="radiogroup"
+          (pointerdown)="onRowPointerDown(pregunta, $event)"
+          (pointermove)="onRowPointerMove($event)"
+          (pointerup)="onRowPointerUpOrCancel()"
+          (pointercancel)="onRowPointerUpOrCancel()"
+        >
           <span class="fila__numero">{{ pregunta }}</span>
           <div class="fila__bubbles">
             @for (letra of alternativas; track letra) {
@@ -30,6 +40,9 @@
               </button>
             }
           </div>
+          @if (vm.rowState(pregunta) === 'editing') {
+            <span class="fila__hint" role="status" aria-live="polite"> Toca para cambiar </span>
+          }
         </div>
       }
     </section>
@@ -42,6 +55,12 @@
           <p class="queued-banner__detail">Tu envío se procesará cuando vuelva la red.</p>
         </div>
       </div>
+    }
+
+    @if (vm.showHintToast()) {
+      <aside class="hint-toast" role="status" aria-live="polite">
+        <p class="hint-toast__copy">Mantén presionada la fila para cambiar tu respuesta.</p>
+      </aside>
     }
 
     <footer class="footer">

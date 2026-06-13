@@ -16,6 +16,26 @@ body {
   -webkit-tap-highlight-color: transparent;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  // Feel nativo: desactiva el menú de long-press (copiar/compartir) en iOS
+  // y la selección por defecto sobre superficies táctiles. Se restablece
+  // explícitamente para inputs y mensajes más abajo para no romper
+  // accesibilidad ni la capacidad de copiar errores legibles.
+  -webkit-touch-callout: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+// Permite seleccionar texto donde sí importa: campos de entrada, mensajes
+// de error/ayuda visibles al alumno, y bloques con role="alert"/"status".
+input,
+textarea,
+[role='alert'],
+[role='status'],
+.field__hint,
+.error {
+  user-select: text;
+  -webkit-user-select: text;
+  -webkit-touch-callout: default;
 }
 
 html {

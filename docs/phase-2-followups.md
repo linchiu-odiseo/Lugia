@@ -1,5 +1,48 @@
 # Follow-ups conocidos para Fase 2
 
+## Flujo de instalación al home screen (camino requerido)
+
+La PWA está diseñada para usarse **instalada al home screen del celular** (`display: standalone` en `public/manifest.json`). Probarla en una pestaña normal de Chrome **expone barra de URL, infobar de password manager y menú overflow** del navegador — no es la experiencia objetivo.
+
+**Cómo el alumno la instala** (Android + Chrome, flujo soportado en Fase 2):
+
+1. Abrir la URL de la PWA en Chrome (HTTPS — en dev: cloudflared; en prod: el dominio definitivo).
+2. Menú de Chrome (⋮) → "Instalar app" (o "Añadir a pantalla principal" según versión).
+3. Confirmar. La PWA aparece como ícono en el home screen.
+4. Abrir desde el ícono: arranca en modo standalone, sin barra de URL.
+
+**iOS + Safari**: "Compartir" → "Añadir a pantalla principal". Funciona pero con limitaciones de Safari (sin push, sin install prompt programático).
+
+**Lo que NO se siente nativo aunque esté instalada** (asíntotas de plataforma, fuera de scope de Fase 2):
+
+- Prompt "¿Guardar contraseña?" de Chrome al hacer login — aparece también en PWAs instaladas desde Chrome ~110+. No es suprimible desde la web sin romper accesibilidad. Una sola vez por origin si el alumno toca "Nunca".
+- Warning "esta contraseña apareció en una filtración" si el password es público (ej. `12345678`). Se evita cambiando el password de prueba a uno no comprometido.
+
+**Follow-up Fase 2.x**: implementar prompt UI "Instalar esta app" en `/home` usando el evento `beforeinstallprompt` para guiar al alumno la primera vez (en lugar de depender del menú ⋮ de Chrome).
+
+---
+
+## Deudas operacionales detectadas en QA E2E de Fase 2
+
+### `EnviarSimulacroUseCase` confía en storage opacamente
+
+- **Síntoma observado**: backend de dev reseedeó `sim-mate-2026-06-12` cambiando `count` de 20 a 5 con el mismo `id`. IndexedDB del cliente tenía marcaciones para keys 1..20 de antes. Al enviar, el use case mandó las 20 keys → backend respondió `400 INVALID_SHAPE: "answers debe tener exactamente 5 entradas"`.
+- **Por qué pasa**: `EnviarSimulacroUseCase.execute()` invoca `storage.getMarcaciones(id)` directamente y postea lo que sea sin validar contra el `count` actual del simulacro. El view-model sí normaliza al hidratar la grilla, pero ese filtrado no se aplica al envío.
+- **Workaround dev mientras tanto**: DevTools del celular → Application → Storage → Clear site data, luego recargar la PWA.
+- **Por qué no se arregla en Fase 2**: el escenario no se reproduce en producción (un `count` es inmutable por `id` en seed real). El olor arquitectónico (use case confía en storage sin validar shape esperado) es real pero pequeño; no destraba nada y costaría tiempo que rinde más cerrando el ciclo SDD.
+- **Cuándo retomar**: al empezar Fase 2.x, fix natural es agregar `count: number` a `EnviarSimulacroInput` y normalizar el map a exactamente `[1..count]` antes del POST. O — más limpio — que `MarkingsStorage.getMarcaciones` reciba `count` y devuelva map normalizado. Update tests + spec `exam-submission`.
+
+### `IndexedDbMarkingsStorage` no maneja connection-closed forzoso
+
+- **Síntoma observado**: tras DevTools → Application → Clear site data **con la página viva**, todo `setMarcacion`/`enqueueEnvio` posterior tira `InvalidStateError: Failed to execute 'transaction' on 'IDBDatabase': The database connection is closing`. Recargando la página se resuelve.
+- **Por qué pasa**: el adapter cachea el handle de `IDBDatabase` y lo reusa. Cuando el browser cierra la conexión por el wipe, el handle queda dangling; las próximas operaciones tiran error sin reabrir.
+- **Realismo en prod**: bajo. Alumnos no llaman a Clear site data desde DevTools. El otro disparador (presión de cuota de storage) es muy raro con el footprint de la app.
+- **Cuándo retomar**: junto con el fix anterior. Implementación: escuchar `db.addEventListener('close', ...)` para anular el handle cacheado y reabrir lazy en la siguiente operación. ~15 líneas.
+
+---
+
+## Follow-ups técnicos heredados de Fase 1
+
 > Estado al cierre de Fase 1 (`add-auth-login`, 2026-06-11). Decisiones que se difirieron por scope o por inmadurez del tooling. Se revisita al arrancar Fase 2 (cartilla de marcaciones).
 
 ## Arquitectura y dominio

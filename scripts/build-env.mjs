@@ -114,7 +114,7 @@ const cspConnectSrcRe = /(connect-src\s+'self'\s+)([^;"']+)/;
 const match = indexBefore.match(cspConnectSrcRe);
 if (!match) {
   console.error(
-    '✘ No se encontró `connect-src \'self\' <origin>` en src/index.html. ' +
+    "✘ No se encontró `connect-src 'self' <origin>` en src/index.html. " +
       'Revisar el meta Content-Security-Policy.',
   );
   process.exit(1);

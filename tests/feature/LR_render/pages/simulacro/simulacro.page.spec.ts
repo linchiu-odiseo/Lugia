@@ -4,6 +4,7 @@ import { provideRouter, Router, ActivatedRoute } from '@angular/router';
 import { Component } from '@angular/core';
 import { convertToParamMap, ParamMap } from '@angular/router';
 import { SimulacroPage } from '../../../../../src/LR_render/pages/simulacro/simulacro.page';
+import { SimulacroPageViewModel } from '../../../../../src/LR_render/view-models/simulacro.view-model';
 import { ObtenerSimulacrosDelDiaUseCase } from '../../../../../src/L2_application/use-cases/obtener-simulacros-del-dia.use-case';
 import { MarcarRespuestaUseCase } from '../../../../../src/L2_application/use-cases/marcar-respuesta.use-case';
 import { EnviarSimulacroUseCase } from '../../../../../src/L2_application/use-cases/enviar-simulacro.use-case';
@@ -344,6 +345,361 @@ describe('SimulacroPage', () => {
       TestBed.createComponent(SimulacroPage);
 
       expect(navigateSpy).toHaveBeenCalledWith(['/home']);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Protección contra cambios accidentales — gestos en la página
+  //
+  // El page traduce eventos PointerEvent a llamadas al view-model:
+  //   - pointerdown + 500ms sin levantar ni mover >10px → vm.enterEditing
+  //   - pointerup antes / pointermove con dx>10 → cancela el gesto
+  //   - click en bubble post-long-press → suprime el primer click
+  //
+  // jsdom no implementa PointerEvent en todas las versiones; fabricamos uno
+  // a partir de MouseEvent (que sí tiene clientX/clientY) y lo extendemos.
+  // El handler del page solo lee `ev.clientX` y `ev.clientY`, así que un
+  // MouseEvent enriquecido con type='pointerdown' es suficiente.
+  // -----------------------------------------------------------------------
+  describe('long-press y protección de filas (gestos)', () => {
+    // Crea un evento tipo `pointerXxx` con clientX/clientY. Si el runtime
+    // tiene PointerEvent nativo lo usamos; sino caemos a MouseEvent con el
+    // mismo `type` — el código del page solo lee clientX/clientY.
+    const firePointerEvent = (
+      el: Element,
+      type: 'pointerdown' | 'pointermove' | 'pointerup' | 'pointercancel',
+      x: number,
+      y: number,
+    ): void => {
+      const PointerEventCtor = (globalThis as { PointerEvent?: typeof PointerEvent }).PointerEvent;
+      let ev: Event;
+      if (typeof PointerEventCtor === 'function') {
+        try {
+          ev = new PointerEventCtor(type, {
+            clientX: x,
+            clientY: y,
+            bubbles: true,
+            cancelable: true,
+          });
+        } catch {
+          ev = new MouseEvent(type, {
+            clientX: x,
+            clientY: y,
+            bubbles: true,
+            cancelable: true,
+          });
+        }
+      } else {
+        ev = new MouseEvent(type, {
+          clientX: x,
+          clientY: y,
+          bubbles: true,
+          cancelable: true,
+        });
+      }
+      el.dispatchEvent(ev);
+    };
+
+    let vibrateMock: ReturnType<typeof vi.fn>;
+    let originalVibrate: unknown;
+
+    beforeEach(() => {
+      vibrateMock = vi.fn();
+      // Guardamos la descripción previa (puede no existir) para restaurarla.
+      const desc = Object.getOwnPropertyDescriptor(navigator, 'vibrate');
+      originalVibrate = desc;
+      Object.defineProperty(navigator, 'vibrate', {
+        value: vibrateMock,
+        configurable: true,
+        writable: true,
+      });
+    });
+
+    afterEach(() => {
+      if (typeof originalVibrate === 'object' && originalVibrate !== null) {
+        Object.defineProperty(navigator, 'vibrate', originalVibrate as PropertyDescriptor);
+      } else {
+        // Si no había uno previo (browser sin la API), removemos lo nuestro.
+        delete (navigator as unknown as { vibrate?: unknown }).vibrate;
+      }
+    });
+
+    it('long-press 500ms en fila locked → entra a editing (clase .fila--editing y hint visible)', async () => {
+      const sim = buildSimulacro('sim-1', 'abierto', { count: 3 });
+      fakeObtener.willResolve([sim]);
+      fakeMarkings.seedMarcaciones('sim-1', { '2': 'C' });
+      await configureTestBed('sim-1');
+
+      const fixture = TestBed.createComponent(SimulacroPage);
+      fixture.detectChanges();
+      // Esperar el ciclo de start() ANTES de activar fake timers — sino
+      // las promesas internas del bootstrap quedan colgadas.
+      await flushPromises();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      vi.useFakeTimers();
+      try {
+        const el = fixture.nativeElement as HTMLElement;
+        const fila2 = el.querySelectorAll('.fila')[1] as HTMLElement;
+
+        firePointerEvent(fila2, 'pointerdown', 100, 200);
+        // Mantener 500ms sin mover ni levantar.
+        vi.advanceTimersByTime(500);
+        firePointerEvent(fila2, 'pointerup', 100, 200);
+
+        fixture.detectChanges();
+
+        expect(fila2.classList.contains('fila--editing')).toBe(true);
+        expect(fila2.classList.contains('fila--locked')).toBe(false);
+        expect(fila2.querySelector('.fila__hint')).not.toBeNull();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('pointerdown + pointermove con dx>10px antes de 500ms → NO entra a edición', async () => {
+      const sim = buildSimulacro('sim-1', 'abierto', { count: 3 });
+      fakeObtener.willResolve([sim]);
+      fakeMarkings.seedMarcaciones('sim-1', { '2': 'C' });
+      await configureTestBed('sim-1');
+
+      const fixture = TestBed.createComponent(SimulacroPage);
+      fixture.detectChanges();
+      await flushPromises();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      vi.useFakeTimers();
+      try {
+        const el = fixture.nativeElement as HTMLElement;
+        const fila2 = el.querySelectorAll('.fila')[1] as HTMLElement;
+
+        firePointerEvent(fila2, 'pointerdown', 100, 200);
+        // 200ms después el dedo se va a 120,200 (dx=20 > 10) → cancela.
+        vi.advanceTimersByTime(200);
+        firePointerEvent(fila2, 'pointermove', 120, 200);
+        // El resto del tiempo ya no debería disparar nada.
+        vi.advanceTimersByTime(400);
+        firePointerEvent(fila2, 'pointerup', 120, 200);
+
+        fixture.detectChanges();
+
+        expect(fila2.classList.contains('fila--editing')).toBe(false);
+        expect(fila2.classList.contains('fila--locked')).toBe(true);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('pointerdown + pointerup antes de 500ms → NO entra a edición', async () => {
+      const sim = buildSimulacro('sim-1', 'abierto', { count: 3 });
+      fakeObtener.willResolve([sim]);
+      fakeMarkings.seedMarcaciones('sim-1', { '2': 'C' });
+      await configureTestBed('sim-1');
+
+      const fixture = TestBed.createComponent(SimulacroPage);
+      fixture.detectChanges();
+      await flushPromises();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      vi.useFakeTimers();
+      try {
+        const el = fixture.nativeElement as HTMLElement;
+        const fila2 = el.querySelectorAll('.fila')[1] as HTMLElement;
+
+        firePointerEvent(fila2, 'pointerdown', 100, 200);
+        vi.advanceTimersByTime(300); // < 500
+        firePointerEvent(fila2, 'pointerup', 100, 200);
+        // Y aunque después dejemos pasar el resto, el timer ya fue cancelado.
+        vi.advanceTimersByTime(500);
+
+        fixture.detectChanges();
+
+        expect(fila2.classList.contains('fila--editing')).toBe(false);
+        expect(fila2.classList.contains('fila--locked')).toBe(true);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('long-press sobre fila unmarked → NO entra a edición (handler retorna early)', async () => {
+      const sim = buildSimulacro('sim-1', 'abierto', { count: 3 });
+      fakeObtener.willResolve([sim]);
+      // Sin seed → todas las filas están unmarked.
+      await configureTestBed('sim-1');
+
+      const fixture = TestBed.createComponent(SimulacroPage);
+      fixture.detectChanges();
+      await flushPromises();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      vi.useFakeTimers();
+      try {
+        const el = fixture.nativeElement as HTMLElement;
+        const fila1 = el.querySelectorAll('.fila')[0] as HTMLElement;
+
+        firePointerEvent(fila1, 'pointerdown', 100, 200);
+        vi.advanceTimersByTime(500);
+        firePointerEvent(fila1, 'pointerup', 100, 200);
+
+        fixture.detectChanges();
+
+        // Sigue unmarked: ni locked ni editing.
+        expect(fila1.classList.contains('fila--editing')).toBe(false);
+        expect(fila1.classList.contains('fila--locked')).toBe(false);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('click en bubble de fila locked → NO aplica la marca y aparece el hint-toast en el DOM', async () => {
+      const sim = buildSimulacro('sim-1', 'abierto', { count: 3 });
+      fakeObtener.willResolve([sim]);
+      fakeMarkings.seedMarcaciones('sim-1', { '2': 'A' });
+      await configureTestBed('sim-1');
+
+      const fixture = TestBed.createComponent(SimulacroPage);
+      fixture.detectChanges();
+      await flushPromises();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      const el = fixture.nativeElement as HTMLElement;
+      const filas = el.querySelectorAll('.fila');
+      const fila2 = filas[1] as HTMLElement;
+      // Bubble "B" (index 1) en la fila 2.
+      const bubbleB = fila2.querySelectorAll('.bubble')[1] as HTMLButtonElement;
+      bubbleB.click();
+      await flushPromises();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      // El use case NO se invocó: la fila estaba locked.
+      expect(fakeMarcar.calls).toHaveLength(0);
+      // La marca previa sigue siendo A (no cambió a B).
+      const bubbleA = fila2.querySelectorAll('.bubble')[0] as HTMLButtonElement;
+      expect(bubbleA.classList.contains('bubble--marked')).toBe(true);
+      expect(bubbleB.classList.contains('bubble--marked')).toBe(false);
+      // Y el toast de hint aparece en el DOM.
+      expect(el.querySelector('.hint-toast')).not.toBeNull();
+    });
+
+    it('click en bubble de fila editing → aplica la marca y la fila vuelve a locked', async () => {
+      const sim = buildSimulacro('sim-1', 'abierto', { count: 3 });
+      fakeObtener.willResolve([sim]);
+      fakeMarkings.seedMarcaciones('sim-1', { '2': 'A' });
+      await configureTestBed('sim-1');
+
+      const fixture = TestBed.createComponent(SimulacroPage);
+      fixture.detectChanges();
+      await flushPromises();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      const el = fixture.nativeElement as HTMLElement;
+      const fila2 = el.querySelectorAll('.fila')[1] as HTMLElement;
+
+      // Entramos a edición vía el view-model directamente (sin pasar por
+      // long-press) para evitar el flag `suppressNextClick` — este test se
+      // enfoca en el efecto del click sobre una fila editing, no en el
+      // gesto que la llevó ahí. El VM es provider-local a la page; lo
+      // sacamos del injector del fixture.
+      const pageVm = fixture.debugElement.injector.get(SimulacroPageViewModel);
+      pageVm.enterEditing(2);
+      fixture.detectChanges();
+
+      expect(fila2.classList.contains('fila--editing')).toBe(true);
+
+      // Click en bubble C (índice 2) — letra distinta a la actual A.
+      const bubbleC = fila2.querySelectorAll('.bubble')[2] as HTMLButtonElement;
+      bubbleC.click();
+      await flushPromises();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(fakeMarcar.calls).toHaveLength(1);
+      expect(fakeMarcar.calls[0]).toEqual({
+        simulacroId: 'sim-1',
+        pregunta: 2,
+        alternativa: 'C',
+      });
+      // La fila vuelve a locked (con la nueva marca).
+      expect(fila2.classList.contains('fila--editing')).toBe(false);
+      expect(fila2.classList.contains('fila--locked')).toBe(true);
+      expect(bubbleC.classList.contains('bubble--marked')).toBe(true);
+    });
+
+    it('long-press exitoso seguido de click inmediato sobre misma burbuja → click se suprime', async () => {
+      const sim = buildSimulacro('sim-1', 'abierto', { count: 3 });
+      fakeObtener.willResolve([sim]);
+      fakeMarkings.seedMarcaciones('sim-1', { '2': 'A' });
+      await configureTestBed('sim-1');
+
+      const fixture = TestBed.createComponent(SimulacroPage);
+      fixture.detectChanges();
+      await flushPromises();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      const el = fixture.nativeElement as HTMLElement;
+      const fila2 = el.querySelectorAll('.fila')[1] as HTMLElement;
+      const bubbleC = fila2.querySelectorAll('.bubble')[2] as HTMLButtonElement;
+
+      vi.useFakeTimers();
+      try {
+        // Long-press iniciado sobre la bubble C (el dedo cayó ahí).
+        firePointerEvent(bubbleC, 'pointerdown', 50, 50);
+        vi.advanceTimersByTime(500);
+        firePointerEvent(bubbleC, 'pointerup', 50, 50);
+
+        fixture.detectChanges();
+        // Tras long-press: la fila entra a editing.
+        expect(fila2.classList.contains('fila--editing')).toBe(true);
+      } finally {
+        vi.useRealTimers();
+      }
+
+      // El click sintético del browser tras el long-press se simula aquí.
+      // Por el flag `suppressNextClick`, NO debe aplicar la marca.
+      bubbleC.click();
+      await flushPromises();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(fakeMarcar.calls).toHaveLength(0);
+      // La marca previa (A) sigue intacta.
+      const bubbleA = fila2.querySelectorAll('.bubble')[0] as HTMLButtonElement;
+      expect(bubbleA.classList.contains('bubble--marked')).toBe(true);
+    });
+
+    it('al entrar a edición vía long-press, navigator.vibrate se llama con [40]', async () => {
+      const sim = buildSimulacro('sim-1', 'abierto', { count: 3 });
+      fakeObtener.willResolve([sim]);
+      fakeMarkings.seedMarcaciones('sim-1', { '2': 'C' });
+      await configureTestBed('sim-1');
+
+      const fixture = TestBed.createComponent(SimulacroPage);
+      fixture.detectChanges();
+      await flushPromises();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      vi.useFakeTimers();
+      try {
+        const el = fixture.nativeElement as HTMLElement;
+        const fila2 = el.querySelectorAll('.fila')[1] as HTMLElement;
+
+        firePointerEvent(fila2, 'pointerdown', 5, 5);
+        vi.advanceTimersByTime(500);
+        firePointerEvent(fila2, 'pointerup', 5, 5);
+
+        expect(vibrateMock).toHaveBeenCalledWith([40]);
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 });
