@@ -6,7 +6,19 @@
       "name": "app",
       "installMode": "prefetch",
       "resources": {
-        "files": ["/favicon.ico", "/index.html", "/manifest.json", "/*.css", "/*.js"]
+        "files": [
+          "/index.html",
+          "/manifest.json",
+          "/*.css",
+          "/*.js",
+          "/ico-16.ico",
+          "/ico-32.ico",
+          "/ico-48.ico",
+          "/icon-180.png",
+          "/icon-192.png",
+          "/icon-384.png",
+          "/icon-512.png"
+        ]
       }
     },
     {
@@ -14,7 +26,10 @@
       "installMode": "lazy",
       "updateMode": "prefetch",
       "resources": {
-        "files": ["/media/**", "/*.(svg|cur|jpg|jpeg|png|apng|webp|avif|gif|otf|ttf|woff|woff2)"]
+        "files": [
+          "/media/**",
+          "/*.(svg|cur|jpg|jpeg|png|apng|webp|avif|gif|ico|otf|ttf|woff|woff2)"
+        ]
       }
     }
   ]

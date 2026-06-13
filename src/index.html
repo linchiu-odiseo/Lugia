@@ -40,9 +40,20 @@
     -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://least-elevation-pressed-aside.trycloudflare.com; img-src 'self' data:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://devoted-overnight-acne-consulting.trycloudflare.com; img-src 'self' data:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'"
     />
-    <link rel="icon" type="image/x-icon" href="favicon.ico" />
+    <!--
+      Iconos:
+      - .ico en 3 tamaños para la pestaña del navegador (legacy + retina).
+        El browser elige automáticamente el que mejor encaja por `sizes`.
+      - icon-180.png específico para apple-touch-icon (home screen iOS).
+      - icon-192.png / icon-512.png los referencia `public/manifest.json`
+        como iconos de la PWA (Android home screen / install dialog).
+    -->
+    <link rel="icon" type="image/x-icon" sizes="16x16" href="ico-16.ico" />
+    <link rel="icon" type="image/x-icon" sizes="32x32" href="ico-32.ico" />
+    <link rel="icon" type="image/x-icon" sizes="48x48" href="ico-48.ico" />
+    <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png" />
   </head>
   <body>
     <app-root></app-root>
