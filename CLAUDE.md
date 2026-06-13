@@ -6,9 +6,11 @@
 
 **NeonPanda** es una PWA Angular para móviles que sirve como **cartilla virtual de marcaciones** para simulacros (exámenes de práctica). El alumno marca las alternativas A–E por pregunta en pantalla; el enunciado viene impreso en una hoja física que entrega el profesor. Backend: **API-FAKE** (Laravel + Sanctum + Postgres) en Docker, editable.
 
-**Fase actual: Fase 2 (cartilla)** — `/home` muestra la lista de simulacros del día con countdown server-anchored, polling 120s y refresh por focus. `/simulacro/:id` permite marcar A–E sobre una grilla offline-first. Envío con auto-envío a T=0 (jitter ±3s) y retry automático en cola IndexedDB. Bearer rolling 6h vía `X-New-Bearer`.
+**Fase actual: Fase 2 ARCHIVADA (cartilla)** — completada el 2026-06-12. Capacidades implementadas: `/home` con lista de simulacros del día (4 estados: pendiente|abierto|enviado|cerrado), countdown server-anchored, polling 120s + focus refresh + pull-to-refresh. `/simulacro/:id` con grilla A–E offline-first + protección accidental-change (long-press 500ms). Envío con `clientSubmittedAt` server-anchored, auto-envío T=0 (jitter ±3s), queue offline en IndexedDB. Bearer rolling 6h vía `X-New-Bearer`. Conectividad badge + server-time sync. 400/400 tests passing, lint y format clean.
 
-Fase 1 (archivada): login funcional + redirect a `/home` protegido por guard. Specs en `openspec/specs/auth-*`, `openspec/specs/http-client`, `openspec/specs/route-protection`, `openspec/specs/session-storage`.
+Fase 1 (archivada 2026-06-11): login funcional + redirect a `/home` protegido por guard. Specs en `openspec/specs/auth-*`, `openspec/specs/http-client`, `openspec/specs/route-protection`, `openspec/specs/session-storage`.
+
+**Fase 3: pendiente de definición.** Próximos pasos potenciales: resultados post-envío, historial de simulacros, soporte multi-dispositivo mejorado, anti-fraude hardening.
 
 ## Stack
 

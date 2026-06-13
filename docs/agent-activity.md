@@ -27,3 +27,6 @@ Auto-generado por `.claude/hooks/log-agent-usage.ps1` en cada PostToolUse del to
 | 2026-06-11 17:04:55 | frontend-builder | Integrar Enviar + auto-env├¡o en SimulacroPage                   | opus-4-7 | 59,921       | --    | --       | $0.3109   |
 | 2026-06-11 17:20:56 | test-engineer    | Tests Secci├│n 9 submission completa                             | opus-4-7 | 165,994      | --    | --       | $0.5104   |
 | 2026-06-11 17:28:50 | hexagonal-guard  | Audit hexagonal boundaries                                       | opus-4-7 | 80,356       | --    | --       | $0.5024   |
+| 2026-06-12 16:02:53 | test-engineer    | Tests para protecci├│n anti-cambio accidental                    | opus-4-7 | 110,013      | --    | --       | $0.2325   |
+| 2026-06-12 17:46:36 | sdd-verify       | Verify cartilla-fase-2 SDD change                                | opus-4-7 | 59,438       | --    | --       | $0.2172   |
+| 2026-06-12 17:56:19 | sdd-archive | Archive cartilla-fase-2 SDD change | opus-4-7 | 88,354 | -- | -- | $0.2238 |
