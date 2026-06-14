@@ -1,16 +1,16 @@
 // Dobles manuales de los puertos L1 para tests de L2.
 // Convención: clases reales (no vi.fn()) para forzar que la interface se respete
 // y para que el reader vea el contrato del puerto en el doble.
+//
+// AuthRepository, IdentityStorage, ProfileStorage → ver tests/unit/fixtures/
+// (centralizados allí para reutilización entre use cases de auth).
 
-import { AuthRepository, Credentials } from '../../../src/L1_domain/ports/auth-repository';
-import { SessionStorage } from '../../../src/L1_domain/ports/session-storage';
 import {
   AlternativaValue,
   AnswersMap,
   EnvioPendiente,
   MarkingsStorage,
 } from '../../../src/L1_domain/ports/markings-storage';
-import { Session } from '../../../src/L1_domain/entities/session';
 import { Clock } from '../../../src/L1_domain/ports/clock';
 import {
   EnvioRequest,
@@ -19,78 +19,6 @@ import {
   SimulacrosListResult,
 } from '../../../src/L1_domain/ports/simulacros-api';
 import { ServerTime } from '../../../src/L1_domain/value-objects/server-time';
-
-export class InMemorySessionStorage implements SessionStorage {
-  private store: Session | null = null;
-  // Lista opcional compartida para registrar el orden en que el use case
-  // invoca `clear()` relativo a otras ops (ej: `markings.wipeUserScope()`).
-  // Si los tests pasan el mismo array al fake de markings, se obtiene un
-  // log unificado para assertear secuencias.
-  private sharedOpsLog: string[] | null = null;
-
-  bindOpsLog(log: string[]): void {
-    this.sharedOpsLog = log;
-  }
-
-  async read(): Promise<Session | null> {
-    return this.store;
-  }
-
-  async write(s: Session): Promise<void> {
-    this.store = s;
-  }
-
-  async clear(): Promise<void> {
-    this.sharedOpsLog?.push('session.clear');
-    this.store = null;
-  }
-}
-
-export class FakeAuthRepository implements AuthRepository {
-  private nextLogin:
-    | { kind: 'resolve'; session: Session }
-    | { kind: 'reject'; error: Error }
-    | null = null;
-  private logoutShouldFail = false;
-  private loginCalls: Credentials[] = [];
-  private logoutCalls: Session[] = [];
-
-  willResolveLogin(session: Session): void {
-    this.nextLogin = { kind: 'resolve', session };
-  }
-
-  willRejectLogin(error: Error): void {
-    this.nextLogin = { kind: 'reject', error };
-  }
-
-  willRejectLogout(): void {
-    this.logoutShouldFail = true;
-  }
-
-  async login(credentials: Credentials): Promise<Session> {
-    this.loginCalls.push(credentials);
-    if (!this.nextLogin) {
-      throw new Error(
-        'FakeAuthRepository: configurar willResolveLogin o willRejectLogin antes de llamar login()',
-      );
-    }
-    if (this.nextLogin.kind === 'reject') throw this.nextLogin.error;
-    return this.nextLogin.session;
-  }
-
-  async logout(session: Session): Promise<void> {
-    this.logoutCalls.push(session);
-    if (this.logoutShouldFail) throw new Error('logout server-side falló');
-  }
-
-  getLoginCalls(): readonly Credentials[] {
-    return this.loginCalls;
-  }
-
-  getLogoutCalls(): readonly Session[] {
-    return this.logoutCalls;
-  }
-}
 
 // Doble manual de `MarkingsStorage` para tests de L2.
 // Mantiene marcaciones en un Map keyed por `simulacroId|pregunta` y la cola
@@ -110,7 +38,7 @@ export class InMemoryMarkingsStorage implements MarkingsStorage {
 
   // Si se conecta a un log compartido (vía `bindOpsLog`), las ops se
   // registran ahí para que los tests puedan assertear secuencias que
-  // crucen este fake y otros (ej: InMemorySessionStorage).
+  // crucen este fake y otros (ej: FakeIdentityStorage).
   bindOpsLog(log: string[]): void {
     this.opsLog = log;
   }
