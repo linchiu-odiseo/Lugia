@@ -1,91 +1,80 @@
 :host {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   min-height: 100dvh;
   background: var(--color-bg);
   color: var(--color-on-surface);
-  padding: var(--space-lg);
+  padding: var(--space-xl) var(--space-lg);
   box-sizing: border-box;
   font-family: var(--font-body);
 }
 
 .login {
-  max-width: 28rem;
+  width: 100%;
+  max-width: 22rem;
   margin: 0 auto;
-  padding-block: 2.5rem var(--space-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xl);
 
-  header {
-    margin-bottom: var(--space-xl);
-
-    h1 {
-      margin: 0;
-      font-size: 2rem;
-      letter-spacing: -0.02em;
-      color: var(--color-primary);
-    }
-
-    .subtitle {
-      margin: 0.25rem 0 0;
-      color: var(--color-on-surface-variant);
-      font-size: 0.95rem;
-    }
+  &__header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: var(--space-xs);
   }
 
-  form {
+  // Marca-bloque "L" arriba del título — mismo lugar que el icono PWA
+  // ocupa en el home screen instalado, refuerza identidad sin necesitar
+  // un asset adicional.
+  &__brand {
+    width: 5rem;
+    height: 5rem;
+    border-radius: var(--radius-lg);
+    background: var(--color-primary);
+    color: var(--color-on-primary);
+    font-family: var(--font-display);
+    font-size: 2rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+    margin-bottom: var(--space-xs);
+  }
+
+  &__title {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: 2rem;
+    line-height: 2.5rem;
+    letter-spacing: -0.02em;
+    font-weight: 700;
+    color: var(--color-on-surface);
+  }
+
+  &__subtitle {
+    margin: 0;
+    color: var(--color-on-surface-variant);
+    font-size: 1rem;
+  }
+
+  &__form {
     display: flex;
     flex-direction: column;
     gap: 1.25rem;
   }
 
-  .field {
-    display: flex;
-    flex-direction: column;
-    gap: 0.4rem;
-
-    &__label {
-      font-size: 0.85rem;
-      color: var(--color-on-surface-variant);
-    }
-
-    input {
-      width: 100%;
-      box-sizing: border-box;
-      padding: 0.75rem 0.9rem;
-      border: 1px solid var(--color-outline-variant);
-      border-radius: var(--radius);
-      background: var(--color-surface-container-low);
-      color: inherit;
-      font-size: 1rem;
-      transition: border-color 120ms ease;
-
-      &:focus-visible {
-        outline: none;
-        border-color: var(--color-primary);
-      }
-    }
-
-    &__hint {
-      color: var(--color-error);
-      font-size: 0.8rem;
-    }
-  }
-
-  .error {
-    margin: 0;
-    padding: 0.65rem var(--space-xs);
-    background: var(--color-error-container);
-    border: 1px solid var(--color-error);
-    border-radius: var(--radius);
-    color: var(--color-on-error-container);
-    font-size: 0.9rem;
-  }
-
-  button[type='submit'] {
-    margin-top: var(--space-xs);
-    padding: 0.85rem var(--space-md);
+  &__submit {
+    height: 3rem; // touch target 48 px exacto
+    padding: 0 var(--space-md);
     border: none;
     border-radius: var(--radius);
     background: var(--color-primary);
     color: var(--color-on-primary);
+    font-family: var(--font-body);
     font-size: 1rem;
     font-weight: 600;
     cursor: pointer;
@@ -98,12 +87,102 @@
     }
 
     &:active:not(:disabled) {
-      transform: translateY(1px);
+      transform: scale(0.98);
     }
 
     &:disabled {
       opacity: 0.55;
       cursor: not-allowed;
     }
+  }
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+
+  // Label-caps del DS Native Excellence — toda etiqueta de campo / sección
+  // sigue este estilo para crear separación estructural sin ruido visual.
+  &__label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    line-height: 1rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--color-on-surface-variant);
+  }
+
+  // Wrapper relativo que permite anclar el icono Material absolute a la
+  // izquierda sin desplazar el input del flow.
+  &__input-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+
+  &__icon {
+    position: absolute;
+    left: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--color-outline);
+    pointer-events: none;
+    font-size: 1.25rem;
+  }
+
+  &__input {
+    width: 100%;
+    box-sizing: border-box;
+    height: 3rem;
+    padding: 0 var(--space-md) 0 2.75rem;
+    border: 1px solid var(--color-outline-variant);
+    border-radius: var(--radius);
+    background: var(--color-surface-container-low);
+    color: var(--color-on-surface);
+    font-family: var(--font-body);
+    font-size: 1rem;
+    transition:
+      border-color 120ms ease,
+      box-shadow 120ms ease;
+
+    &::placeholder {
+      color: var(--color-outline);
+    }
+
+    &:focus-visible {
+      outline: none;
+      border-color: var(--color-primary);
+      box-shadow: 0 0 0 1px var(--color-primary);
+    }
+  }
+
+  &__hint {
+    color: var(--color-error);
+    font-size: 0.8rem;
+  }
+}
+
+.error {
+  margin: 0;
+  padding: 0.75rem var(--space-md);
+  background: var(--color-error-container);
+  border-radius: var(--radius);
+  color: var(--color-on-error-container);
+  font-size: 0.9rem;
+  line-height: 1.35;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-xs);
+
+  &__icon {
+    flex-shrink: 0;
+    font-size: 1.25rem;
+    line-height: 1.35;
+  }
+
+  &__copy {
+    flex: 1;
+    min-width: 0;
   }
 }

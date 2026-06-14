@@ -1,19 +1,25 @@
 <main class="login">
-  <header>
-    <h1>Lugia</h1>
-    <p class="subtitle">Inicia sesión para continuar</p>
+  <header class="login__header">
+    <div class="login__brand" aria-hidden="true">L</div>
+    <h1 class="login__title">Lugia</h1>
+    <p class="login__subtitle">Inicia sesión para continuar</p>
   </header>
 
-  <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+  <form [formGroup]="form" (ngSubmit)="submit()" novalidate class="login__form">
     <label class="field">
       <span class="field__label">Email</span>
-      <input
-        type="email"
-        formControlName="email"
-        autocomplete="email"
-        inputmode="email"
-        spellcheck="false"
-      />
+      <div class="field__input-wrap">
+        <span class="material-symbols-outlined field__icon" aria-hidden="true">mail</span>
+        <input
+          type="email"
+          formControlName="email"
+          autocomplete="email"
+          inputmode="email"
+          spellcheck="false"
+          placeholder="fulano@panda.test"
+          class="field__input"
+        />
+      </div>
       @if (form.controls.email.touched && form.controls.email.errors?.['required']) {
         <small class="field__hint">El email es obligatorio.</small>
       }
@@ -24,17 +30,33 @@
 
     <label class="field">
       <span class="field__label">Contraseña</span>
-      <input type="password" formControlName="password" autocomplete="current-password" />
+      <div class="field__input-wrap">
+        <span class="material-symbols-outlined field__icon" aria-hidden="true">lock</span>
+        <input
+          type="password"
+          formControlName="password"
+          autocomplete="current-password"
+          placeholder="••••••••"
+          class="field__input"
+        />
+      </div>
       @if (form.controls.password.touched && form.controls.password.errors?.['required']) {
         <small class="field__hint">La contraseña es obligatoria.</small>
       }
     </label>
 
     @if (vm.errorMessage(); as msg) {
-      <p class="error" role="alert">{{ msg }}</p>
+      <p class="error" role="alert">
+        <span class="material-symbols-outlined error__icon" aria-hidden="true">error</span>
+        <span class="error__copy">{{ msg }}</span>
+      </p>
     }
 
-    <button type="submit" [disabled]="form.invalid || vm.isSubmitting()">
+    <button
+      type="submit"
+      class="login__submit"
+      [disabled]="form.invalid || vm.isSubmitting()"
+    >
       @if (vm.isSubmitting()) {
         Ingresando…
       } @else {

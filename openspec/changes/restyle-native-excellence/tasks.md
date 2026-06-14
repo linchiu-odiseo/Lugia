@@ -20,11 +20,11 @@
 
 ## 3. Restyle visual de `LoginPage`
 
-- [ ] 3.1 Ajustar `login.page.scss` al look Native Excellence: contenedor flex column con `justify-content: center` para centrar vertical, max-width ~22 rem, padding lateral `var(--space-lg)`.
-- [ ] 3.2 Cambiar `login.page.html` para que los `<label>` muestren label-caps (uppercase, letter-spacing, font-size 12 px) usando una clase `field__label` ya existente o nueva.
-- [ ] 3.3 Agregar icon prefix Material Symbols a los inputs (mail para email, lock para password) usando un wrapper `<div class="field__input-wrap">` con posicionamiento absolute del icono.
-- [ ] 3.4 Restilear el banner de error (`.error[role="alert"]`) con `var(--color-error-container)` de fondo y `var(--color-on-error-container)` de texto, icono de error a la izquierda.
-- [ ] 3.5 Restilear el `<button type="submit">` con fondo `var(--color-primary)`, texto `var(--color-on-primary)`, radius `var(--radius)`, height 48 px, `active:scale(0.98)`.
+- [x] 3.1 Ajustar `login.page.scss` al look Native Excellence: contenedor flex column con `justify-content: center` para centrar vertical, max-width ~22 rem, padding lateral `var(--space-lg)`.
+- [x] 3.2 Cambiar `login.page.html` para que los `<label>` muestren label-caps (uppercase, letter-spacing, font-size 12 px) usando una clase `field__label` ya existente o nueva.
+- [x] 3.3 Agregar icon prefix Material Symbols a los inputs (mail para email, lock para password) usando un wrapper `<div class="field__input-wrap">` con posicionamiento absolute del icono.
+- [x] 3.4 Restilear el banner de error (`.error[role="alert"]`) con `var(--color-error-container)` de fondo y `var(--color-on-error-container)` de texto, icono de error a la izquierda.
+- [x] 3.5 Restilear el `<button type="submit">` con fondo `var(--color-primary)`, texto `var(--color-on-primary)`, radius `var(--radius)`, height 48 px, `active:scale(0.98)`.
 - [ ] 3.6 Verificar manualmente en dev que `/login` se ve centrado, los campos tienen iconos, el error se ve con paleta correcta, y el botón "Ingresar" cumple touch target.
 
 ## 4. Restyle visual de `HomePage` + cita ambient
