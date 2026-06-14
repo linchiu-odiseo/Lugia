@@ -1,35 +1,81 @@
 import { AuthRepository } from '../../L1_domain/ports/auth-repository';
-import { SessionStorage } from '../../L1_domain/ports/session-storage';
+import { IdentityStorage } from '../../L1_domain/ports/identity-storage';
+import { ProfileStorage } from '../../L1_domain/ports/profile-storage';
 import { MarkingsStorage } from '../../L1_domain/ports/markings-storage';
+import { OutboxStoragePort } from '../../L1_domain/ports/outbox-storage.port';
+import { RouterPort } from '../../L1_domain/ports/router-port';
+import { SwMessengerPort } from '../../L1_domain/ports/sw-messenger.port';
 
+// Use case de logout con 8 pasos ordenados estrictamente.
+//
+// CRÍTICO: `markingsStorage.wipeUserScope()` se invoca ANTES de `identityStorage.clear()`
+// para que el adapter (`IndexedDbMarkingsStorage`) todavía pueda leer el email del usuario
+// desde `IdentityStorage` internamente y determinar el scope a borrar.
+//
+// Todos los pasos de limpieza local son best-effort: un error en uno no detiene los siguientes.
+// El logout del repo también es best-effort (errores de red se ignoran con console.warn).
+//
+// Si no hay identity activa al inicio: solo navega a /login y retorna (no-op).
 export class LogoutUseCase {
   constructor(
-    private readonly repo: AuthRepository,
-    private readonly storage: SessionStorage,
-    private readonly markings: MarkingsStorage,
+    private readonly authRepo: AuthRepository,
+    private readonly identityStorage: IdentityStorage,
+    private readonly profileStorage: ProfileStorage,
+    private readonly markingsStorage: MarkingsStorage,
+    private readonly outboxStorage: OutboxStoragePort,
+    private readonly router: RouterPort,
+    private readonly swMessenger?: SwMessengerPort,
   ) {}
 
-  // Idempotente: si no hay sesión activa, es no-op.
-  // Si la hay: borra primero las marcaciones locales del usuario actual
-  // (necesita la sesión viva para derivar el scope), luego intenta
-  // revocarla server-side (best-effort), y SIEMPRE limpia el storage de
-  // sesión. Errores de wipe o logout NO bloquean el flujo — el usuario
-  // queda deslogueado localmente sí o sí.
   async execute(): Promise<void> {
-    const session = await this.storage.read();
-    if (session) {
-      try {
-        await this.markings.wipeUserScope();
-      } catch {
-        // best-effort: si el IDB falla, no podemos hacer mucho mas — el
-        // borrado de sesion abajo igual deja al usuario fuera.
-      }
-      try {
-        await this.repo.logout(session);
-      } catch {
-        // best-effort
-      }
+    // Paso 1: verificar si hay identity activa. Si no → solo navegar.
+    const identity = await this.identityStorage.read();
+    if (!identity) {
+      this.router.navigate(['/login']);
+      return;
     }
-    await this.storage.clear();
+
+    // Paso 2: best-effort logout server-side (limpia cookies HttpOnly).
+    try {
+      await this.authRepo.logout();
+    } catch (err) {
+      console.warn('logout endpoint failed; local cleanup continues', err);
+    }
+
+    // Paso 3: limpiar marcaciones del usuario.
+    // El adapter lee IdentityStorage internamente para resolver el scope.
+    // Se invoca ANTES de identityStorage.clear() (paso 6).
+    try {
+      await this.markingsStorage.wipeUserScope();
+    } catch (err) {
+      console.warn('markings wipe failed during logout', err);
+    }
+
+    // Paso 4: limpiar outbox de envíos pendientes.
+    try {
+      await this.outboxStorage.clear();
+    } catch (err) {
+      console.warn('outbox clear failed during logout', err);
+    }
+
+    // Paso 5: limpiar caché de perfil.
+    try {
+      await this.profileStorage.clear();
+    } catch (err) {
+      console.warn('profile storage clear failed during logout', err);
+    }
+
+    // Paso 6: limpiar identity (DESPUÉS de markingsStorage.wipeUserScope).
+    try {
+      await this.identityStorage.clear();
+    } catch (err) {
+      console.warn('identity storage clear failed during logout', err);
+    }
+
+    // Paso 7: notificar al SW (opcional).
+    this.swMessenger?.post({ type: 'LOGOUT' });
+
+    // Paso 8: navegar a login.
+    this.router.navigate(['/login']);
   }
 }
