@@ -106,9 +106,7 @@ export class HttpAuthRepository implements AuthRepository {
   async logout(): Promise<void> {
     // Best-effort: errores de red o 5xx no se clasifican — el LogoutUseCase
     // ya envuelve la llamada en try/catch y continúa con la limpieza local.
-    await firstValueFrom(
-      this.http.post(apiPath.logout(), {}, { withCredentials: true }),
-    );
+    await firstValueFrom(this.http.post(apiPath.logout(), {}, { withCredentials: true }));
   }
 
   async getProfile(role: Role): Promise<StudentProfile | TutorProfile> {

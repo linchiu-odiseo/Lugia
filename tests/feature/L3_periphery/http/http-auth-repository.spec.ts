@@ -175,7 +175,10 @@ describe('HttpAuthRepository', () => {
     it('mapea 429 a RateLimitError', async () => {
       const pending = repo.login(credentials);
       const req = httpMock.expectOne(LOGIN_URL);
-      req.flush({ code: 'TENANT_AUTH_RATE_LIMITED' }, { status: 429, statusText: 'Too Many Requests' });
+      req.flush(
+        { code: 'TENANT_AUTH_RATE_LIMITED' },
+        { status: 429, statusText: 'Too Many Requests' },
+      );
       await expect(pending).rejects.toBeInstanceOf(RateLimitError);
     });
 
@@ -352,7 +355,9 @@ describe('HttpAuthRepository', () => {
     it('login pega a /t/${tenantSlug}/auth/login', async () => {
       const pending = repo.login({ email: 'a@b.test', password: 'x' });
       const req = httpMock.expectOne(LOGIN_URL);
-      expect(req.request.url).toBe(`${environment.apiBaseUrl}/t/${environment.tenantSlug}/auth/login`);
+      expect(req.request.url).toBe(
+        `${environment.apiBaseUrl}/t/${environment.tenantSlug}/auth/login`,
+      );
       req.flush(STUDENT_LOGIN_RESPONSE);
       await pending;
     });
@@ -368,7 +373,9 @@ describe('HttpAuthRepository', () => {
     it('profile(student) pega a /t/${tenantSlug}/student/me', async () => {
       const pending = repo.getProfile('student');
       const req = httpMock.expectOne(STUDENT_PROFILE_URL);
-      expect(req.request.url).toBe(`${environment.apiBaseUrl}/t/${environment.tenantSlug}/student/me`);
+      expect(req.request.url).toBe(
+        `${environment.apiBaseUrl}/t/${environment.tenantSlug}/student/me`,
+      );
       req.flush(STUDENT_PROFILE_RESPONSE);
       await pending;
     });
@@ -376,7 +383,9 @@ describe('HttpAuthRepository', () => {
     it('profile(tutor) pega a /t/${tenantSlug}/tutor/me', async () => {
       const pending = repo.getProfile('tutor');
       const req = httpMock.expectOne(TUTOR_PROFILE_URL);
-      expect(req.request.url).toBe(`${environment.apiBaseUrl}/t/${environment.tenantSlug}/tutor/me`);
+      expect(req.request.url).toBe(
+        `${environment.apiBaseUrl}/t/${environment.tenantSlug}/tutor/me`,
+      );
       req.flush(TUTOR_PROFILE_RESPONSE);
       await pending;
     });

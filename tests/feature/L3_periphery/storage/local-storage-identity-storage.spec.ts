@@ -115,10 +115,7 @@ describe('LocalStorageIdentityStorage', () => {
     });
 
     it('shape con roles no array → null + key eliminada', async () => {
-      localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify({ ...VALID_PERSISTED, roles: 'student' }),
-      );
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...VALID_PERSISTED, roles: 'student' }));
       expect(await storage.read()).toBeNull();
       expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
     });
