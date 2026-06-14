@@ -210,6 +210,24 @@ describe('HomePage', () => {
     });
   });
 
+  describe('cita ambient', () => {
+    it('renderiza una entrada del set INSPIRATIONAL_QUOTES dentro de <blockquote class="quote">', async () => {
+      const fixture = TestBed.createComponent(HomePage);
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      const blockquote = (fixture.nativeElement as HTMLElement).querySelector('blockquote.quote');
+      expect(blockquote).not.toBeNull();
+      // La frase exacta cambia entre mounts (randomQuote), pero siempre debe
+      // ser una entrada del set source de verdad.
+      const { INSPIRATIONAL_QUOTES } = await import(
+        '../../../../../src/LR_render/pages/home/inspirational-quotes'
+      );
+      const text = blockquote?.textContent?.trim();
+      expect(INSPIRATIONAL_QUOTES).toContain(text);
+    });
+  });
+
   describe('logout', () => {
     it('click en "Cerrar sesión" invoca LogoutUseCase y navega a /login', async () => {
       const fixture = TestBed.createComponent(HomePage);

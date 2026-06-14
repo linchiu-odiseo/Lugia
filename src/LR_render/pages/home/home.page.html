@@ -18,12 +18,29 @@
     }
   </div>
 
-  <header>
-    <h1>Lugia</h1>
-    @if (vm.userEmail(); as e) {
-      <p class="greeting">Hola, {{ e }}</p>
-    }
-  </header>
+  @if (vm.userEmail(); as e) {
+    <header class="home__header">
+      <p class="home__welcome">Bienvenido</p>
+      <h1 class="home__title">Hola, {{ vm.userName() ?? e }}</h1>
+      <ul class="user-info">
+        <li class="user-info__row">
+          <span class="material-symbols-outlined user-info__icon" aria-hidden="true">mail</span>
+          <span class="greeting">{{ e }}</span>
+        </li>
+        @if (vm.userDni(); as d) {
+          <li class="user-info__row">
+            <span class="material-symbols-outlined user-info__icon" aria-hidden="true">badge</span>
+            <span class="user-info__mono">DNI {{ d }}</span>
+          </li>
+        }
+      </ul>
+
+      <figure class="quote-figure">
+        <blockquote class="quote">{{ vm.quote() }}</blockquote>
+        <img src="img/lugia.png" alt="Lugia" class="quote__img" />
+      </figure>
+    </header>
+  }
 
   @if (vm.offlineStorageBlocked()) {
     <div class="banner banner--blocking" role="alert">
@@ -48,8 +65,10 @@
         @for (card of vm.cards(); track card.id) {
           <li
             class="card"
-            [class.card--verde]="card.tone === 'verde'"
-            [class.card--gris]="card.tone === 'gris'"
+            [class.card--abierto]="card.estado === 'abierto'"
+            [class.card--enviado]="card.estado === 'enviado'"
+            [class.card--pendiente]="card.estado === 'pendiente'"
+            [class.card--cerrado]="card.estado === 'cerrado'"
             [class.card--clickable]="card.clickable"
             (click)="onSimulacroClick(card)"
             (keydown.enter)="onSimulacroClick(card)"
@@ -57,25 +76,37 @@
             [attr.tabindex]="card.clickable ? 0 : null"
             [attr.aria-disabled]="card.clickable ? null : 'true'"
           >
+            <span class="card__strip" aria-hidden="true"></span>
             <div class="card__primary">
               @if (card.estado === 'pendiente') {
-                <span class="card__icon" aria-hidden="true">⏰</span>
+                <span class="material-symbols-outlined card__icon" aria-hidden="true">
+                  schedule
+                </span>
               } @else if (card.estado === 'enviado') {
-                <span class="card__icon" aria-hidden="true">✓</span>
+                <span class="material-symbols-outlined card__icon" aria-hidden="true">
+                  check_circle
+                </span>
               } @else if (card.estado === 'cerrado') {
-                <span class="card__icon" aria-hidden="true">⚠</span>
+                <span class="material-symbols-outlined card__icon" aria-hidden="true">
+                  do_not_disturb_on
+                </span>
               }
               <span class="card__primary-text">{{ card.primaryText }}</span>
             </div>
             <h3 class="card__name">{{ card.name }}</h3>
             <p class="card__secondary">{{ card.secondaryText }}</p>
+            @if (card.clickable) {
+              <span class="material-symbols-outlined card__chevron" aria-hidden="true">
+                chevron_right
+              </span>
+            }
           </li>
         }
       </ul>
     }
   </section>
 
-  <footer>
+  <footer class="home__footer">
     <button type="button" (click)="signOut()" [disabled]="isSigningOut()">
       @if (isSigningOut()) {
         Cerrando…

@@ -32,12 +32,12 @@
 - [x] 4.1 Crear `src/LR_render/pages/home/inspirational-quotes.ts` con `INSPIRATIONAL_QUOTES: readonly string[]` (al menos 3 frases iniciales) y la función `randomQuote(): string`.
 - [x] 4.2 Modificar `src/LR_render/view-models/home.view-model.ts` para exponer `readonly quote = signal(randomQuote());`.
 - [x] 4.3 Modificar el `Session` value-object (si aplica) o el shape del view-model para exponer `dni: Signal<string | null>` derivado del response de login. Si `user.dni` no viene en el response actual, el signal devuelve `null` y el template renderiza condicional con `@if`. Cero cambios en specs de auth.
-- [ ] 4.4 Refactorizar `home.page.html`:
+- [x] 4.4 Refactorizar `home.page.html`:
   - Header reordenado: label-caps "Bienvenido" + `<h1>Hola, {{ vm.name() }}</h1>` + email + DNI condicional debajo, todos con iconos Material Symbols (mail, badge).
   - Bloque `<figure>` con `<blockquote class="quote">{{ vm.quote() }}</blockquote>` (flex 1, centrado, `var(--font-pixel)` 11 px, `var(--color-on-surface-variant)`) + `<img src="img/lugia.png" alt="Lugia" class="quote__img">` a la derecha (80×80).
   - Section "Simulacros de hoy" con label-caps, cards con `<div class="card__strip">` lateral 4 px por estado (gris pendiente/cerrado, verde abierto/enviado), `<div class="card__primary">` con icon estado y label-caps, `<h3 class="card__name">`, `<p class="card__secondary">`.
-- [ ] 4.5 Restilear el botón "Cerrar sesión" en footer con borde `var(--color-outline-variant)`, fondo transparente, texto `var(--color-on-surface-variant)`.
-- [ ] 4.6 Agregar regla en `home.page.scss` para `.quote` (font-family + size + leading + lowercase + center) y `.quote__img` (`width/height: 80px; object-contain; user-select: none; pointer-events: none`).
+- [x] 4.5 Restilear el botón "Cerrar sesión" en footer con borde `var(--color-outline-variant)`, fondo transparente, texto `var(--color-on-surface-variant)`.
+- [x] 4.6 Agregar regla en `home.page.scss` para `.quote` (font-family + size + leading + lowercase + center) y `.quote__img` (`width/height: 80px; object-contain; user-select: none; pointer-events: none`).
 - [ ] 4.7 Verificar manualmente en dev que `/home` se ve light, la cita rota al recargar la página, y Lugia se ve a la derecha de la frase.
 
 ## 5. Restyle visual de `SimulacroPage` + cambio de comportamiento del toast
@@ -69,7 +69,7 @@
 ## 8. Tests
 
 - [ ] 8.1 Actualizar `tests/feature/LR_render/view-models/simulacro.view-model.spec.ts`: eliminar los tests del bloque `describe` que asseran sobre `showHintToast` y `HINT_TOAST_VISIBLE_MS` (líneas ~640–693, 9 asserts en total: tap sobre locked no marca + dispara showHintToast, timer 4000ms, etc.). Reemplazar por un único test que verifique que el tap simple sobre fila `locked` no muta la marcación NI dispara ningún signal de hint (la ausencia de cambio es la única señal). Si existe un `simulacro.page.spec.ts` que assertea sobre el DOM `.hint-toast` o `.fila__hint`, actualizarlo: eliminar esos asserts y agregar uno que verifique `.row__chip` visible en filas `editing`.
-- [ ] 8.2 Agregar test en `tests/feature/**/home.page.spec.ts` (o equivalente) que verifica que `<blockquote class="quote">` renderiza uno de los strings del array `INSPIRATIONAL_QUOTES`.
+- [x] 8.2 Agregar test en `tests/feature/**/home.page.spec.ts` (o equivalente) que verifica que `<blockquote class="quote">` renderiza uno de los strings del array `INSPIRATIONAL_QUOTES`.
 - [x] 8.3 Agregar test (unit, sin Angular) en `tests/unit/**/inspirational-quotes.spec.ts` que verifica que `randomQuote()` devuelve un string del array y que el array tiene al menos 1 elemento.
 - [ ] 8.4 Ejecutar `npm test` y verificar que TODOS los tests pasan. Si alguno otro test asserta sobre colores hardcoded o snapshot de HTML que cambió, actualizarlo o eliminarlo según el caso.
 - [ ] 8.5 Ejecutar `npm run lint` y arreglar cualquier issue de ESLint introducida por el refactor.

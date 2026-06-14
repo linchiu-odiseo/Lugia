@@ -3,7 +3,7 @@
   min-height: 100dvh;
   background: var(--color-bg);
   color: var(--color-on-surface);
-  padding: var(--space-lg);
+  padding: var(--space-lg) var(--space-md);
   box-sizing: border-box;
   font-family: var(--font-body);
 }
@@ -12,7 +12,7 @@
   position: relative;
   max-width: 28rem;
   margin: 0 auto;
-  padding-block: 2.5rem var(--space-md);
+  padding-block: var(--space-lg) var(--space-md);
   display: flex;
   flex-direction: column;
   gap: var(--space-lg);
@@ -22,6 +22,64 @@
   // touch-action: pan-y permite scroll vertical nativo y aún capturamos los
   // touch events para detectar el pull-to-refresh desde scrollTop=0.
   touch-action: pan-y;
+
+  &__header {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+  }
+
+  // Label-caps "Bienvenido" — separación estructural por estilo, no por
+  // tamaño. El alumno reconoce que sigue el saludo grande sin que el ojo
+  // tenga que escanear texto.
+  &__welcome {
+    margin: 0;
+    font-size: 0.75rem;
+    font-weight: 700;
+    line-height: 1rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--color-on-surface-variant);
+  }
+
+  &__title {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: 1.625rem;
+    line-height: 2rem;
+    font-weight: 700;
+    color: var(--color-on-surface);
+    letter-spacing: -0.01em;
+  }
+
+  &__footer {
+    button {
+      width: 100%;
+      height: 2.75rem;
+      padding: 0 var(--space-md);
+      border: 1px solid var(--color-outline-variant);
+      border-radius: var(--radius);
+      background: transparent;
+      color: var(--color-on-surface-variant);
+      font-family: var(--font-body);
+      font-size: 0.875rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition:
+        background 120ms ease,
+        border-color 120ms ease;
+
+      &:hover:not(:disabled) {
+        background: var(--color-surface-container-low);
+        border-color: var(--color-primary);
+      }
+
+      &:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+      }
+    }
+  }
 }
 
 .pull-indicator {
@@ -41,19 +99,73 @@
   }
 }
 
-header {
-  h1 {
-    margin: 0;
-    font-size: 2rem;
-    letter-spacing: -0.02em;
-    color: var(--color-primary);
+// Lista de filas "icono + texto" debajo del saludo. Usa <ul> semántico,
+// las viñetas se quitan con list-style.
+.user-info {
+  list-style: none;
+  margin: var(--space-xs) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  color: var(--color-on-surface-variant);
+  font-size: 0.875rem;
+
+  &__row {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
   }
 
-  .greeting {
-    margin: 0.25rem 0 0;
-    color: var(--color-on-surface-variant);
+  &__icon {
     font-size: 1rem;
+    line-height: 1;
+    color: var(--color-on-surface-variant);
   }
+
+  &__mono {
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    letter-spacing: 0.02em;
+  }
+}
+
+// .greeting es el span con el email — mismo selector que conservan los
+// tests de regresión. El estilo es heredado del row, no necesita reglas
+// propias.
+.greeting {
+  font-family: var(--font-body);
+}
+
+// Capa ambient: cita "splash Minecraft / epígrafe" centrada en su columna
+// izquierda + Lugia png a la derecha alineado vertical. Press Start 2P
+// pega su personalidad sin gritar — el color on-surface-variant lo
+// silencia para que no compita con el saludo o las cards.
+.quote-figure {
+  margin: var(--space-md) 0 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.quote {
+  flex: 1;
+  margin: 0;
+  font-family: var(--font-pixel);
+  font-size: 0.6875rem;
+  line-height: 1.95;
+  color: var(--color-on-surface-variant);
+  text-align: center;
+  text-transform: lowercase;
+}
+
+.quote__img {
+  width: 5rem;
+  height: 5rem;
+  object-fit: contain;
+  flex-shrink: 0;
+  user-select: none;
+  pointer-events: none;
 }
 
 .banner {
@@ -98,18 +210,18 @@ header {
 }
 
 .simulacros {
-  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 0.9rem;
 
   .section-title {
     margin: 0;
-    font-size: 0.85rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    line-height: 1rem;
+    letter-spacing: 0.05em;
     text-transform: uppercase;
-    letter-spacing: 0.08em;
     color: var(--color-on-surface-variant);
-    font-weight: 600;
   }
 
   .empty-state {
@@ -128,8 +240,12 @@ header {
   }
 }
 
+// Card con strip lateral de color por estado. El strip es un span absolute
+// que ocupa el alto completo del <li>, 4 px de ancho a la izquierda — el
+// equivalente Material a "tonal layer" sin sombras.
 .card {
-  padding: var(--space-md) 1.1rem;
+  position: relative;
+  padding: var(--space-md) 1.1rem var(--space-md) 1.25rem;
   border-radius: var(--radius-md);
   border: 1px solid var(--color-outline-variant);
   background: var(--color-surface-container-lowest);
@@ -138,21 +254,31 @@ header {
   gap: 0.4rem;
   font-variant-numeric: tabular-nums;
   outline: none;
+  overflow: hidden;
   transition:
     background 120ms ease,
     border-color 120ms ease,
     transform 80ms ease;
 
-  &--gris {
-    background: var(--color-surface-container-low);
-    border-color: var(--color-outline-variant);
-    color: var(--color-on-surface-variant);
+  &__strip {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background: var(--color-outline);
   }
 
-  &--verde {
-    background: var(--color-surface-container-lowest);
-    border-color: var(--color-success);
-    color: var(--color-on-surface);
+  &--abierto,
+  &--enviado {
+    .card__strip {
+      background: var(--color-success);
+    }
+  }
+
+  &--pendiente,
+  &--cerrado {
+    opacity: 0.7;
   }
 
   &--clickable {
@@ -161,6 +287,7 @@ header {
     &:hover,
     &:focus-visible {
       background: var(--color-surface-container-low);
+      border-color: var(--color-primary);
       transform: translateY(-1px);
     }
 
@@ -173,23 +300,31 @@ header {
     display: flex;
     align-items: center;
     gap: 0.45rem;
-    font-size: 0.85rem;
-    font-weight: 500;
+    font-size: 0.75rem;
+    font-weight: 700;
+    line-height: 1rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--color-on-surface-variant);
+  }
+
+  &--abierto &__primary,
+  &--enviado &__primary {
+    color: var(--color-success);
   }
 
   &__icon {
-    font-size: 0.95rem;
+    font-size: 1.125rem;
+    line-height: 1;
   }
 
   &__name {
     margin: 0;
+    font-family: var(--font-display);
     font-size: 1.05rem;
     line-height: 1.3;
+    font-weight: 600;
     color: var(--color-on-surface);
-  }
-
-  &--gris &__name {
-    color: var(--color-on-surface-variant);
   }
 
   &__secondary {
@@ -197,29 +332,14 @@ header {
     font-size: 0.85rem;
     color: var(--color-on-surface-variant);
   }
-}
 
-footer {
-  button {
-    width: 100%;
-    padding: 0.85rem var(--space-md);
-    border: 1px solid var(--color-outline-variant);
-    border-radius: var(--radius);
-    background: transparent;
-    color: var(--color-on-surface-variant);
-    font-size: 1rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: background 120ms ease;
-
-    &:hover:not(:disabled) {
-      background: var(--color-surface-container-low);
-      border-color: var(--color-primary);
-    }
-
-    &:disabled {
-      opacity: 0.55;
-      cursor: not-allowed;
-    }
+  &__chevron {
+    position: absolute;
+    right: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--color-outline);
+    font-size: 1.25rem;
+    pointer-events: none;
   }
 }
