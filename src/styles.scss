@@ -1,5 +1,70 @@
 /* Global styles — Lugia PWA shell mobile-first */
 
+/*
+  Sistema de tokens "Native Excellence".
+
+  Las CSS Variables W3C son la única fuente de verdad para color, spacing,
+  radius y tipografía. Todo `.scss` de `LR_render/**` consume `var(--token)`
+  — ningún hex literal debe vivir fuera de este bloque.
+
+  Derivado del frontmatter de `.authentic/legacy/lugia_native_systems/DESIGN.md`.
+*/
+:root {
+  /* Surfaces y neutrals — paleta light-mode (mimetiza la hoja física) */
+  --color-bg: #fcf9f8;
+  --color-surface: #fcf9f8;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #f6f3f2;
+  --color-surface-container: #f0edec;
+  --color-surface-container-high: #ebe7e7;
+  --color-surface-container-highest: #e5e2e1;
+  --color-on-surface: #1c1b1b;
+  --color-on-surface-variant: #43474f;
+  --color-outline: #747780;
+  --color-outline-variant: #c4c6d1;
+
+  /* Primary — Lugia Blue */
+  --color-primary: #002453;
+  --color-primary-container: #1a3a6d;
+  --color-on-primary: #ffffff;
+  --color-on-primary-container: #89a5df;
+
+  /* Estados semánticos */
+  --color-success: #2e7d32;
+  --color-success-container: #d6edd8;
+  --color-on-success-container: #0f3613;
+  --color-warning: #b15800;
+  --color-warning-container: #ffddb8;
+  --color-on-warning-container: #4a2700;
+  --color-error: #ba1a1a;
+  --color-on-error: #ffffff;
+  --color-error-container: #ffdad6;
+  --color-on-error-container: #93000a;
+
+  /* Spacing — baseline 4 px */
+  --space-base: 4px;
+  --space-xs: 8px;
+  --space-sm: 12px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+
+  /* Radius — 8 px es el default; pill para bubbles OMR */
+  --radius-sm: 4px;
+  --radius: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-pill: 9999px;
+
+  /* Tipografía */
+  --font-display: 'Hanken Grotesk', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    sans-serif;
+  --font-body: 'Hanken Grotesk', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-pixel: 'Press Start 2P', ui-monospace, monospace;
+}
+
 *,
 *::before,
 *::after {
@@ -10,8 +75,9 @@ html,
 body {
   margin: 0;
   padding: 0;
-  background: #0b0f17;
-  color: #f1f5f9;
+  background: var(--color-bg);
+  color: var(--color-on-surface);
+  font-family: var(--font-body);
   overscroll-behavior: none;
   -webkit-tap-highlight-color: transparent;
   -webkit-font-smoothing: antialiased;
@@ -59,4 +125,14 @@ input,
 textarea {
   font-family: inherit;
   font-size: 1rem; /* >=16px previene zoom automático en iOS Safari */
+}
+
+// Ícono Material Symbols Outlined — afinamos peso y tamaño óptico por defecto
+// para que combinen con la disciplina tipográfica de Hanken Grotesk.
+.material-symbols-outlined {
+  font-variation-settings:
+    'FILL' 0,
+    'wght' 400,
+    'GRAD' 0,
+    'opsz' 24;
 }

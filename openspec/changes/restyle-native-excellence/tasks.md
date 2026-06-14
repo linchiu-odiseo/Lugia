@@ -2,12 +2,12 @@
 
 ## 1. Tokens del design system en `:root`
 
-- [ ] 1.1 Agregar a `src/styles.scss` un bloque `:root { … }` con todas las CSS Variables de color derivadas del frontmatter de `.authentic/lugia_native_systems/DESIGN.md` (paleta light-mode + semantic + outline-variant + error). Naming `--color-<rol>`.
-- [ ] 1.2 Agregar tokens de spacing `--space-base` (4 px), `--space-xs` (8), `--space-sm` (12), `--space-md` (16), `--space-lg` (24), `--space-xl` (32) al mismo `:root`.
-- [ ] 1.3 Agregar tokens de radius `--radius-sm` (4 px), `--radius` (8 px default), `--radius-md` (12), `--radius-lg` (16), `--radius-pill` (9999) al mismo `:root`.
-- [ ] 1.4 Agregar tokens de tipografía `--font-display` (`'Hanken Grotesk', system-ui, sans-serif`), `--font-body` (igual), `--font-mono` (`'JetBrains Mono', monospace`), `--font-pixel` (`'Press Start 2P', monospace`).
-- [ ] 1.5 Cambiar el `background` y `color` del `html, body` en `styles.scss` para consumir `var(--color-bg)` y `var(--color-on-surface)`. Verificar que en dev (`npm run dev`) la app arranca y se ve light.
-- [ ] 1.6 Agregar al `<head>` de `src/index.html` el `<link rel="stylesheet">` de Google Fonts que pide Hanken Grotesk + JetBrains Mono + Press Start 2P + Material Symbols Outlined con `display=swap`.
+- [x] 1.1 Agregar a `src/styles.scss` un bloque `:root { … }` con todas las CSS Variables de color derivadas del frontmatter de `.authentic/lugia_native_systems/DESIGN.md` (paleta light-mode + semantic + outline-variant + error). Naming `--color-<rol>`.
+- [x] 1.2 Agregar tokens de spacing `--space-base` (4 px), `--space-xs` (8), `--space-sm` (12), `--space-md` (16), `--space-lg` (24), `--space-xl` (32) al mismo `:root`.
+- [x] 1.3 Agregar tokens de radius `--radius-sm` (4 px), `--radius` (8 px default), `--radius-md` (12), `--radius-lg` (16), `--radius-pill` (9999) al mismo `:root`.
+- [x] 1.4 Agregar tokens de tipografía `--font-display` (`'Hanken Grotesk', system-ui, sans-serif`), `--font-body` (igual), `--font-mono` (`'JetBrains Mono', monospace`), `--font-pixel` (`'Press Start 2P', monospace`).
+- [x] 1.5 Cambiar el `background` y `color` del `html, body` en `styles.scss` para consumir `var(--color-bg)` y `var(--color-on-surface)`. Verificar que en dev (`npm run dev`) la app arranca y se ve light.
+- [x] 1.6 Agregar al `<head>` de `src/index.html` el `<link rel="stylesheet">` de Google Fonts que pide Hanken Grotesk + JetBrains Mono + Press Start 2P + Material Symbols Outlined con `display=swap`.
 
 ## 2. Refactor de los `.scss` existentes para consumir tokens
 

@@ -40,20 +40,31 @@
     -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://devoted-overnight-acne-consulting.trycloudflare.com; img-src 'self' data:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; connect-src 'self' https://measurement-conventions-entertaining-publicity.trycloudflare.com; img-src 'self' data:; font-src 'self' data: https://fonts.gstatic.com; object-src 'none'; base-uri 'self'; form-action 'self'"
+    />
+    <!--
+      Tipografía del design system Native Excellence — se carga desde Google
+      Fonts vía CSP allowlist (style-src incluye fonts.googleapis.com, font-src
+      incluye fonts.gstatic.com). `display=swap` evita FOIT bloqueante en
+      conexiones lentas; el fallback de var(--font-body) cubre el primer paint.
+    -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@500&family=Press+Start+2P&family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&display=swap"
     />
     <!--
       Iconos:
-      - .ico en 3 tamaños para la pestaña del navegador (legacy + retina).
-        El browser elige automáticamente el que mejor encaja por `sizes`.
-      - icon-180.png específico para apple-touch-icon (home screen iOS).
-      - icon-192.png / icon-512.png los referencia `public/manifest.json`
-        como iconos de la PWA (Android home screen / install dialog).
+      - favicon.ico para la pestaña del navegador (32x32 por ahora; pendiente
+        regenerarlo como multi-resolución 16/32/48).
+      - maskable_icon_x180.png como apple-touch-icon (home screen iOS — iOS
+        ignora el manifest, necesita este link explícito).
+      - El resto de maskable_icon_*.png los referencia `public/manifest.json`
+        para Android home screen / install dialog / task switcher.
     -->
-    <link rel="icon" type="image/x-icon" sizes="16x16" href="ico-16.ico" />
-    <link rel="icon" type="image/x-icon" sizes="32x32" href="ico-32.ico" />
-    <link rel="icon" type="image/x-icon" sizes="48x48" href="ico-48.ico" />
-    <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png" />
+    <link rel="icon" href="favicon.ico" />
+    <link rel="apple-touch-icon" sizes="180x180" href="maskable_icon_x180.png" />
   </head>
   <body>
     <app-root></app-root>
