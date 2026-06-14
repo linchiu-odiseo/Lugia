@@ -56,7 +56,7 @@
 
 ## 6. Restyle de `connectivity-badge`
 
-- [ ] 6.1 Refactorizar `connectivity-badge.component.scss` para light mode: estado online con fondo `var(--color-success-container)` o tonal, dot `var(--color-success)`, texto `var(--color-on-surface-variant)` label-caps. Estado offline equivalente con `var(--color-error)`.
+- [x] 6.1 Refactorizar `connectivity-badge.component.scss` para light mode: estado online con fondo `var(--color-success-container)` o tonal, dot `var(--color-success)`, texto `var(--color-on-surface-variant)` label-caps. Estado offline equivalente con `var(--color-error)`.
 - [ ] 6.2 Verificar manualmente en dev que el badge se ve coherente con el resto del shell light, y que la transición online → offline cambia colores sin parpadeo.
 
 ## 7. `index.html` + manifest

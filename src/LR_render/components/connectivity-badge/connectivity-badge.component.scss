@@ -1,6 +1,10 @@
 // Posicionamiento fixed top-right. El badge ocupa solo el área del pill,
 // no un overlay completo, así que no bloquea taps debajo. Aun así dejamos
 // pointer-events: none por defecto (es informativo, no interactivo).
+//
+// Light-mode con tonal layer + outline 1 px — patrón Native Excellence:
+// elevación por estructura, no por sombras. Texto en label-caps para
+// consistencia con el resto de chips del shell.
 .badge {
   position: fixed;
   top: calc(env(safe-area-inset-top) + var(--space-xs));
@@ -11,17 +15,18 @@
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  padding: 0.35rem 0.7rem;
+  padding: 0.3rem 0.65rem;
   border-radius: var(--radius-pill);
-  font-size: 0.78rem;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  line-height: 1;
 
+  // Label-caps del DS: 11 px / 700 / letter-spacing 0.05em uppercase.
+  // Va 1 px más chico que el estándar de 12 px porque el chip es overlay
+  // y debe sentirse discreto.
   font-family: var(--font-body);
-
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  line-height: 1;
 
   transition:
     background-color 160ms ease,
@@ -29,8 +34,8 @@
     color 160ms ease;
 
   &__dot {
-    width: 0.55rem;
-    height: 0.55rem;
+    width: 0.5rem;
+    height: 0.5rem;
     border-radius: 50%;
     flex-shrink: 0;
   }
