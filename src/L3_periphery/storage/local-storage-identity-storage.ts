@@ -1,0 +1,84 @@
+import { Injectable } from '@angular/core';
+import { Identity, Role } from '../../L1_domain/entities/identity';
+import { IdentityStorage } from '../../L1_domain/ports/identity-storage';
+
+const STORAGE_KEY = 'lugia.identity';
+
+// Shape persistido. Coincide 1:1 con el constructor de `Identity`. Si el
+// shape cambia en el futuro (campo nuevo, tipo distinto), `read()` debe
+// detectarlo y limpiar la entrada en vez de devolver un Identity inválido.
+interface PersistedShape {
+  id?: string;
+  tenantId?: string;
+  email?: string;
+  codigo?: string | null;
+  roles?: string[];
+  permissions?: string[];
+  expiresAt?: number;
+}
+
+// Reemplaza al viejo `LocalStorageSessionStorage`. Cut-over duro: si en
+// `lugia.session` (clave vieja) hay datos del modelo Bearer, no se migran
+// — al primer arranque después del cut-over, el AppInitializer hará /me y
+// re-poblará `lugia.identity` con la cookie HttpOnly válida (si la hay).
+@Injectable({ providedIn: 'root' })
+export class LocalStorageIdentityStorage implements IdentityStorage {
+  async read(): Promise<Identity | null> {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw === null) return null;
+
+    let parsed: PersistedShape;
+    try {
+      parsed = JSON.parse(raw) as PersistedShape;
+    } catch {
+      localStorage.removeItem(STORAGE_KEY);
+      return null;
+    }
+
+    if (
+      !parsed?.id ||
+      !parsed?.tenantId ||
+      !parsed?.email ||
+      !Array.isArray(parsed?.roles) ||
+      !Array.isArray(parsed?.permissions) ||
+      typeof parsed?.expiresAt !== 'number'
+    ) {
+      localStorage.removeItem(STORAGE_KEY);
+      return null;
+    }
+
+    try {
+      return new Identity(
+        parsed.id,
+        parsed.tenantId,
+        parsed.email,
+        parsed.codigo ?? null,
+        parsed.roles as Role[],
+        parsed.permissions,
+        parsed.expiresAt,
+      );
+    } catch {
+      // Shape sintácticamente OK pero rompe el invariante de Identity
+      // (p.ej. roles.length !== 1). Limpiar y empezar de cero.
+      localStorage.removeItem(STORAGE_KEY);
+      return null;
+    }
+  }
+
+  async write(identity: Identity): Promise<void> {
+    const data: PersistedShape = {
+      id: identity.id,
+      tenantId: identity.tenantId,
+      email: identity.email,
+      codigo: identity.codigo,
+      roles: [...identity.roles],
+      permissions: [...identity.permissions],
+      expiresAt: identity.expiresAt,
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  }
+
+  async clear(): Promise<void> {
+    localStorage.removeItem(STORAGE_KEY);
+  }
+}
