@@ -11,12 +11,12 @@
 
 ## 2. Refactor de los `.scss` existentes para consumir tokens
 
-- [ ] 2.1 Refactorizar `src/LR_render/app.scss` para usar `var(--color-*)` y `var(--space-*)` en lugar de hex/spacing literales.
-- [ ] 2.2 Refactorizar `src/LR_render/pages/login/login.page.scss`: reemplazar todos los hex por `var(--color-*)`, todos los `padding/margin/gap` por `var(--space-*)` cuando calzan con la escala, `border-radius` por `var(--radius-*)`, `font-family` por `var(--font-*)`.
-- [ ] 2.3 Refactorizar `src/LR_render/pages/home/home.page.scss` (mismo criterio que 2.2).
-- [ ] 2.4 Refactorizar `src/LR_render/pages/simulacro/simulacro.page.scss` (mismo criterio que 2.2).
-- [ ] 2.5 Refactorizar `src/LR_render/components/connectivity-badge/connectivity-badge.component.scss` (mismo criterio que 2.2).
-- [ ] 2.6 Ejecutar `grep -rE '#[0-9a-fA-F]{3,8}' src/LR_render --include='*.scss'` y verificar cero matches. Si quedan hex, eliminarlos hasta que el comando devuelva vacío.
+- [x] 2.1 Refactorizar `src/LR_render/app.scss` para usar `var(--color-*)` y `var(--space-*)` en lugar de hex/spacing literales.
+- [x] 2.2 Refactorizar `src/LR_render/pages/login/login.page.scss`: reemplazar todos los hex por `var(--color-*)`, todos los `padding/margin/gap` por `var(--space-*)` cuando calzan con la escala, `border-radius` por `var(--radius-*)`, `font-family` por `var(--font-*)`.
+- [x] 2.3 Refactorizar `src/LR_render/pages/home/home.page.scss` (mismo criterio que 2.2).
+- [x] 2.4 Refactorizar `src/LR_render/pages/simulacro/simulacro.page.scss` (mismo criterio que 2.2).
+- [x] 2.5 Refactorizar `src/LR_render/components/connectivity-badge/connectivity-badge.component.scss` (mismo criterio que 2.2).
+- [x] 2.6 Ejecutar `grep -rE '#[0-9a-fA-F]{3,8}' src/LR_render --include='*.scss'` y verificar cero matches. Si quedan hex, eliminarlos hasta que el comando devuelva vacío.
 
 ## 3. Restyle visual de `LoginPage`
 
