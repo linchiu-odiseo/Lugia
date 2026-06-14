@@ -1,5 +1,6 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
+import { GetActiveSessionUseCase } from '../../L2_application/use-cases/get-active-session.use-case';
 import { ObtenerSimulacrosDelDiaUseCase } from '../../L2_application/use-cases/obtener-simulacros-del-dia.use-case';
 import { CLOCK, MARKINGS_STORAGE } from '../../app.config';
 import { Simulacro } from '../../L1_domain/entities/simulacro';
@@ -7,6 +8,7 @@ import { EstadoValue } from '../../L1_domain/value-objects/estado-simulacro';
 import { NetworkError } from '../../L1_domain/errors/network.error';
 import { SessionExpiredError } from '../../L1_domain/errors/session-expired.error';
 import { OfflineStorageUnavailableError } from '../../L1_domain/errors/offline-storage-unavailable.error';
+import { randomQuote } from '../pages/home/inspirational-quotes';
 
 export type ServerErrorKind = 'network' | 'session-expired' | 'unknown';
 
@@ -22,6 +24,7 @@ const COUNTDOWN_TICK_MS = 1_000;
 // cada montaje arranque limpio sus timers y listeners.
 @Injectable()
 export class HomePageViewModel {
+  private readonly getSession = inject(GetActiveSessionUseCase);
   private readonly obtenerSimulacros = inject(ObtenerSimulacrosDelDiaUseCase);
   private readonly clock = inject(CLOCK);
   private readonly markings = inject(MARKINGS_STORAGE);
@@ -32,6 +35,22 @@ export class HomePageViewModel {
   readonly serverError = signal<ServerErrorKind | null>(null);
   readonly offlineStorageBlocked = signal(false);
   readonly lastRefreshAt = signal<Date | null>(null);
+
+  // Perfil del usuario para render del header del home. `userEmail` viene
+  // del Session activo (siempre presente bajo authGuard). `userName` y
+  // `userDni` son placeholders nullable: el contrato actual de api-fake
+  // no los entrega; quedan en null hasta que el siguiente change los
+  // wire-up cuando el backend incorpore esos campos al POST /auth/login.
+  // El template los renderiza condicional con `@if`, así que `null` se
+  // traduce a "no mostrar" sin romper layout.
+  readonly userEmail = signal<string | null>(null);
+  readonly userName = signal<string | null>(null);
+  readonly userDni = signal<string | null>(null);
+
+  // Cita ambient de splash-Minecraft / epígrafe: una frase fija por mount.
+  // No rota durante el polling de 120 s — distraería. Si el alumno recarga
+  // la página, vuelve randomQuote() a sortear.
+  readonly quote = signal(randomQuote());
   // nowTick re-emite cada segundo desde el puerto Clock (server-anchored) para
   // que los countdowns derivados rerendericen sin que el template tenga lógica
   // de tiempo. NUNCA leer Date.now() directo desde la UI.
@@ -52,6 +71,12 @@ export class HomePageViewModel {
     this.started = true;
     this.stopped = false;
 
+    // Profile en paralelo (no bloquea precheck ni refresh). Cuando resuelve,
+    // los signals userEmail/userName/userDni re-emiten y el template re-renderea
+    // reactivamente — el header puede mostrar el saludo sin haber esperado a la
+    // lista de simulacros. Mantiene la misma semántica que el `void loadEmail()`
+    // que hacía el page component pre-C4.
+    void this.loadUserProfile();
     await this.runOfflineStoragePrecheck();
     await this.refresh();
 
@@ -92,6 +117,19 @@ export class HomePageViewModel {
     } finally {
       this.isLoading.set(false);
     }
+  }
+
+  // Lee la sesión activa y publica el email del usuario en el signal del
+  // view-model. Si no hay sesión (estado raro: el authGuard normalmente
+  // ya redirigió a /login antes), `userEmail` queda en `null` y el
+  // template oculta el saludo. Cuando el contrato api-fake v2 incorpore
+  // `user.name` y `user.dni` en la response del login, este método se
+  // amplía sin tocar la página ni la spec actual de auth-session.
+  private async loadUserProfile(): Promise<void> {
+    const session = await this.getSession.execute();
+    this.userEmail.set(session?.principal() ?? null);
+    // userName y userDni quedan en su valor por defecto (null) hasta el
+    // próximo change que adopte el shape v2 del Session.
   }
 
   // Pre-check temprano de IndexedDB. ObtenerSimulacrosDelDia no toca el storage,

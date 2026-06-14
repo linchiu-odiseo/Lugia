@@ -3,9 +3,12 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { Component } from '@angular/core';
 import { HomePageViewModel } from '../../../../src/LR_render/view-models/home.view-model';
+import { GetActiveSessionUseCase } from '../../../../src/L2_application/use-cases/get-active-session.use-case';
 import { ObtenerSimulacrosDelDiaUseCase } from '../../../../src/L2_application/use-cases/obtener-simulacros-del-dia.use-case';
 import { CLOCK, MARKINGS_STORAGE } from '../../../../src/app.config';
+import { Session } from '../../../../src/L1_domain/entities/session';
 import { Simulacro } from '../../../../src/L1_domain/entities/simulacro';
+import { BearerToken } from '../../../../src/L1_domain/value-objects/bearer-token';
 import { EstadoSimulacro } from '../../../../src/L1_domain/value-objects/estado-simulacro';
 import { ServerTime } from '../../../../src/L1_domain/value-objects/server-time';
 import { NetworkError } from '../../../../src/L1_domain/errors/network.error';
@@ -22,6 +25,22 @@ import {
 // Stubs de ruta para que provideRouter no se queje cuando el VM navega a /login.
 @Component({ template: '' })
 class LoginStub {}
+
+class FakeGetActiveSessionUseCase {
+  private next: Session | null = new Session(
+    new BearerToken('1|test-token'),
+    'fulano@panda.test',
+    new Date('2026-06-11T09:00:00Z'),
+  );
+
+  willReturn(s: Session | null) {
+    this.next = s;
+  }
+
+  async execute(): Promise<Session | null> {
+    return this.next;
+  }
+}
 
 class FakeObtenerSimulacrosDelDiaUseCase {
   private next: { kind: 'resolve'; list: readonly Simulacro[] } | { kind: 'reject'; error: Error } =
@@ -127,6 +146,7 @@ const setDocumentVisibility = (state: 'visible' | 'hidden') => {
 };
 
 describe('HomePageViewModel', () => {
+  let fakeGetSession: FakeGetActiveSessionUseCase;
   let fakeObtener: FakeObtenerSimulacrosDelDiaUseCase;
   let fakeClock: FakeClock;
   let fakeMarkings: FakeMarkingsStorage;
@@ -137,6 +157,7 @@ describe('HomePageViewModel', () => {
     TestBed.runInInjectionContext(() => new HomePageViewModel());
 
   beforeEach(async () => {
+    fakeGetSession = new FakeGetActiveSessionUseCase();
     fakeObtener = new FakeObtenerSimulacrosDelDiaUseCase();
     fakeClock = new FakeClock();
     fakeMarkings = new FakeMarkingsStorage();
@@ -148,6 +169,7 @@ describe('HomePageViewModel', () => {
     await TestBed.configureTestingModule({
       providers: [
         provideRouter([{ path: 'login', component: LoginStub }]),
+        { provide: GetActiveSessionUseCase, useValue: fakeGetSession },
         { provide: ObtenerSimulacrosDelDiaUseCase, useValue: fakeObtener },
         { provide: CLOCK, useValue: fakeClock },
         { provide: MARKINGS_STORAGE, useValue: fakeMarkings },

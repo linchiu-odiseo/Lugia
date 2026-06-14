@@ -1,6 +1,5 @@
 import { Component, DestroyRef, ElementRef, inject, signal, viewChild } from '@angular/core';
 import { Router } from '@angular/router';
-import { GetActiveSessionUseCase } from '../../../L2_application/use-cases/get-active-session.use-case';
 import { LogoutUseCase } from '../../../L2_application/use-cases/logout.use-case';
 import { HomePageViewModel, SimulacroCard } from '../../view-models/home.view-model';
 
@@ -17,13 +16,11 @@ const PULL_MAX_VISUAL_PX = 120;
   providers: [HomePageViewModel],
 })
 export class HomePage {
-  private readonly getSession = inject(GetActiveSessionUseCase);
   private readonly logout = inject(LogoutUseCase);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
   protected readonly vm = inject(HomePageViewModel);
 
-  protected readonly email = signal<string | null>(null);
   protected readonly isSigningOut = signal(false);
 
   // Estado del pull-to-refresh — todo visual; el dispatch del refresh ocurre
@@ -37,14 +34,8 @@ export class HomePage {
   private touchStartScrollTop = 0;
 
   constructor() {
-    void this.loadEmail();
     void this.vm.start();
     this.destroyRef.onDestroy(() => this.vm.stop());
-  }
-
-  private async loadEmail(): Promise<void> {
-    const session = await this.getSession.execute();
-    this.email.set(session?.principal() ?? null);
   }
 
   protected async signOut(): Promise<void> {

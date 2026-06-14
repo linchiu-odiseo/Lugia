@@ -20,7 +20,7 @@
 
   <header>
     <h1>Lugia</h1>
-    @if (email(); as e) {
+    @if (vm.userEmail(); as e) {
       <p class="greeting">Hola, {{ e }}</p>
     }
   </header>
