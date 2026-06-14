@@ -67,12 +67,6 @@ const SHOW_SECONDS_BELOW_MS = 5 * 60_000;
 // "volver pronto a la protección". 5s es lo que mostraba el preview de UX.
 const EDITING_AUTO_LOCK_MS = 5_000;
 
-// Cuánto se queda visible el toast de descubrimiento ("mantén presionada
-// la fila...") la primera vez que el alumno intenta cambiar una fila
-// bloqueada con tap simple. Después de esto el alumno ya entendió el
-// gesto y el toast no vuelve a aparecer en la sesión.
-const HINT_TOAST_VISIBLE_MS = 4_000;
-
 // View-model de /simulacro/:id. Provider-local a SimulacroPage (no providedIn
 // root) para que cada montaje arranque limpio sus timers y estado.
 //
@@ -100,15 +94,10 @@ export class SimulacroPageViewModel {
 
   // Número de la pregunta cuya fila está actualmente en modo `editing`, o
   // null si ninguna lo está. Solo puede haber una a la vez — entrar a
-  // edición en otra cierra la anterior automáticamente.
+  // edición en otra cierra la anterior automáticamente. El template usa
+  // este signal para mostrar el chip flotante "Toca para cambiar" sobre
+  // la fila editing.
   readonly editingRow = signal<number | null>(null);
-
-  // Visibilidad del toast de descubrimiento del gesto long-press. Se
-  // muestra una sola vez por sesión (montaje) cuando el alumno intenta
-  // cambiar una fila bloqueada por primera vez. `hintShownInSession`
-  // garantiza la idempotencia: una vez true, no se vuelve a disparar.
-  readonly showHintToast = signal(false);
-  private hintShownInSession = false;
 
   // Lista derivada de números de pregunta 1..count. Recomputa solo cuando
   // cambia el simulacro — barato.
@@ -137,7 +126,6 @@ export class SimulacroPageViewModel {
   private countdownTimer: ReturnType<typeof setInterval> | null = null;
   private autoEnvioHandle: AutoEnvioHandle | null = null;
   private editingTimer: ReturnType<typeof setTimeout> | null = null;
-  private hintToastTimer: ReturnType<typeof setTimeout> | null = null;
   private started = false;
   private stopped = false;
 
@@ -203,9 +191,7 @@ export class SimulacroPageViewModel {
     this.stopCountdownTicker();
     this.cancelAutoEnvio();
     this.cancelEditingTimer();
-    this.cancelHintToastTimer();
     this.editingRow.set(null);
-    this.showHintToast.set(false);
   }
 
   // Estado actual de la fila para una pregunta. Reactivo: depende de los
@@ -246,21 +232,17 @@ export class SimulacroPageViewModel {
     this.editingRow.set(null);
   }
 
-  // Cierra el toast de descubrimiento. El template lo llama si el alumno
-  // toca el toast (para que pueda esconderlo manualmente además del timer).
-  dismissHintToast(): void {
-    this.cancelHintToastTimer();
-    this.showHintToast.set(false);
-  }
-
   // Aplica una marca/desmarca/cambio en una pregunta SI la fila lo permite:
   //
   //   - `unmarked`: marca con la letra recibida → la fila pasa a `locked`.
   //   - `editing`:  toggle con la letra (si coincide con la actual desmarca,
   //                 si difiere cambia) → la fila vuelve a `locked` o
   //                 `unmarked` según el resultado, cancelando el timeout.
-  //   - `locked`:   NO aplica el cambio. La primera vez por sesión dispara
-  //                 el toast de descubrimiento del gesto long-press.
+  //   - `locked`:   NO aplica el cambio. La ausencia de cambio visual ES el
+  //                 feedback: el alumno descubre el long-press por uso real,
+  //                 y cuando lo activa ve el chip "Toca para cambiar" sobre
+  //                 la fila editing (template responde a `rowState() ===
+  //                 'editing'`). No hay toast inicial ni hint inline.
   //
   // Esta es la única puerta para mutaciones de marcaciones desde la UI —
   // así el invariante de "no se cambia sin gesto deliberado" no depende de
@@ -272,7 +254,6 @@ export class SimulacroPageViewModel {
 
     const state = this.rowState(pregunta);
     if (state === 'locked') {
-      this.maybeShowHintToast();
       return;
     }
 
@@ -384,28 +365,6 @@ export class SimulacroPageViewModel {
       clearTimeout(this.editingTimer);
       this.editingTimer = null;
     }
-  }
-
-  private cancelHintToastTimer(): void {
-    if (this.hintToastTimer !== null) {
-      clearTimeout(this.hintToastTimer);
-      this.hintToastTimer = null;
-    }
-  }
-
-  // Dispara el toast de descubrimiento si todavía no se mostró en la
-  // sesión. Idempotente: tap repetido en filas bloqueadas no re-muestra.
-  // El timer se arma siempre para que si el alumno cierra el toast
-  // manualmente vía dismissHintToast(), el timer no lo abra de nuevo.
-  private maybeShowHintToast(): void {
-    if (this.hintShownInSession) return;
-    this.hintShownInSession = true;
-    this.showHintToast.set(true);
-    this.cancelHintToastTimer();
-    this.hintToastTimer = setTimeout(() => {
-      this.hintToastTimer = null;
-      this.showHintToast.set(false);
-    }, HINT_TOAST_VISIBLE_MS);
   }
 
   // Pulso háptico opcional al entrar a modo edición. `navigator.vibrate`

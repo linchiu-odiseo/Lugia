@@ -452,7 +452,10 @@ describe('SimulacroPage', () => {
 
         expect(fila2.classList.contains('fila--editing')).toBe(true);
         expect(fila2.classList.contains('fila--locked')).toBe(false);
-        expect(fila2.querySelector('.fila__hint')).not.toBeNull();
+        // Chip flotante "Toca para cambiar" debe aparecer dentro de la fila
+        // editing. Es la única comunicación visual de la afordancia de cambio
+        // (reemplaza al toast inicial y al hint inline post-restyle).
+        expect(fila2.querySelector('.row__chip')).not.toBeNull();
       } finally {
         vi.useRealTimers();
       }
@@ -555,7 +558,11 @@ describe('SimulacroPage', () => {
       }
     });
 
-    it('click en bubble de fila locked → NO aplica la marca y aparece el hint-toast en el DOM', async () => {
+    it('click en bubble de fila locked → NO aplica la marca y NO muestra ningún hint en el DOM', async () => {
+      // Spec exam-marking — scenario "Tap simple en burbuja de fila bloqueada
+      // no cambia la marca". El feedback es la propia ausencia de cambio:
+      // sin toast, sin hint inline, sin chip. El chip solo aparece tras
+      // long-press cuando rowState pasa a editing (cubierto por otro test).
       const sim = buildSimulacro('sim-1', 'abierto', { count: 3 });
       fakeObtener.willResolve([sim]);
       fakeMarkings.seedMarcaciones('sim-1', { '2': 'A' });
@@ -583,8 +590,9 @@ describe('SimulacroPage', () => {
       const bubbleA = fila2.querySelectorAll('.bubble')[0] as HTMLButtonElement;
       expect(bubbleA.classList.contains('bubble--marked')).toBe(true);
       expect(bubbleB.classList.contains('bubble--marked')).toBe(false);
-      // Y el toast de hint aparece en el DOM.
-      expect(el.querySelector('.hint-toast')).not.toBeNull();
+      // Y no aparece ni el toast antiguo ni el chip nuevo (porque no entró
+      // a editing — solo hubo un tap simple sobre locked).
+      expect(el.querySelector('.row__chip')).toBeNull();
     });
 
     it('click en bubble de fila editing → aplica la marca y la fila vuelve a locked', async () => {

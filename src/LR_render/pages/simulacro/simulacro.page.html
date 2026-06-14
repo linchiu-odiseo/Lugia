@@ -24,6 +24,12 @@
           (pointerup)="onRowPointerUpOrCancel()"
           (pointercancel)="onRowPointerUpOrCancel()"
         >
+          @if (vm.rowState(pregunta) === 'editing') {
+            <span class="row__chip" role="status" aria-live="polite">
+              <span class="material-symbols-outlined" aria-hidden="true">edit</span>
+              Toca para cambiar
+            </span>
+          }
           <span class="fila__numero">{{ pregunta }}</span>
           <div class="fila__bubbles">
             @for (letra of alternativas; track letra) {
@@ -40,9 +46,6 @@
               </button>
             }
           </div>
-          @if (vm.rowState(pregunta) === 'editing') {
-            <span class="fila__hint" role="status" aria-live="polite"> Toca para cambiar </span>
-          }
         </div>
       }
     </section>
@@ -55,12 +58,6 @@
           <p class="queued-banner__detail">Tu envío se procesará cuando vuelva la red.</p>
         </div>
       </div>
-    }
-
-    @if (vm.showHintToast()) {
-      <aside class="hint-toast" role="status" aria-live="polite">
-        <p class="hint-toast__copy">Mantén presionada la fila para cambiar tu respuesta.</p>
-      </aside>
     }
 
     <footer class="footer">

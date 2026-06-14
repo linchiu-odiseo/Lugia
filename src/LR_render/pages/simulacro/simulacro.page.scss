@@ -79,6 +79,7 @@
 }
 
 .fila {
+  position: relative; // ancla del .row__chip absolute en --editing
   display: grid;
   grid-template-columns: 2.25rem 1fr;
   align-items: center;
@@ -110,30 +111,48 @@
 
   // Anti-cambio accidental: fila ya marcada → bloqueada. Visualmente queda
   // como el estado default (la burbuja marcada es el indicador suficiente);
-  // la protección se descubre al intentar cambiar y ver el toast.
+  // la protección se descubre cuando el alumno activa long-press y entra
+  // a `editing`.
   &--locked {
     // sin overrides — comportamiento default ya cubre.
   }
 
-  // Modo edición activado por long-press. Borde de acento + glow sutil para
-  // que el alumno sepa que esta fila acepta cambios ahora mismo. Auto-cierra
-  // a los 5s o al aplicar el cambio.
+  // Modo edición activado por long-press. Borde de acento + tonal layer
+  // para que el alumno sepa que esta fila acepta cambios ahora mismo.
+  // Auto-cierra a los 5s o al aplicar el cambio. El chip "Toca para
+  // cambiar" lo renderiza la regla .row__chip más abajo.
   &--editing {
     border-color: var(--color-primary);
     background: rgb(0 36 83 / 0.04);
     box-shadow: 0 0 0 2px rgb(0 36 83 / 0.12);
   }
+}
 
-  // Hint inline que aparece debajo de las bubbles cuando la fila entra a
-  // edición. Spannea ambas columnas del grid para quedar centrado bajo la
-  // fila completa.
-  &__hint {
-    grid-column: 1 / -1;
-    margin-top: 0.4rem;
-    font-size: 0.72rem;
-    color: var(--color-primary);
-    text-align: center;
-    letter-spacing: 0.02em;
+// Chip flotante "Toca para cambiar" — reemplaza el toast one-shot inicial
+// y el hint inline debajo de las bubbles. Se ancla absolute en la esquina
+// superior derecha de la fila editing, comunicando la acción cada vez que
+// el gesto se completa (no es one-shot por sesión).
+.row__chip {
+  position: absolute;
+  top: -10px;
+  right: var(--space-sm);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px var(--space-xs);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  border-radius: var(--radius-pill);
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  pointer-events: none;
+
+  .material-symbols-outlined {
+    font-size: 0.75rem;
+    line-height: 1;
   }
 }
 
@@ -230,45 +249,6 @@
   }
   50% {
     opacity: 0.35;
-  }
-}
-
-// Toast de descubrimiento del gesto long-press. Aparece una sola vez por
-// sesión la primera vez que el alumno intenta cambiar una respuesta en una
-// fila bloqueada con tap simple. Se posiciona inline al final del main para
-// no requerir z-index ni manejo de portales; el simulacro tiene flex column
-// así que cae naturalmente entre el grid y el footer.
-.hint-toast {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-xs);
-  padding: 0.7rem 0.9rem;
-  border-radius: var(--radius);
-  background: rgb(0 36 83 / 0.08);
-  border: 1px solid var(--color-primary);
-  color: var(--color-primary);
-  cursor: pointer;
-  // Fade-in suave para que el toast no aparezca de golpe. Se oculta cuando
-  // el view-model pone `showHintToast` en false (por timer o por dismiss).
-  animation: hint-toast-fade-in 220ms ease-out;
-
-  &__copy {
-    margin: 0;
-    font-size: 0.85rem;
-    line-height: 1.35;
-    text-align: center;
-  }
-}
-
-@keyframes hint-toast-fade-in {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
   }
 }
 

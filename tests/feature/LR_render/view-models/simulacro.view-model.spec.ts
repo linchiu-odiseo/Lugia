@@ -637,7 +637,11 @@ describe('SimulacroPageViewModel', () => {
       vm.stop();
     });
 
-    it('marcar(5, B) sobre fila locked → no invoca use case, marcación NO cambia, dispara showHintToast', async () => {
+    it('marcar(5, B) sobre fila locked → no invoca use case, marcación NO cambia ni dispara ningún hint signal', async () => {
+      // Spec: exam-marking — scenario "Tap simple en burbuja de fila bloqueada
+      // no cambia la marca". El feedback es la propia ausencia de cambio;
+      // el chip "Toca para cambiar" aparece solo cuando rowState === 'editing'
+      // (activado por long-press, no por tap simple sobre locked).
       const sim = buildSimulacro('sim-1', 'abierto', { count: 5 });
       fakeObtener.willResolve([sim]);
       fakeMarkings.seedMarcaciones('sim-1', { '5': 'A' });
@@ -645,76 +649,15 @@ describe('SimulacroPageViewModel', () => {
       await vm.start('sim-1');
 
       expect(vm.rowState(5)).toBe('locked');
-      expect(vm.showHintToast()).toBe(false);
 
       await vm.marcar(5, 'B');
 
       expect(fakeMarcar.calls).toHaveLength(0);
       expect(vm.marcaciones()['5']).toBe('A');
-      expect(vm.showHintToast()).toBe(true);
-      vm.stop();
-    });
-
-    it('tras HINT_TOAST_VISIBLE_MS (4000ms), showHintToast vuelve a false', async () => {
-      const sim = buildSimulacro('sim-1', 'abierto', { count: 5 });
-      fakeObtener.willResolve([sim]);
-      fakeMarkings.seedMarcaciones('sim-1', { '5': 'A' });
-      vi.useFakeTimers();
-      const vm = createVm();
-      await vm.start('sim-1');
-
-      await vm.marcar(5, 'B'); // dispara el toast
-      expect(vm.showHintToast()).toBe(true);
-
-      // 3999ms: aún visible.
-      vi.advanceTimersByTime(3_999);
-      expect(vm.showHintToast()).toBe(true);
-
-      // 1ms más → el timer cierra el toast.
-      vi.advanceTimersByTime(1);
-      expect(vm.showHintToast()).toBe(false);
-      vm.stop();
-    });
-
-    it('segundo tap sobre fila locked NO re-dispara el toast (idempotente por sesión)', async () => {
-      const sim = buildSimulacro('sim-1', 'abierto', { count: 5 });
-      fakeObtener.willResolve([sim]);
-      fakeMarkings.seedMarcaciones('sim-1', { '5': 'A' });
-      vi.useFakeTimers();
-      const vm = createVm();
-      await vm.start('sim-1');
-
-      // Primer intento: dispara el toast.
-      await vm.marcar(5, 'B');
-      expect(vm.showHintToast()).toBe(true);
-
-      // Avanzamos hasta que el toast se cierra.
-      vi.advanceTimersByTime(4_000);
-      expect(vm.showHintToast()).toBe(false);
-
-      // Segundo intento sobre la misma fila locked: NO debe re-aparecer.
-      await vm.marcar(5, 'D');
-      expect(vm.showHintToast()).toBe(false);
-      vm.stop();
-    });
-
-    it('dismissHintToast() esconde el toast inmediatamente y limpia el timer', async () => {
-      const sim = buildSimulacro('sim-1', 'abierto', { count: 5 });
-      fakeObtener.willResolve([sim]);
-      fakeMarkings.seedMarcaciones('sim-1', { '5': 'A' });
-      vi.useFakeTimers();
-      const vm = createVm();
-      await vm.start('sim-1');
-
-      await vm.marcar(5, 'B'); // dispara el toast
-      expect(vm.showHintToast()).toBe(true);
-
-      vm.dismissHintToast();
-      expect(vm.showHintToast()).toBe(false);
-
-      // Avanzar el tiempo no debe ni re-abrir el toast ni causar side effects.
-      vi.advanceTimersByTime(10_000);
-      expect(vm.showHintToast()).toBe(false);
+      expect(vm.rowState(5)).toBe('locked');
+      // El view-model ya no expone ningún signal de hint/toast: la única
+      // señal de comunicación es el chip que aparece cuando rowState =
+      // 'editing' (no entró acá), cubierto por los tests de enterEditing.
       vm.stop();
     });
 
@@ -735,26 +678,6 @@ describe('SimulacroPageViewModel', () => {
       // Avanzar 5s: el timer fue cancelado, nada extra sucede.
       vi.advanceTimersByTime(5_000);
       expect(vm.editingRow()).toBeNull();
-    });
-
-    it('stop() con showHintToast activo limpia el timer del toast', async () => {
-      const sim = buildSimulacro('sim-1', 'abierto', { count: 5 });
-      fakeObtener.willResolve([sim]);
-      fakeMarkings.seedMarcaciones('sim-1', { '5': 'A' });
-      vi.useFakeTimers();
-      const vm = createVm();
-      await vm.start('sim-1');
-
-      await vm.marcar(5, 'B'); // dispara el toast
-      expect(vm.showHintToast()).toBe(true);
-
-      vm.stop();
-      expect(vm.showHintToast()).toBe(false);
-
-      // Avanzar 4s: el timer original habría escondido el toast a los 4000ms;
-      // como ya está cerrado y el timer cancelado, sigue cerrado sin re-trigger.
-      vi.advanceTimersByTime(4_000);
-      expect(vm.showHintToast()).toBe(false);
     });
 
     it('enterEditing() cuando stopped=true es no-op', async () => {
