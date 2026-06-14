@@ -72,15 +72,15 @@ La UI SHALL proteger respuestas ya marcadas contra cambios o borrados accidental
 
 - **WHEN** la pregunta 5 está marcada en A (fila `locked`) y el alumno toca B
 - **THEN** la marca persistida y la UI permanecen sin cambio (sigue A)
-- **AND** si es la primera vez en la sesión que el alumno intenta cambiar una fila bloqueada, la UI muestra un toast "Mantén presionada la fila para cambiar tu respuesta" por 4 segundos
-- **AND** intentos posteriores de cambio bloqueado en la misma sesión NO re-muestran el toast
+- **AND** la UI NO muestra ningún toast, banner ni hint inline — el feedback de "no se cambió nada" es la propia ausencia de cambio visual
 
-#### Scenario: Long-press en fila bloqueada entra a modo edición
+#### Scenario: Long-press en fila bloqueada entra a modo edición con chip permanente
 
 - **WHEN** el alumno mantiene presionada cualquier zona de una fila `locked` durante 500ms sin levantar el dedo ni moverlo más de 10px
 - **THEN** la fila pasa a estado `editing`
-- **AND** la UI resalta el borde de la fila con color de acento
-- **AND** la UI muestra el hint "Toca para cambiar" debajo de las bubbles (texto deliberadamente corto — el auto-bloqueo a los 5s se siente, no se anuncia)
+- **AND** la UI resalta el borde de la fila con `var(--color-primary)` y aplica el tonal layer correspondiente
+- **AND** la UI muestra un chip flotante "Toca para cambiar" en la esquina superior derecha de la fila, posicionado absolute sobre el borde
+- **AND** el chip permanece visible durante toda la duración del estado `editing` (no es one-shot por sesión)
 - **AND** el navegador dispara un pulso háptico breve si está soportado
 
 #### Scenario: Movimiento durante long-press cancela el gesto
@@ -96,12 +96,13 @@ La UI SHALL proteger respuestas ya marcadas contra cambios o borrados accidental
 - **THEN** la fila vuelve a estado `locked` automáticamente
 - **AND** la marca persistida no cambia
 - **AND** el resalte visual de edición desaparece
+- **AND** el chip "Toca para cambiar" deja de mostrarse
 
 #### Scenario: Solo una fila puede estar en edición a la vez
 
 - **WHEN** la fila 5 está en `editing` y el alumno hace long-press en la fila 7
-- **THEN** la fila 5 vuelve a `locked`
-- **AND** la fila 7 pasa a `editing`
+- **THEN** la fila 5 vuelve a `locked` y su chip se oculta
+- **AND** la fila 7 pasa a `editing` y muestra su propio chip
 - **AND** el timeout de 5s se reinicia para la fila 7
 
 ### Requirement: Recuperación de marcaciones al reabrir la pantalla
