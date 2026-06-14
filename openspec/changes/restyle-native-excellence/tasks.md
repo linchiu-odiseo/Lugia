@@ -42,16 +42,16 @@
 
 ## 5. Restyle visual de `SimulacroPage` + cambio de comportamiento del toast
 
-- [ ] 5.1 En `simulacro.page.scss` ajustar el `:host` para light mode (`var(--color-bg)`, `var(--color-on-surface)`) y la tipografía a `var(--font-body)`.
-- [ ] 5.2 Restyle del header del simulacro: `__area` con label-caps + `var(--color-on-surface-variant)`, `__name` con `var(--font-display)` semibold, `__countdown` con `var(--font-mono)` para los dígitos del countdown. Borde inferior `var(--color-outline-variant)`.
-- [ ] 5.3 Restyle de la `.fila`: fondo `var(--color-surface-container-lowest)`, borde `1px solid var(--color-outline-variant)` con `var(--radius-md)`. Estado `--editing` cambia `border-color` a `var(--color-primary)` + tonal layer con primary @ 4% de opacidad.
-- [ ] 5.4 Mantener las bubbles como pastilla full-width: `flex: 1`, `min-height: 2.6rem`, `border-radius: var(--radius-pill)`, border `1.5px solid var(--color-outline-variant)`, background `var(--color-surface-container-lowest)`, color `var(--color-on-surface)`. Estado `--marked` con `var(--color-primary)` fill + border + `var(--color-on-primary)` text.
+- [x] 5.1 En `simulacro.page.scss` ajustar el `:host` para light mode (`var(--color-bg)`, `var(--color-on-surface)`) y la tipografía a `var(--font-body)`.
+- [x] 5.2 Restyle del header del simulacro: `__area` con label-caps + `var(--color-on-surface-variant)`, `__name` con `var(--font-display)` semibold, `__countdown` con `var(--font-mono)` para los dígitos del countdown. Borde inferior `var(--color-outline-variant)`.
+- [x] 5.3 Restyle de la `.fila`: fondo `var(--color-surface-container-lowest)`, borde `1px solid var(--color-outline-variant)` con `var(--radius-md)`. Estado `--editing` cambia `border-color` a `var(--color-primary)` + tonal layer con primary @ 4% de opacidad.
+- [x] 5.4 Mantener las bubbles como pastilla full-width: `flex: 1`, `min-height: 2.6rem`, `border-radius: var(--radius-pill)`, border `1.5px solid var(--color-outline-variant)`, background `var(--color-surface-container-lowest)`, color `var(--color-on-surface)`. Estado `--marked` con `var(--color-primary)` fill + border + `var(--color-on-primary)` text.
 - [x] 5.5 Eliminar de `src/LR_render/view-models/simulacro.view-model.ts` el signal `showHintToast`, el flag `hintShownInSession`, la constante `HINT_TOAST_VISIBLE_MS` y el `setTimeout` que la consume, los `.set(false)` residuales, y la rama del primer tap fallido que dispara el toast. Mantener intacto: long-press detector, `rowState`, estados locked/editing, queue offline.
 - [x] 5.6 Eliminar de `simulacro.page.html` el bloque `<aside class="hint-toast">` (líneas 60–62 aprox) y el bloque `<span class="fila__hint">` inline debajo de las bubbles (línea 44 aprox).
 - [x] 5.7 Agregar en `simulacro.page.html` dentro de `<div class="fila">` (cuando `vm.rowState(pregunta) === 'editing'`) un nuevo bloque `<span class="row__chip">` con icon Material `edit` + texto "Toca para cambiar".
 - [x] 5.8 Agregar en `simulacro.page.scss` la regla `.row__chip` con `position: absolute; top: -10px; right: var(--space-sm)`, fondo `var(--color-primary)`, color `var(--color-on-primary)`, font-size 10 px label-caps, radius `var(--radius-pill)`, padding `3px var(--space-xs)`. Eliminar también la regla `.hint-toast` (líneas 247+) y la `@keyframes hint-toast-fade-in` (líneas 270+) ya que ningún consumidor las usa.
-- [ ] 5.9 Restilear los botones del footer del simulacro (`Volver a inicio` secondary outline + `Enviar` primary fill) usando tokens.
-- [ ] 5.10 Restilear el `.queued-banner` con paleta light coherente con el sistema (fondo warning-container, texto on-warning-container, dot warning).
+- [x] 5.9 Restilear los botones del footer del simulacro (`Volver a inicio` secondary outline + `Enviar` primary fill) usando tokens.
+- [x] 5.10 Restilear el `.queued-banner` con paleta light coherente con el sistema (fondo warning-container, texto on-warning-container, dot warning).
 - [ ] 5.11 Verificar manualmente en dev: long-press en una fila marcada → aparece chip "Toca para cambiar" arriba-derecha, tap simple en otra burbuja la cambia, después de 5s sin acción el chip se oculta y la fila vuelve a locked.
 
 ## 6. Restyle de `connectivity-badge`

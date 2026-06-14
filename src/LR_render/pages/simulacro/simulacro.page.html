@@ -30,7 +30,7 @@
               Toca para cambiar
             </span>
           }
-          <span class="fila__numero">{{ pregunta }}</span>
+          <span class="fila__numero">{{ pregunta.toString().padStart(2, '0') }}</span>
           <div class="fila__bubbles">
             @for (letra of alternativas; track letra) {
               <button

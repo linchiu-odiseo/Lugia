@@ -21,8 +21,9 @@
 
 .header {
   display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-sm);
   padding-bottom: 0.9rem;
   border-bottom: 1px solid var(--color-outline-variant);
 
@@ -30,41 +31,62 @@
     display: flex;
     flex-direction: column;
     gap: 0.15rem;
+    min-width: 0; // permite truncar __name si es muy largo
   }
 
+  // Label-caps del DS: 12 px / 700 / letter-spacing 0.05em. Indica curso /
+  // área arriba del título.
   &__area {
     margin: 0;
     font-size: 0.75rem;
-    letter-spacing: 0.08em;
+    font-weight: 700;
+    line-height: 1rem;
+    letter-spacing: 0.05em;
     text-transform: uppercase;
     color: var(--color-on-surface-variant);
-    font-weight: 600;
   }
 
   &__name {
     margin: 0;
-    font-size: 1.25rem;
+    font-family: var(--font-display);
+    font-size: 1rem;
     line-height: 1.25;
+    font-weight: 600;
     color: var(--color-on-surface);
     letter-spacing: -0.01em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   &__countdown {
     display: flex;
-    align-items: baseline;
-    gap: var(--space-xs);
-    font-variant-numeric: tabular-nums;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.1rem;
+    flex-shrink: 0;
+    text-align: right;
   }
 
+  // Mini label-caps "Cierra a las HH:MM" — letter-spacing más ancho que el
+  // label-caps estándar para sensación de monitoreo/cronómetro.
   &__cierre {
-    font-size: 0.85rem;
+    font-size: 0.6875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
     color: var(--color-on-surface-variant);
+    font-weight: 600;
   }
 
+  // Dígitos del countdown en JetBrains Mono — clave del DS: todo dato
+  // técnico (timers, ids, números de pregunta) usa la mono para enfatizar
+  // precisión y evitar saltos de ancho al cambiar el segundero.
   &__restante {
-    font-size: 0.95rem;
-    color: var(--color-primary);
+    font-family: var(--font-mono);
+    font-size: 1rem;
     font-weight: 600;
+    color: var(--color-primary);
+    font-variant-numeric: tabular-nums;
   }
 }
 
@@ -96,9 +118,13 @@
     background 180ms ease,
     box-shadow 180ms ease;
 
+  // Número de pregunta en JetBrains Mono — del DS: todo dato numérico
+  // estructural (preguntas, IDs, countdown) usa mono para estabilidad
+  // visual de la columna.
   &__numero {
     text-align: right;
-    font-size: 0.95rem;
+    font-family: var(--font-mono);
+    font-size: 0.875rem;
     color: var(--color-on-surface-variant);
     font-weight: 600;
   }
