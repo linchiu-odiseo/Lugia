@@ -61,10 +61,10 @@
 
 ## 7. `index.html` + manifest
 
-- [ ] 7.1 En `src/index.html` cambiar `<meta name="theme-color" content="#0b0f17">` por `<meta name="theme-color" content="#1a3a6d">` (primary container).
-- [ ] 7.2 En `src/index.html` ajustar `<meta name="apple-mobile-web-app-status-bar-style">` de `black-translucent` a `default`.
-- [ ] 7.3 En `public/manifest.json` cambiar `"background_color": "#639af7"` por `"background_color": "#fcf9f8"`.
-- [ ] 7.4 Confirmar que `public/img/lugia.png` existe en el repo (el usuario lo mueve manualmente desde `.authentic/lugia.png`). Si está, listo. Si no, bloquear el tasks.md hasta que el asset esté.
+- [x] 7.1 En `src/index.html` cambiar `<meta name="theme-color" content="#0b0f17">` por `<meta name="theme-color" content="#1a3a6d">` (primary container).
+- [x] 7.2 En `src/index.html` ajustar `<meta name="apple-mobile-web-app-status-bar-style">` de `black-translucent` a `default`.
+- [x] 7.3 En `public/manifest.json` cambiar `"background_color": "#639af7"` por `"background_color": "#fcf9f8"`.
+- [x] 7.4 Confirmar que `public/img/lugia.png` existe en el repo (el usuario lo mueve manualmente desde `.authentic/lugia.png`). Si está, listo. Si no, bloquear el tasks.md hasta que el asset esté.
 
 ## 8. Tests
 

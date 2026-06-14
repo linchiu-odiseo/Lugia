@@ -5,28 +5,21 @@
   "start_url": "/",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#0b0f17",
-  "theme_color": "#0b0f17",
+  "background_color": "#fcf9f8",
+  "theme_color": "#1a3a6d",
   "lang": "es-PE",
   "scope": "/",
-  "icons": [
-    {
-      "src": "icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "icon-384.png",
-      "sizes": "384x384",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
-    }
+  "icons":
+  [
+    {"purpose": "any","sizes": "32x32","src": "favicon.ico","type": "image/x-icon"},
+    {"purpose": "maskable","sizes": "1200x1200","src": "maskable_icon.png","type": "image/png"},
+    {"purpose": "maskable","sizes": "48x48","src": "maskable_icon_x48.png","type": "image/png"},
+    {"purpose": "maskable","sizes": "72x72","src": "maskable_icon_x72.png","type": "image/png"},
+    {"purpose": "maskable","sizes": "96x96","src": "maskable_icon_x96.png","type": "image/png"},
+    {"purpose": "maskable","sizes": "128x128","src": "maskable_icon_x128.png","type": "image/png"},
+    {"purpose": "maskable","sizes": "180x180","src": "maskable_icon_x180.png","type": "image/png"},
+    {"purpose": "maskable","sizes": "192x192","src": "maskable_icon_x192.png","type": "image/png"},
+    {"purpose": "maskable","sizes": "384x384","src": "maskable_icon_x384.png","type": "image/png"},
+    {"purpose": "maskable","sizes": "512x512","src": "maskable_icon_x512.png","type": "image/png"}
   ]
 }
