@@ -21,7 +21,10 @@ export interface EnvioPendiente {
 // Esto mantiene las firmas limpias para los use cases.
 //
 // `wipeUserScope()` borra TODO lo del usuario actual (marcaciones + queue)
-// y se invoca en logout antes de clear de sesión.
+// y se invoca en logout ANTES de `identityStorage.clear()` para que el adapter
+// todavía pueda leer el email desde `IdentityStorage` internamente.
+// El email NO se pasa como argumento — el adapter (L3) lo resuelve vía DI.
+// Si no hay identity disponible al momento de `wipeUserScope()` → no-op.
 //
 // Cualquier operación SHALL rechazar con `OfflineStorageUnavailableError`
 // si IndexedDB no está disponible en el browser.
@@ -34,5 +37,5 @@ export interface MarkingsStorage {
   enqueueEnvio(envio: EnvioPendiente): Promise<void>;
   getEnviosPendientes(): Promise<EnvioPendiente[]>;
   dequeueEnvio(simulacroId: string): Promise<void>;
-  wipeUserScope(): Promise<void>;
+  wipeUserScope(): Promise<void>; // sin argumento — el adapter lee IdentityStorage internamente
 }

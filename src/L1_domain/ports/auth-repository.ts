@@ -1,14 +1,14 @@
-import { Session } from '../entities/session';
+import { Identity, Role } from '../entities/identity';
+import { StudentProfile } from '../value-objects/student-profile';
+import { TutorProfile } from '../value-objects/tutor-profile';
 
-export interface Credentials {
-  email: string;
-  password: string;
-}
-
-// Puerto del dominio para autenticación contra el backend.
+// Puerto del dominio para autenticación contra el backend learnex.
 // Implementación concreta vive en L3 (`HttpAuthRepository`).
-// El InjectionToken Angular que mapea a una implementación se declara en `src/app.config.ts`.
+// Clasificación de errores HTTP por (status, endpoint, code) — nunca por message.
 export interface AuthRepository {
-  login(credentials: Credentials): Promise<Session>;
-  logout(session: Session): Promise<void>;
+  login(credentials: { email: string; password: string }): Promise<Identity>;
+  me(): Promise<Identity>;
+  refresh(): Promise<Identity>;
+  logout(): Promise<void>;
+  getProfile(role: Role): Promise<StudentProfile | TutorProfile>;
 }
