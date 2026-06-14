@@ -1,12 +1,15 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
-import { GetActiveSessionUseCase } from '../../L2_application/use-cases/get-active-session.use-case';
+import { GetIdentityUseCase } from '../../L2_application/use-cases/get-identity.use-case';
+import { GetProfileUseCase } from '../../L2_application/use-cases/get-profile.use-case';
 import { ObtenerSimulacrosDelDiaUseCase } from '../../L2_application/use-cases/obtener-simulacros-del-dia.use-case';
 import { CLOCK, MARKINGS_STORAGE } from '../../app.config';
 import { Simulacro } from '../../L1_domain/entities/simulacro';
 import { EstadoValue } from '../../L1_domain/value-objects/estado-simulacro';
+import { StudentProfile } from '../../L1_domain/value-objects/student-profile';
 import { NetworkError } from '../../L1_domain/errors/network.error';
 import { SessionExpiredError } from '../../L1_domain/errors/session-expired.error';
+import { ProfileNotAvailableError } from '../../L1_domain/errors/profile-not-available.error';
 import { OfflineStorageUnavailableError } from '../../L1_domain/errors/offline-storage-unavailable.error';
 import { randomQuote } from '../pages/home/inspirational-quotes';
 
@@ -24,7 +27,8 @@ const COUNTDOWN_TICK_MS = 1_000;
 // cada montaje arranque limpio sus timers y listeners.
 @Injectable()
 export class HomePageViewModel {
-  private readonly getSession = inject(GetActiveSessionUseCase);
+  private readonly getIdentity = inject(GetIdentityUseCase);
+  private readonly getProfile = inject(GetProfileUseCase);
   private readonly obtenerSimulacros = inject(ObtenerSimulacrosDelDiaUseCase);
   private readonly clock = inject(CLOCK);
   private readonly markings = inject(MARKINGS_STORAGE);
@@ -36,16 +40,18 @@ export class HomePageViewModel {
   readonly offlineStorageBlocked = signal(false);
   readonly lastRefreshAt = signal<Date | null>(null);
 
-  // Perfil del usuario para render del header del home. `userEmail` viene
-  // del Session activo (siempre presente bajo authGuard). `userName` y
-  // `userDni` son placeholders nullable: el contrato actual de api-fake
-  // no los entrega; quedan en null hasta que el siguiente change los
-  // wire-up cuando el backend incorpore esos campos al POST /auth/login.
-  // El template los renderiza condicional con `@if`, así que `null` se
-  // traduce a "no mostrar" sin romper layout.
+  // Header del home alumno. `userEmail` viene de la identity (siempre presente
+  // bajo authGuard + roleGuard('student')). `userName` (`firstName + lastName`)
+  // y `userDni` (`profile.code`) vienen del `GetProfileUseCase` que fetchea
+  // `/student/me` en paralelo. Mientras la promesa está en vuelo, ambos son
+  // null y el template muestra skeleton. Si el back devuelve 403/404
+  // (`ProfileNotAvailableError`), `profileUnavailable` se prende y la UI
+  // muestra degraded state con solo email.
   readonly userEmail = signal<string | null>(null);
   readonly userName = signal<string | null>(null);
   readonly userDni = signal<string | null>(null);
+  readonly profileLoading = signal(false);
+  readonly profileUnavailable = signal(false);
 
   // Cita ambient de splash-Minecraft / epígrafe: una frase fija por mount.
   // No rota durante el polling de 120 s — distraería. Si el alumno recarga
@@ -119,17 +125,41 @@ export class HomePageViewModel {
     }
   }
 
-  // Lee la sesión activa y publica el email del usuario en el signal del
-  // view-model. Si no hay sesión (estado raro: el authGuard normalmente
-  // ya redirigió a /login antes), `userEmail` queda en `null` y el
-  // template oculta el saludo. Cuando el contrato api-fake v2 incorpore
-  // `user.name` y `user.dni` en la response del login, este método se
-  // amplía sin tocar la página ni la spec actual de auth-session.
+  // Lee identity (email instantáneo desde IdentityStorage) y fetchea profile
+  // (firstName + lastName + code/DNI desde /student/me con cache 24h).
+  // Email se publica de inmediato; nombre y DNI llegan cuando el profile
+  // resuelve. Errores benignos (sin identity, sin profile) degradan
+  // silenciosamente — el header muestra lo que tiene.
   private async loadUserProfile(): Promise<void> {
-    const session = await this.getSession.execute();
-    this.userEmail.set(session?.principal() ?? null);
-    // userName y userDni quedan en su valor por defecto (null) hasta el
-    // próximo change que adopte el shape v2 del Session.
+    const identity = await this.getIdentity.execute();
+    if (!identity) {
+      // Estado raro: el authGuard normalmente ya redirigió. Dejamos el
+      // header vacío sin lanzar.
+      this.userEmail.set(null);
+      return;
+    }
+    this.userEmail.set(identity.email);
+
+    this.profileLoading.set(true);
+    try {
+      const profile = (await this.getProfile.execute('student')) as StudentProfile;
+      this.userName.set(`${profile.firstName} ${profile.lastName}`);
+      this.userDni.set(profile.code);
+    } catch (err) {
+      if (err instanceof ProfileNotAvailableError) {
+        // Caso conocido: user con rol student pero sin fila en `students`
+        // (seed inconsistente o user nuevo). Degradamos a solo email.
+        this.profileUnavailable.set(true);
+      } else if (err instanceof NetworkError) {
+        // Sin perfil pero sesión OK — no rompemos el home; solo no mostramos
+        // nombre/dni. El próximo refresh manual lo intenta de nuevo.
+      } else {
+        // Bug del programador o error no modelado: re-lanzar.
+        throw err;
+      }
+    } finally {
+      this.profileLoading.set(false);
+    }
   }
 
   // Pre-check temprano de IndexedDB. ObtenerSimulacrosDelDia no toca el storage,

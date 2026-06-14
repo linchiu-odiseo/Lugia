@@ -3,12 +3,14 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { Component } from '@angular/core';
 import { HomePage } from '../../../../../src/LR_render/pages/home/home.page';
-import { GetActiveSessionUseCase } from '../../../../../src/L2_application/use-cases/get-active-session.use-case';
+import { GetIdentityUseCase } from '../../../../../src/L2_application/use-cases/get-identity.use-case';
+import { GetProfileUseCase } from '../../../../../src/L2_application/use-cases/get-profile.use-case';
 import { LogoutUseCase } from '../../../../../src/L2_application/use-cases/logout.use-case';
 import { ObtenerSimulacrosDelDiaUseCase } from '../../../../../src/L2_application/use-cases/obtener-simulacros-del-dia.use-case';
 import { CLOCK, MARKINGS_STORAGE } from '../../../../../src/app.config';
-import { Session } from '../../../../../src/L1_domain/entities/session';
-import { BearerToken } from '../../../../../src/L1_domain/value-objects/bearer-token';
+import { Identity, Role } from '../../../../../src/L1_domain/entities/identity';
+import { StudentProfile } from '../../../../../src/L1_domain/value-objects/student-profile';
+import { TutorProfile } from '../../../../../src/L1_domain/value-objects/tutor-profile';
 import { Simulacro } from '../../../../../src/L1_domain/entities/simulacro';
 import { EstadoSimulacro } from '../../../../../src/L1_domain/value-objects/estado-simulacro';
 import { ServerTime } from '../../../../../src/L1_domain/value-objects/server-time';
@@ -25,13 +27,57 @@ import {
 @Component({ template: '' })
 class LoginStub {}
 
-class FakeGetActiveSessionUseCase {
-  private next: Session | null = null;
-  willReturn(s: Session | null) {
-    this.next = s;
+function buildIdentity(): Identity {
+  return new Identity(
+    'user-id',
+    'tenant-id',
+    'fulano@panda.test',
+    '79507732',
+    ['student'],
+    [],
+    Date.now() + 900_000,
+  );
+}
+
+const buildStudentProfile = (overrides: Partial<StudentProfile> = {}): StudentProfile => ({
+  id: 'student-id',
+  code: '79507732',
+  firstName: 'Fulano',
+  lastName: 'Panda',
+  area: null,
+  ...overrides,
+});
+
+class FakeGetIdentityUseCase {
+  private next: Identity | null = null;
+  willReturn(i: Identity | null) {
+    this.next = i;
   }
   async execute() {
     return this.next;
+  }
+}
+
+class FakeGetProfileUseCase {
+  private next:
+    | { kind: 'resolve'; profile: StudentProfile | TutorProfile }
+    | { kind: 'reject'; error: Error } = {
+    kind: 'resolve',
+    profile: buildStudentProfile(),
+  };
+  public calls: Role[] = [];
+
+  willResolveStudent(p: Partial<StudentProfile> = {}) {
+    this.next = { kind: 'resolve', profile: buildStudentProfile(p) };
+  }
+  willReject(err: Error) {
+    this.next = { kind: 'reject', error: err };
+  }
+
+  async execute(role: Role): Promise<StudentProfile | TutorProfile> {
+    this.calls.push(role);
+    if (this.next.kind === 'reject') throw this.next.error;
+    return this.next.profile;
   }
 }
 
@@ -66,7 +112,6 @@ class FakeObtenerSimulacrosDelDiaUseCase {
   }
 }
 
-// Fake del puerto Clock: now() controlable. setServerTime no se usa en la UI.
 class FakeClock implements Clock {
   private current: Date = new Date('2026-06-11T10:00:00Z');
 
@@ -81,8 +126,6 @@ class FakeClock implements Clock {
   }
 }
 
-// Fake mínimo del puerto MarkingsStorage. Solo controla el resultado de
-// getEnviosPendientes (pre-check de IDB). El resto rechaza por seguridad.
 class FakeMarkingsStorage implements MarkingsStorage {
   private next: { kind: 'resolve'; list: EnvioPendiente[] } | { kind: 'reject'; error: Error } = {
     kind: 'resolve',
@@ -150,21 +193,23 @@ const buildSimulacro = (
   });
 
 describe('HomePage', () => {
-  let fakeGet: FakeGetActiveSessionUseCase;
+  let fakeGetIdentity: FakeGetIdentityUseCase;
+  let fakeGetProfile: FakeGetProfileUseCase;
   let fakeLogout: FakeLogoutUseCase;
   let fakeObtener: FakeObtenerSimulacrosDelDiaUseCase;
   let fakeClock: FakeClock;
   let fakeMarkings: FakeMarkingsStorage;
 
   beforeEach(async () => {
-    fakeGet = new FakeGetActiveSessionUseCase();
+    fakeGetIdentity = new FakeGetIdentityUseCase();
+    fakeGetProfile = new FakeGetProfileUseCase();
     fakeLogout = new FakeLogoutUseCase();
     fakeObtener = new FakeObtenerSimulacrosDelDiaUseCase();
     fakeClock = new FakeClock();
     fakeMarkings = new FakeMarkingsStorage();
-    // Default sano: sesión válida + pre-check OK + lista vacía. Cada test
-    // puede sobrescribir lo que necesite ANTES de createComponent().
-    fakeGet.willReturn(new Session(new BearerToken('6|abc'), 'fulano@panda.test', new Date()));
+    // Default sano: identity válida + profile resuelto + pre-check OK + lista vacía.
+    fakeGetIdentity.willReturn(buildIdentity());
+    fakeGetProfile.willResolveStudent({ firstName: 'Fulano', lastName: 'Panda' });
     fakeMarkings.willResolveEnviosPendientes([]);
     fakeObtener.willResolve([]);
 
@@ -176,7 +221,8 @@ describe('HomePage', () => {
           { path: 'home', component: HomePage },
           { path: 'login', component: LoginStub },
         ]),
-        { provide: GetActiveSessionUseCase, useValue: fakeGet },
+        { provide: GetIdentityUseCase, useValue: fakeGetIdentity },
+        { provide: GetProfileUseCase, useValue: fakeGetProfile },
         { provide: LogoutUseCase, useValue: fakeLogout },
         { provide: ObtenerSimulacrosDelDiaUseCase, useValue: fakeObtener },
         { provide: CLOCK, useValue: fakeClock },
@@ -193,6 +239,7 @@ describe('HomePage', () => {
     it('muestra saludo con el email del usuario activo', async () => {
       const fixture = TestBed.createComponent(HomePage);
       fixture.detectChanges();
+      await flushPromises();
       await fixture.whenStable();
       fixture.detectChanges();
       const el = fixture.nativeElement as HTMLElement;
@@ -200,9 +247,10 @@ describe('HomePage', () => {
     });
 
     it('NO muestra saludo si no hay sesión (estado raro: protegido por authGuard)', async () => {
-      fakeGet.willReturn(null);
+      fakeGetIdentity.willReturn(null);
       const fixture = TestBed.createComponent(HomePage);
       fixture.detectChanges();
+      await flushPromises();
       await fixture.whenStable();
       fixture.detectChanges();
       const el = fixture.nativeElement as HTMLElement;
@@ -214,12 +262,11 @@ describe('HomePage', () => {
     it('renderiza una entrada del set INSPIRATIONAL_QUOTES dentro de <blockquote class="quote">', async () => {
       const fixture = TestBed.createComponent(HomePage);
       fixture.detectChanges();
+      await flushPromises();
       await fixture.whenStable();
       fixture.detectChanges();
       const blockquote = (fixture.nativeElement as HTMLElement).querySelector('blockquote.quote');
       expect(blockquote).not.toBeNull();
-      // La frase exacta cambia entre mounts (randomQuote), pero siempre debe
-      // ser una entrada del set source de verdad.
       const { INSPIRATIONAL_QUOTES } =
         await import('../../../../../src/LR_render/pages/home/inspirational-quotes');
       const text = blockquote?.textContent?.trim();
@@ -231,6 +278,7 @@ describe('HomePage', () => {
     it('click en "Cerrar sesión" invoca LogoutUseCase y navega a /login', async () => {
       const fixture = TestBed.createComponent(HomePage);
       fixture.detectChanges();
+      await flushPromises();
       await fixture.whenStable();
       fixture.detectChanges();
 
@@ -267,6 +315,7 @@ describe('HomePage', () => {
 
       const fixture = TestBed.createComponent(HomePage);
       fixture.detectChanges();
+      await flushPromises();
       await fixture.whenStable();
       fixture.detectChanges();
 
@@ -285,6 +334,7 @@ describe('HomePage', () => {
 
       const fixture = TestBed.createComponent(HomePage);
       fixture.detectChanges();
+      await flushPromises();
       await fixture.whenStable();
       fixture.detectChanges();
 
@@ -297,6 +347,7 @@ describe('HomePage', () => {
 
       const fixture = TestBed.createComponent(HomePage);
       fixture.detectChanges();
+      await flushPromises();
       await fixture.whenStable();
       fixture.detectChanges();
 
@@ -348,7 +399,5 @@ describe('HomePage', () => {
   // El pull-to-refresh es gestual: requiere TouchEvents reales sobre un
   // scroll container con offset. En jsdom su simulación es flaky y testea
   // más la implementación del gesto que el comportamiento del refresh —
-  // que ya está cubierto vía el botón Reintentar. Lo dejamos como TODO.
-  // TODO sec.8: cubrir pull-to-refresh con un happy path mínimo si se vuelve
-  // crítico (touchstart → touchmove(>80*0.6) → touchend ⇒ obtener.execute()).
+  // que ya está cubierto vía el botón Reintentar.
 });
