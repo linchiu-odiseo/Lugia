@@ -1,7 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { InvalidCredentialsError } from '../../../../src/L1_domain/errors/invalid-credentials.error';
-import { InvalidSessionError } from '../../../../src/L1_domain/errors/invalid-session.error';
 import { NetworkError } from '../../../../src/L1_domain/errors/network.error';
+import { InvalidIdentityError } from '../../../../src/L1_domain/errors/invalid-identity.error';
+import { RefreshFailedError } from '../../../../src/L1_domain/errors/refresh-failed.error';
+import { RateLimitError } from '../../../../src/L1_domain/errors/rate-limit.error';
+import { ProfileNotAvailableError } from '../../../../src/L1_domain/errors/profile-not-available.error';
 
 describe('Errores de dominio', () => {
   describe('InvalidCredentialsError', () => {
@@ -44,23 +47,63 @@ describe('Errores de dominio', () => {
     });
   });
 
-  describe('InvalidSessionError', () => {
-    it('es instanceof Error y InvalidSessionError', () => {
-      const err = new InvalidSessionError();
+  describe('InvalidIdentityError', () => {
+    it('es instanceof Error e InvalidIdentityError', () => {
+      const err = new InvalidIdentityError();
       expect(err).toBeInstanceOf(Error);
-      expect(err).toBeInstanceOf(InvalidSessionError);
+      expect(err).toBeInstanceOf(InvalidIdentityError);
     });
 
     it('tiene name correcto', () => {
-      expect(new InvalidSessionError().name).toBe('InvalidSessionError');
+      expect(new InvalidIdentityError().name).toBe('InvalidIdentityError');
+    });
+  });
+
+  describe('RefreshFailedError', () => {
+    it('es instanceof Error y RefreshFailedError', () => {
+      const err = new RefreshFailedError();
+      expect(err).toBeInstanceOf(Error);
+      expect(err).toBeInstanceOf(RefreshFailedError);
+    });
+
+    it('tiene name correcto', () => {
+      expect(new RefreshFailedError().name).toBe('RefreshFailedError');
+    });
+  });
+
+  describe('RateLimitError', () => {
+    it('es instanceof Error y RateLimitError', () => {
+      const err = new RateLimitError();
+      expect(err).toBeInstanceOf(Error);
+      expect(err).toBeInstanceOf(RateLimitError);
+    });
+
+    it('tiene name correcto', () => {
+      expect(new RateLimitError().name).toBe('RateLimitError');
+    });
+  });
+
+  describe('ProfileNotAvailableError', () => {
+    it('es instanceof Error y ProfileNotAvailableError', () => {
+      const err = new ProfileNotAvailableError();
+      expect(err).toBeInstanceOf(Error);
+      expect(err).toBeInstanceOf(ProfileNotAvailableError);
+    });
+
+    it('tiene name correcto', () => {
+      expect(new ProfileNotAvailableError().name).toBe('ProfileNotAvailableError');
     });
   });
 
   describe('discriminación entre errores', () => {
-    it('un InvalidCredentialsError NO es instanceof NetworkError ni InvalidSessionError', () => {
+    it('un InvalidCredentialsError NO es instanceof NetworkError ni InvalidIdentityError', () => {
       const err = new InvalidCredentialsError();
       expect(err).not.toBeInstanceOf(NetworkError);
-      expect(err).not.toBeInstanceOf(InvalidSessionError);
+      expect(err).not.toBeInstanceOf(InvalidIdentityError);
+    });
+
+    it('un RefreshFailedError NO es instanceof InvalidCredentialsError', () => {
+      expect(new RefreshFailedError()).not.toBeInstanceOf(InvalidCredentialsError);
     });
   });
 });
