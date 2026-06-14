@@ -1,18 +1,21 @@
+// Tests del `publicOnlyGuard` actualizado.
+// - Sin identity → permite (`true`).
+// - Con identity → redirige a `/{role}/home` según `identity.role()`.
+
 import { describe, it, expect, beforeEach } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, UrlTree } from '@angular/router';
 import { Component } from '@angular/core';
 import { publicOnlyGuard } from '../../../../src/L3_periphery/guards/public-only.guard';
-import { GetActiveSessionUseCase } from '../../../../src/L2_application/use-cases/get-active-session.use-case';
-import { Session } from '../../../../src/L1_domain/entities/session';
-import { BearerToken } from '../../../../src/L1_domain/value-objects/bearer-token';
+import { GetIdentityUseCase } from '../../../../src/L2_application/use-cases/get-identity.use-case';
+import { Identity } from '../../../../src/L1_domain/entities/identity';
 
-class FakeGetActiveSessionUseCase {
-  private next: Session | null = null;
-  willReturn(s: Session | null) {
-    this.next = s;
+class FakeGetIdentityUseCase {
+  private next: Identity | null = null;
+  willReturn(i: Identity | null): void {
+    this.next = i;
   }
-  async execute() {
+  async execute(): Promise<Identity | null> {
     return this.next;
   }
 }
@@ -20,23 +23,36 @@ class FakeGetActiveSessionUseCase {
 @Component({ standalone: true, template: '' })
 class DummyComponent {}
 
+function makeIdentity(role: 'student' | 'tutor'): Identity {
+  return new Identity(
+    'user-id',
+    'tenant-id',
+    role === 'student' ? '79507732@vonex.edu.pe' : 'tutor1@vonex.pe',
+    role === 'student' ? '79507732' : null,
+    [role],
+    [],
+    Date.now() + 900_000,
+  );
+}
+
 describe('publicOnlyGuard', () => {
-  let fake: FakeGetActiveSessionUseCase;
+  let fake: FakeGetIdentityUseCase;
 
   beforeEach(() => {
-    fake = new FakeGetActiveSessionUseCase();
+    fake = new FakeGetIdentityUseCase();
     TestBed.configureTestingModule({
       providers: [
         provideRouter([
           { path: 'login', component: DummyComponent },
-          { path: 'home', component: DummyComponent },
+          { path: 'student/home', component: DummyComponent },
+          { path: 'tutor/home', component: DummyComponent },
         ]),
-        { provide: GetActiveSessionUseCase, useValue: fake },
+        { provide: GetIdentityUseCase, useValue: fake },
       ],
     });
   });
 
-  it('permite la navegación si no hay sesión activa (ruta pública usable)', async () => {
+  it('permite la navegación si no hay identity (login usable)', async () => {
     fake.willReturn(null);
     const result = await TestBed.runInInjectionContext(() =>
       publicOnlyGuard(null as never, null as never),
@@ -44,12 +60,21 @@ describe('publicOnlyGuard', () => {
     expect(result).toBe(true);
   });
 
-  it('redirige a /home si ya hay sesión activa (evita login doble)', async () => {
-    fake.willReturn(new Session(new BearerToken('6|abc'), 'a@b.com', new Date()));
+  it('redirige a /student/home si hay identity con rol student', async () => {
+    fake.willReturn(makeIdentity('student'));
     const result = (await TestBed.runInInjectionContext(() =>
       publicOnlyGuard(null as never, null as never),
     )) as UrlTree;
     expect(result).toBeInstanceOf(UrlTree);
-    expect(result.toString()).toBe('/home');
+    expect(result.toString()).toBe('/student/home');
+  });
+
+  it('redirige a /tutor/home si hay identity con rol tutor', async () => {
+    fake.willReturn(makeIdentity('tutor'));
+    const result = (await TestBed.runInInjectionContext(() =>
+      publicOnlyGuard(null as never, null as never),
+    )) as UrlTree;
+    expect(result).toBeInstanceOf(UrlTree);
+    expect(result.toString()).toBe('/tutor/home');
   });
 });
