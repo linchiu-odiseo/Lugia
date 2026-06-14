@@ -49,7 +49,7 @@ try {
   throw err;
 }
 
-const required = ['API_BASE_URL', 'API_KEY'];
+const required = ['API_BASE_URL', 'TENANT_SLUG'];
 const missing = required.filter((k) => !env[k] || env[k].startsWith('<'));
 if (missing.length) {
   console.error(`✘ Faltan o quedan placeholders en .env: ${missing.join(', ')}`);
@@ -66,14 +66,14 @@ const banner =
 // Single-quoted string escape — alineado con el estilo Prettier del proyecto.
 const sq = (s) => `'${String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
 const apiBaseUrl = sq(env.API_BASE_URL);
-const apiKey = sq(env.API_KEY);
+const tenantSlug = sq(env.TENANT_SLUG);
 
 writeFileSync(
   resolve(envDir, 'environment.ts'),
   `${banner}\nexport const environment = {\n` +
     `  production: false,\n` +
     `  apiBaseUrl: ${apiBaseUrl},\n` +
-    `  apiKey: ${apiKey},\n` +
+    `  tenantSlug: ${tenantSlug},\n` +
     `};\n`,
 );
 
@@ -82,7 +82,7 @@ writeFileSync(
   `${banner}\nexport const environment = {\n` +
     `  production: true,\n` +
     `  apiBaseUrl: ${apiBaseUrl},\n` +
-    `  apiKey: ${apiKey},\n` +
+    `  tenantSlug: ${tenantSlug},\n` +
     `};\n`,
 );
 
