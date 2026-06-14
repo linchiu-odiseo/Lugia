@@ -4,41 +4,55 @@ import { provideRouter, Router } from '@angular/router';
 import { Component } from '@angular/core';
 import { LoginPage } from '../../../../../src/LR_render/pages/login/login.page';
 import { LoginUseCase } from '../../../../../src/L2_application/use-cases/login.use-case';
-import { Session } from '../../../../../src/L1_domain/entities/session';
-import { BearerToken } from '../../../../../src/L1_domain/value-objects/bearer-token';
-import { Credentials } from '../../../../../src/L1_domain/ports/auth-repository';
+import { Identity } from '../../../../../src/L1_domain/entities/identity';
 import { InvalidCredentialsError } from '../../../../../src/L1_domain/errors/invalid-credentials.error';
 import { NetworkError } from '../../../../../src/L1_domain/errors/network.error';
+import { RateLimitError } from '../../../../../src/L1_domain/errors/rate-limit.error';
 
 @Component({ template: '' })
-class HomeStub {}
+class StudentHomeStub {}
+
+@Component({ template: '' })
+class TutorHomeStub {}
+
+function buildIdentity(role: 'student' | 'tutor' = 'student'): Identity {
+  const email = role === 'student' ? '79507732@vonex.edu.pe' : 'tutor1@vonex.pe';
+  const codigo = role === 'student' ? '79507732' : null;
+  return new Identity('user-id', 'tenant-id', email, codigo, [role], [], Date.now() + 900_000);
+}
 
 class FakeLoginUseCase {
-  private nextOutcome: 'ok' | Error = 'ok';
-  public calls: Credentials[] = [];
+  private nextOutcome:
+    | { kind: 'ok'; role: 'student' | 'tutor' }
+    | { kind: 'reject'; error: Error } = { kind: 'ok', role: 'student' };
+  public calls: { email: string; password: string }[] = [];
 
-  willResolve() {
-    this.nextOutcome = 'ok';
+  willResolveAs(role: 'student' | 'tutor') {
+    this.nextOutcome = { kind: 'ok', role };
   }
   willRejectInvalid() {
-    this.nextOutcome = new InvalidCredentialsError();
+    this.nextOutcome = { kind: 'reject', error: new InvalidCredentialsError() };
   }
   willRejectNetwork() {
-    this.nextOutcome = new NetworkError();
+    this.nextOutcome = { kind: 'reject', error: new NetworkError() };
+  }
+  willRejectRateLimit() {
+    this.nextOutcome = { kind: 'reject', error: new RateLimitError() };
   }
 
-  async execute(credentials: Credentials): Promise<Session> {
+  async execute(credentials: { email: string; password: string }): Promise<Identity> {
     this.calls.push(credentials);
-    if (this.nextOutcome === 'ok') {
-      return new Session(new BearerToken('6|abc'), credentials.email, new Date());
-    }
-    throw this.nextOutcome;
+    if (this.nextOutcome.kind === 'reject') throw this.nextOutcome.error;
+    return buildIdentity(this.nextOutcome.role);
   }
 }
 
 const validCredentials = { email: 'fulano@panda.test', password: '12345678' };
 
-const setEmailAndPasswordViaDOM = (fixture: { nativeElement: HTMLElement }, c: Credentials) => {
+const setEmailAndPasswordViaDOM = (
+  fixture: { nativeElement: HTMLElement },
+  c: { email: string; password: string },
+) => {
   const el = fixture.nativeElement;
   const email = el.querySelector('input[formcontrolname="email"]') as HTMLInputElement;
   const pwd = el.querySelector('input[formcontrolname="password"]') as HTMLInputElement;
@@ -59,7 +73,8 @@ describe('LoginPage', () => {
       providers: [
         provideRouter([
           { path: 'login', component: LoginPage },
-          { path: 'home', component: HomeStub },
+          { path: 'student/home', component: StudentHomeStub },
+          { path: 'tutor/home', component: TutorHomeStub },
         ]),
         { provide: LoginUseCase, useValue: fakeUseCase },
       ],
@@ -91,12 +106,12 @@ describe('LoginPage', () => {
     expect(btn.disabled).toBe(false);
   });
 
-  it('submit exitoso invoca LoginUseCase con las credenciales y navega a /home', async () => {
+  it('submit exitoso con identity student invoca LoginUseCase con las credenciales y navega a /student/home', async () => {
     const fixture = TestBed.createComponent(LoginPage);
     fixture.detectChanges();
     setEmailAndPasswordViaDOM(fixture, validCredentials);
     fixture.detectChanges();
-    fakeUseCase.willResolve();
+    fakeUseCase.willResolveAs('student');
 
     const router = TestBed.inject(Router);
     const form = fixture.nativeElement.querySelector('form') as HTMLFormElement;
@@ -104,7 +119,22 @@ describe('LoginPage', () => {
     await fixture.whenStable();
 
     expect(fakeUseCase.calls).toEqual([validCredentials]);
-    expect(router.url).toBe('/home');
+    expect(router.url).toBe('/student/home');
+  });
+
+  it('submit exitoso con identity tutor navega a /tutor/home', async () => {
+    const fixture = TestBed.createComponent(LoginPage);
+    fixture.detectChanges();
+    setEmailAndPasswordViaDOM(fixture, validCredentials);
+    fixture.detectChanges();
+    fakeUseCase.willResolveAs('tutor');
+
+    const router = TestBed.inject(Router);
+    const form = fixture.nativeElement.querySelector('form') as HTMLFormElement;
+    form.dispatchEvent(new Event('submit'));
+    await fixture.whenStable();
+
+    expect(router.url).toBe('/tutor/home');
   });
 
   it('credenciales inválidas muestran mensaje y limpian password pero conservan email', async () => {
@@ -148,6 +178,25 @@ describe('LoginPage', () => {
     );
     expect((el.querySelector('input[formcontrolname="password"]') as HTMLInputElement).value).toBe(
       validCredentials.password,
+    );
+  });
+
+  it('rate limit muestra mensaje "Demasiados intentos…" y conserva el email', async () => {
+    const fixture = TestBed.createComponent(LoginPage);
+    fixture.detectChanges();
+    setEmailAndPasswordViaDOM(fixture, validCredentials);
+    fixture.detectChanges();
+    fakeUseCase.willRejectRateLimit();
+
+    const form = fixture.nativeElement.querySelector('form') as HTMLFormElement;
+    form.dispatchEvent(new Event('submit'));
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('.error')?.textContent).toContain('Demasiados intentos');
+    expect((el.querySelector('input[formcontrolname="email"]') as HTMLInputElement).value).toBe(
+      validCredentials.email,
     );
   });
 });
