@@ -4,13 +4,15 @@
 
 ## Qué es esto
 
-**Lugia** es una PWA Angular para móviles que sirve como **cartilla virtual de marcaciones** para simulacros (exámenes de práctica). El alumno marca las alternativas A–E por pregunta en pantalla; el enunciado viene impreso en una hoja física que entrega el profesor. Backend: **API-FAKE** (Laravel + Sanctum + Postgres) en Docker, editable.
+**Lugia** es una PWA Angular para móviles que sirve como **cartilla virtual de marcaciones** para simulacros (exámenes de práctica). El alumno marca las alternativas A–E por pregunta en pantalla; el enunciado viene impreso en una hoja física que entrega el profesor. Backend: **learnex** (NestJS + Postgres, multi-tenant) en Docker. Auth via cookies HttpOnly + `withCredentials: true`.
 
-**Fase actual: Fase 2 ARCHIVADA (cartilla)** — completada el 2026-06-12. Capacidades implementadas: `/home` con lista de simulacros del día (4 estados: pendiente|abierto|enviado|cerrado), countdown server-anchored, polling 120s + focus refresh + pull-to-refresh. `/simulacro/:id` con grilla A–E offline-first + protección accidental-change (long-press 500ms). Envío con `clientSubmittedAt` server-anchored, auto-envío T=0 (jitter ±3s), queue offline en IndexedDB. Bearer rolling 6h vía `X-New-Bearer`. Conectividad badge + server-time sync. 400/400 tests passing, lint y format clean.
+**Fase actual: Fase 3 — migración a learnex EN CURSO.** Cambio activo `fase-3-login-learnex` (sin archivar todavía): cut-over duro de API-FAKE (Bearer + X-API-Key) a learnex (cookies HttpOnly + `withCredentials: true`). Multi-rol mínimo: alumno rinde, tutor stub identificable. Refresh reactivo con lock `shareReplay(1)`. Cartilla queda **rota en runtime** hasta el change siguiente `fase-3-exam-learnex`.
 
-Fase 1 (archivada 2026-06-11): login funcional + redirect a `/home` protegido por guard. Specs en `openspec/specs/auth-*`, `openspec/specs/http-client`, `openspec/specs/route-protection`, `openspec/specs/session-storage`.
+Fase 2 archivada (2026-06-12): cartilla completa con grilla A–E offline-first, queue IDB, server-time-sync, bearer rolling 6h vía `X-New-Bearer`. 400/400 tests.
 
-**Fase 3: pendiente de definición.** Próximos pasos potenciales: resultados post-envío, historial de simulacros, soporte multi-dispositivo mejorado, anti-fraude hardening.
+Fase 1 archivada (2026-06-11): login funcional + redirect a `/home` protegido por guard.
+
+**Fase 3 (próximos pasos):** después de `fase-3-login-learnex`: `fase-3-exam-learnex` (migrar endpoints de examen para restaurar la cartilla). Posibles changes posteriores: dashboard tutor real (aulas, activación de examen), resultados post-envío, historial, anti-fraude hardening.
 
 ## Stack
 
@@ -64,9 +66,10 @@ npm run build-env      # genera src/environments/ desde .env (manual; se invoca 
 
 1. **Boundaries hexagonales.** Ver `@agents/architecture-rules.md` para la tabla completa. ESLint enforza los imports cruzados; el subagente `hexagonal-guard` audita lo que ESLint no atrapa (anémicas, mappers ceremoniales, use cases passthrough).
 2. **L1 y L2 son TypeScript puro.** Cero `@angular/*`, cero `rxjs`, cero browser APIs.
-3. **Clasificación de errores HTTP por (status, endpoint) — nunca por texto del mensaje.** API-FAKE devuelve mensajes distintos para 401 y pueden cambiar sin aviso. Detalle en `@agents/api-contract.md`.
-4. **Bearer + X-API-Key vía un único interceptor** en `src/L3_periphery/interceptors/auth-headers.interceptor.ts`. No armes esos headers en ningún otro lado.
-5. **Strings de UI en español (es-PE), hardcoded en Fase 1.** I18n diferida. Código en inglés.
+3. **Clasificación de errores HTTP por `(status, endpoint, code)` — nunca por texto del `message`.** El `code` se lee SOLO si está declarado en el zod del contrato learnex (ej. `TENANT_AUTH_INVALID_CREDENTIALS`, `TENANT_AUTH_REFRESH_TOKEN_INVALID`, `TENANT_AUTH_REFRESH_TOKEN_MISSING`). El `message` es texto humano volátil y queda PROHIBIDO. Detalle en `@agents/api-contract.md`.
+4. **Cookies HttpOnly + `withCredentials: true` vía un único interceptor** en `src/L3_periphery/interceptors/credentials.interceptor.ts`. El interceptor agrega `withCredentials` a toda request a `apiBaseUrl` y maneja refresh reactivo en 401 con lock `shareReplay(1)`. Cero `Authorization: Bearer`, cero `X-API-Key`, cero `X-New-Bearer` (todo eso era API-FAKE).
+5. **Strings de UI en español (es-PE), hardcoded en Fase 1+. I18n diferida. Código en inglés.**
+6. **Tenant slug parametrizado, jamás hardcoded.** El slug (`vonex` para Vonex) viene de `environment.tenantSlug` generado desde `TENANT_SLUG` en `.env` por `scripts/build-env.mjs`. Todas las URLs `/t/{slug}/...` se arman vía el helper `src/L3_periphery/http/api-paths.ts`. Cualquier mención literal de `"vonex"` en `src/` está prohibida.
 
 ## Referencias para subagentes
 
@@ -95,6 +98,10 @@ El cambio activo actual es `cartilla-fase-2` (todas las capabilities implementad
 
 ## Información del entorno dev
 
-- **API-FAKE** corre en Docker en `http://localhost:2004/v3`. Usuario único de prueba: `fulano@panda.test` / `12345678`.
-- **API_KEY** real vive en `.env` (no committeada). Si falta, el dev server falla en el hook `predev` con mensaje claro.
+- **learnex** (back real) corre en Docker en `http://localhost:2001`. Multi-tenant: el slug viaja en el path `/t/{slug}/...`. Slug actual de dev: `vonex` (definido en `.env`).
+- **API-FAKE retirado** (cambio `fase-3-login-learnex`). Si encontrás referencias a `localhost:2004/v3`, `API_KEY`, `X-API-Key`, `Authorization: Bearer`, `X-New-Bearer`, son legacy y deben migrarse.
+- **Credenciales seed de dev**:
+  - Alumno: `79507732@vonex.edu.pe` / `79507732`.
+  - Tutor: `tutor1@vonex.pe` / `tutor123`.
+- **`.env`** tiene solo `API_BASE_URL` y `TENANT_SLUG`. Si faltan, el dev server falla en el hook `predev` con mensaje claro.
 - **Plataforma de dev**: Windows + PowerShell. Comandos POSIX vía Bash tool funcionan; usar `/` en paths.
