@@ -1,49 +1,42 @@
 // Tests del adapter L3 `IndexedDbMarkingsStorage`.
 //
-// Cubrimos los escenarios listados en
-// `openspec/changes/cartilla-fase-2/specs/offline-storage/spec.md`
-// Requirements 1–4 (puerto, scope por userEmail, IDB no disponible,
-// recuperación tras cierre).
-//
-// El adapter inyecta `LocalStorageSessionStorage` (clase concreta L3, no el
-// puerto) para derivar el `userEmail` del scope. Usamos TestBed con un fake
-// que provee la sesión actual sin tocar `localStorage` real — así los tests
-// pueden cambiar de "usuario" entre escenarios sin reiniciar IndexedDB.
+// Cubre los scenarios del spec `offline-storage` y el fix de layer
+// violation introducido en PR2 de `fase-3-login-learnex`:
+// - El adapter ya NO depende de `LocalStorageSessionStorage` (clase
+//   concreta). Inyecta `IdentityStorage` (port) vía el token `IDENTITY_STORAGE`.
+// - El `email` del scope viene de `identity.email`.
+// - `wipeUserScope()` sin identity = no-op (no lanza).
+// - `clear()` (OutboxStoragePort) sin identity = no-op.
 //
 // `fake-indexeddb/auto` reemplaza `globalThis.indexedDB` al importarse.
-// Para el escenario "IDB no disponible" guardamos y restauramos el global.
 
 import 'fake-indexeddb/auto';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { IndexedDbMarkingsStorage } from '../../../../src/L3_periphery/storage/indexed-db-markings-storage';
-import { LocalStorageSessionStorage } from '../../../../src/L3_periphery/storage/local-storage-session-storage';
+import { IDENTITY_STORAGE } from '../../../../src/L3_periphery/tokens';
+import { IdentityStorage } from '../../../../src/L1_domain/ports/identity-storage';
+import { Identity } from '../../../../src/L1_domain/entities/identity';
 import { OfflineStorageUnavailableError } from '../../../../src/L1_domain/errors/offline-storage-unavailable.error';
-import { Session } from '../../../../src/L1_domain/entities/session';
-import { BearerToken } from '../../../../src/L1_domain/value-objects/bearer-token';
 
 const DB_NAME = 'lugia-cartilla';
 const STORE = 'data';
 
-// Doble de `LocalStorageSessionStorage` que devuelve la sesión actualmente
-// configurada por el test. Como el adapter inyecta la CLASE concreta y no
-// un token, registramos en el TestBed con `useValue` apuntando a esta
-// instancia. La clase real no se construye.
-class StubSessionStorage {
-  private current: Session | null = null;
+// Doble manual del port `IdentityStorage`. Permite alternar la identity
+// "activa" entre tests sin tocar IndexedDB ni localStorage real.
+class StubIdentityStorage implements IdentityStorage {
+  private current: Identity | null = null;
 
-  setSession(s: Session | null): void {
-    this.current = s;
+  setIdentity(i: Identity | null): void {
+    this.current = i;
   }
 
-  async read(): Promise<Session | null> {
+  async read(): Promise<Identity | null> {
     return this.current;
   }
 
-  // Estos métodos no se usan en este spec pero satisfacen el contrato
-  // estructural por si alguna ruta del adapter cambia en el futuro.
-  async write(s: Session): Promise<void> {
-    this.current = s;
+  async write(identity: Identity): Promise<void> {
+    this.current = identity;
   }
 
   async clear(): Promise<void> {
@@ -51,16 +44,19 @@ class StubSessionStorage {
   }
 }
 
-function makeSession(email: string): Session {
-  return new Session(new BearerToken('6|abc'), email, new Date('2026-06-11T12:00:00Z'));
+function makeIdentity(email: string): Identity {
+  return new Identity(
+    'user-id',
+    'tenant-id',
+    email,
+    '79507732',
+    ['student'],
+    [],
+    Date.now() + 900_000,
+  );
 }
 
-// Vacía el único object store entre tests para que un test no contamine
-// a otro. NO usamos `indexedDB.deleteDatabase` porque eso requiere cerrar
-// todas las conexiones abiertas (el adapter cachea una `dbPromise` y no
-// expone close), lo que dispara `onblocked` indefinidamente bajo
-// fake-indexeddb. Limpiar las keys del store es equivalente para nuestro
-// propósito (aislar tests).
+// Vacía el único object store entre tests (mismo patrón que el spec viejo).
 function wipeAllKeys(): Promise<void> {
   return new Promise((resolve, reject) => {
     const openReq = indexedDB.open(DB_NAME);
@@ -93,18 +89,18 @@ function wipeAllKeys(): Promise<void> {
 }
 
 describe('IndexedDbMarkingsStorage', () => {
-  let session: StubSessionStorage;
+  let identityStorage: StubIdentityStorage;
   let adapter: IndexedDbMarkingsStorage;
 
   beforeEach(async () => {
     await wipeAllKeys();
-    session = new StubSessionStorage();
-    session.setSession(makeSession('a@panda.test'));
+    identityStorage = new StubIdentityStorage();
+    identityStorage.setIdentity(makeIdentity('alumno-a@vonex.edu.pe'));
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
       providers: [
         IndexedDbMarkingsStorage,
-        { provide: LocalStorageSessionStorage, useValue: session },
+        { provide: IDENTITY_STORAGE, useValue: identityStorage },
       ],
     });
     adapter = TestBed.inject(IndexedDbMarkingsStorage);
@@ -129,8 +125,6 @@ describe('IndexedDbMarkingsStorage', () => {
     });
 
     it('desmarcar (alternativa=null) deja el valor null en el map', async () => {
-      // La spec dice explícitamente "valor `null`" en el shape. Verificamos
-      // que el roundtrip preserva null (no lo borra ni lo convierte a undefined).
       await adapter.setMarcacion('sim-1', 5, 'C');
       await adapter.setMarcacion('sim-1', 5, null);
       const map = await adapter.getMarcaciones('sim-1');
@@ -162,24 +156,23 @@ describe('IndexedDbMarkingsStorage', () => {
     });
   });
 
-  describe('scope por userEmail', () => {
+  describe('scope por email (vía IdentityStorage)', () => {
     it('usuario B no ve marcaciones del usuario A', async () => {
-      session.setSession(makeSession('a@panda.test'));
+      identityStorage.setIdentity(makeIdentity('alumno-a@vonex.edu.pe'));
       await adapter.setMarcacion('sim-1', 1, 'A');
       await adapter.setMarcacion('sim-1', 2, 'B');
 
-      session.setSession(makeSession('b@panda.test'));
+      identityStorage.setIdentity(makeIdentity('alumno-b@vonex.edu.pe'));
       const mapB = await adapter.getMarcaciones('sim-1');
       expect(mapB).toEqual({});
 
-      // Y al volver a A, sigue todo donde estaba.
-      session.setSession(makeSession('a@panda.test'));
+      identityStorage.setIdentity(makeIdentity('alumno-a@vonex.edu.pe'));
       const mapA = await adapter.getMarcaciones('sim-1');
       expect(mapA).toEqual({ '1': 'A', '2': 'B' });
     });
 
     it('wipeUserScope de B no afecta los datos de A', async () => {
-      session.setSession(makeSession('a@panda.test'));
+      identityStorage.setIdentity(makeIdentity('alumno-a@vonex.edu.pe'));
       await adapter.setMarcacion('sim-1', 1, 'A');
       await adapter.enqueueEnvio({
         simulacroId: 'sim-1',
@@ -187,7 +180,7 @@ describe('IndexedDbMarkingsStorage', () => {
         clientSubmittedAt: '2026-06-11T12:00:00.000Z',
       });
 
-      session.setSession(makeSession('b@panda.test'));
+      identityStorage.setIdentity(makeIdentity('alumno-b@vonex.edu.pe'));
       await adapter.setMarcacion('sim-9', 1, 'D');
       await adapter.wipeUserScope();
 
@@ -196,7 +189,7 @@ describe('IndexedDbMarkingsStorage', () => {
       expect(await adapter.getEnviosPendientes()).toEqual([]);
 
       // A intacto.
-      session.setSession(makeSession('a@panda.test'));
+      identityStorage.setIdentity(makeIdentity('alumno-a@vonex.edu.pe'));
       expect(await adapter.getMarcaciones('sim-1')).toEqual({ '1': 'A' });
       expect(await adapter.getEnviosPendientes()).toEqual([
         {
@@ -241,8 +234,6 @@ describe('IndexedDbMarkingsStorage', () => {
     });
 
     it('enqueueEnvio del mismo simulacroId sobreescribe el envío previo', async () => {
-      // Por contrato: la key es `cartilla.<email>.queue.<simulacroId>`,
-      // así que dos enqueue del mismo simulacro NO se duplican en la cola.
       await adapter.enqueueEnvio({
         simulacroId: 'sim-1',
         answers: { '1': 'A' },
@@ -279,25 +270,18 @@ describe('IndexedDbMarkingsStorage', () => {
   });
 
   describe('IndexedDB no disponible', () => {
-    // fake-indexeddb/auto setea `indexedDB` al importarse. Para simular un
-    // browser que no expone IDB, guardamos el global, lo desconectamos, y
-    // construimos un adapter NUEVO (el de beforeEach ya tiene una db abierta).
-    // Restauramos en finally para no contaminar otros tests.
-
     it('rechaza con OfflineStorageUnavailableError si indexedDB es undefined', async () => {
       const g = globalThis as unknown as { indexedDB?: IDBFactory };
       const saved = g.indexedDB;
       g.indexedDB = undefined;
       try {
-        // Reconstruir el adapter SIN db cacheada — el TestBed actual ya
-        // resolvió uno; necesitamos uno fresco que detecte el global ausente.
         TestBed.resetTestingModule();
-        const freshSession = new StubSessionStorage();
-        freshSession.setSession(makeSession('a@panda.test'));
+        const freshIdentity = new StubIdentityStorage();
+        freshIdentity.setIdentity(makeIdentity('alumno-a@vonex.edu.pe'));
         TestBed.configureTestingModule({
           providers: [
             IndexedDbMarkingsStorage,
-            { provide: LocalStorageSessionStorage, useValue: freshSession },
+            { provide: IDENTITY_STORAGE, useValue: freshIdentity },
           ],
         });
         const fresh = TestBed.inject(IndexedDbMarkingsStorage);
@@ -322,29 +306,115 @@ describe('IndexedDbMarkingsStorage', () => {
     });
   });
 
-  describe('sin sesión activa', () => {
-    it('rechaza con OfflineStorageUnavailableError si no hay sesión para derivar el scope', async () => {
-      session.setSession(null);
+  describe('sin identity activa', () => {
+    it('setMarcacion rechaza con OfflineStorageUnavailableError', async () => {
+      identityStorage.setIdentity(null);
       await expect(adapter.setMarcacion('sim-1', 1, 'A')).rejects.toBeInstanceOf(
         OfflineStorageUnavailableError,
       );
+    });
+
+    // Scenario explícito del spec session-storage:
+    // "Wipe user scope sin identity es no-op".
+    it('wipeUserScope sin identity es no-op (no lanza, no borra nada)', async () => {
+      // Primero dejamos datos de A.
+      identityStorage.setIdentity(makeIdentity('alumno-a@vonex.edu.pe'));
+      await adapter.setMarcacion('sim-1', 1, 'A');
+      await adapter.enqueueEnvio({
+        simulacroId: 'sim-1',
+        answers: { '1': 'A' },
+        clientSubmittedAt: '2026-06-11T12:00:00.000Z',
+      });
+
+      // Ahora sin identity → wipe no debe lanzar ni borrar.
+      identityStorage.setIdentity(null);
+      await expect(adapter.wipeUserScope()).resolves.toBeUndefined();
+
+      // Reponemos identity de A y verificamos que los datos siguen intactos.
+      identityStorage.setIdentity(makeIdentity('alumno-a@vonex.edu.pe'));
+      expect(await adapter.getMarcaciones('sim-1')).toEqual({ '1': 'A' });
+      expect(await adapter.getEnviosPendientes()).toHaveLength(1);
+    });
+
+    it('clear (OutboxStoragePort) sin identity es no-op (no lanza, no borra nada)', async () => {
+      identityStorage.setIdentity(makeIdentity('alumno-a@vonex.edu.pe'));
+      await adapter.enqueueEnvio({
+        simulacroId: 'sim-1',
+        answers: { '1': 'A' },
+        clientSubmittedAt: '2026-06-11T12:00:00.000Z',
+      });
+
+      identityStorage.setIdentity(null);
+      await expect(adapter.clear()).resolves.toBeUndefined();
+
+      identityStorage.setIdentity(makeIdentity('alumno-a@vonex.edu.pe'));
+      expect(await adapter.getEnviosPendientes()).toHaveLength(1);
+    });
+  });
+
+  describe('clear (OutboxStoragePort) — comportamiento con identity', () => {
+    // El nuevo método `clear()` exigido por `OutboxStoragePort` borra
+    // SOLO la cola (`cartilla.<email>.queue.*`), preserva marcaciones.
+    it('borra sólo cartilla.<email>.queue.* y preserva las marcaciones', async () => {
+      identityStorage.setIdentity(makeIdentity('alumno-a@vonex.edu.pe'));
+      await adapter.setMarcacion('sim-1', 1, 'A');
+      await adapter.setMarcacion('sim-2', 1, 'B');
+      await adapter.enqueueEnvio({
+        simulacroId: 'sim-1',
+        answers: { '1': 'A' },
+        clientSubmittedAt: '2026-06-11T12:00:00.000Z',
+      });
+      await adapter.enqueueEnvio({
+        simulacroId: 'sim-2',
+        answers: { '1': 'B' },
+        clientSubmittedAt: '2026-06-11T12:05:00.000Z',
+      });
+
+      await adapter.clear();
+
+      // Cola vacía…
+      expect(await adapter.getEnviosPendientes()).toEqual([]);
+      // …pero las marcaciones siguen ahí (las borra wipeUserScope, no clear).
+      expect(await adapter.getMarcaciones('sim-1')).toEqual({ '1': 'A' });
+      expect(await adapter.getMarcaciones('sim-2')).toEqual({ '1': 'B' });
+    });
+
+    it('clear NO afecta la cola de otro usuario', async () => {
+      identityStorage.setIdentity(makeIdentity('alumno-a@vonex.edu.pe'));
+      await adapter.enqueueEnvio({
+        simulacroId: 'sim-1',
+        answers: { '1': 'A' },
+        clientSubmittedAt: '2026-06-11T12:00:00.000Z',
+      });
+
+      identityStorage.setIdentity(makeIdentity('alumno-b@vonex.edu.pe'));
+      await adapter.enqueueEnvio({
+        simulacroId: 'sim-9',
+        answers: { '1': 'D' },
+        clientSubmittedAt: '2026-06-11T13:00:00.000Z',
+      });
+      await adapter.clear();
+
+      // B vacío.
+      expect(await adapter.getEnviosPendientes()).toEqual([]);
+      // A sigue con su cola.
+      identityStorage.setIdentity(makeIdentity('alumno-a@vonex.edu.pe'));
+      expect(await adapter.getEnviosPendientes()).toHaveLength(1);
     });
   });
 
   describe('recuperación tras cierre de app', () => {
     it('marcaciones persisten al reabrir el adapter (mismo DB)', async () => {
-      // Simula "cerrar la app": el TestBed se resetea y se construye un
-      // adapter NUEVO contra la misma instancia de IndexedDB.
       await adapter.setMarcacion('sim-1', 1, 'A');
       await adapter.setMarcacion('sim-1', 2, 'B');
 
       TestBed.resetTestingModule();
-      const reopenedSession = new StubSessionStorage();
-      reopenedSession.setSession(makeSession('a@panda.test'));
+      const reopenedIdentity = new StubIdentityStorage();
+      reopenedIdentity.setIdentity(makeIdentity('alumno-a@vonex.edu.pe'));
       TestBed.configureTestingModule({
         providers: [
           IndexedDbMarkingsStorage,
-          { provide: LocalStorageSessionStorage, useValue: reopenedSession },
+          { provide: IDENTITY_STORAGE, useValue: reopenedIdentity },
         ],
       });
       const reopened = TestBed.inject(IndexedDbMarkingsStorage);
@@ -360,12 +430,12 @@ describe('IndexedDbMarkingsStorage', () => {
       });
 
       TestBed.resetTestingModule();
-      const reopenedSession = new StubSessionStorage();
-      reopenedSession.setSession(makeSession('a@panda.test'));
+      const reopenedIdentity = new StubIdentityStorage();
+      reopenedIdentity.setIdentity(makeIdentity('alumno-a@vonex.edu.pe'));
       TestBed.configureTestingModule({
         providers: [
           IndexedDbMarkingsStorage,
-          { provide: LocalStorageSessionStorage, useValue: reopenedSession },
+          { provide: IDENTITY_STORAGE, useValue: reopenedIdentity },
         ],
       });
       const reopened = TestBed.inject(IndexedDbMarkingsStorage);

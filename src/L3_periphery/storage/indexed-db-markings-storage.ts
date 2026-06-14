@@ -5,8 +5,9 @@ import {
   EnvioPendiente,
   MarkingsStorage,
 } from '../../L1_domain/ports/markings-storage';
+import { OutboxStoragePort } from '../../L1_domain/ports/outbox-storage.port';
 import { OfflineStorageUnavailableError } from '../../L1_domain/errors/offline-storage-unavailable.error';
-import { LocalStorageSessionStorage } from './local-storage-session-storage';
+import { IDENTITY_STORAGE } from '../tokens';
 
 const DB_NAME = 'lugia-cartilla';
 const DB_VERSION = 1;
@@ -20,9 +21,12 @@ const STORE = 'data';
 // rango de IDBKeyRange.bound(...) sin tocar datos de otros usuarios.
 const KEY_ROOT = 'cartilla';
 
+// También implementa `OutboxStoragePort.clear()` para que el `LogoutUseCase`
+// pueda limpiar la cola sin conocer este adapter directamente. Ambas
+// interfaces se bindean al mismo adapter en `app.config.ts` (useExisting).
 @Injectable({ providedIn: 'root' })
-export class IndexedDbMarkingsStorage implements MarkingsStorage {
-  private readonly sessionStorage = inject(LocalStorageSessionStorage);
+export class IndexedDbMarkingsStorage implements MarkingsStorage, OutboxStoragePort {
+  private readonly identityStorage = inject(IDENTITY_STORAGE);
   private dbPromise: Promise<IDBDatabase> | null = null;
 
   async setMarcacion(
@@ -75,10 +79,24 @@ export class IndexedDbMarkingsStorage implements MarkingsStorage {
     await this.delete(db, queueKey(email, simulacroId));
   }
 
+  // Sin identity → no-op (caso normal durante logout cuando el storage ya
+  // fue limpiado, o cuando se llama defensivamente). NO throw.
   async wipeUserScope(): Promise<void> {
-    const email = await this.requireUserEmail();
+    const email = await this.getUserEmailOrNull();
+    if (!email) return;
     const db = await this.db();
     const prefix = `${KEY_ROOT}.${email}.`;
+    await this.deleteRange(db, prefix);
+  }
+
+  // Implementación de `OutboxStoragePort.clear()`. Borra sólo la cola del
+  // usuario actual; los simulacros marcados se conservan (eso lo limpia
+  // `wipeUserScope`). Sin identity → no-op.
+  async clear(): Promise<void> {
+    const email = await this.getUserEmailOrNull();
+    if (!email) return;
+    const db = await this.db();
+    const prefix = `${KEY_ROOT}.${email}.queue.`;
     await this.deleteRange(db, prefix);
   }
 
@@ -112,14 +130,23 @@ export class IndexedDbMarkingsStorage implements MarkingsStorage {
     return this.dbPromise;
   }
 
+  // Para operaciones que SÍ requieren sesión activa (set/get/clear de
+  // marcaciones, enqueue/dequeue de envíos). Si no hay identity → throw.
   private async requireUserEmail(): Promise<string> {
-    const session = await this.sessionStorage.read();
-    if (!session) {
+    const email = await this.getUserEmailOrNull();
+    if (!email) {
       throw new OfflineStorageUnavailableError(
-        'No hay sesión activa para resolver el scope del storage.',
+        'No hay identidad activa para resolver el scope del storage.',
       );
     }
-    return session.userEmail;
+    return email;
+  }
+
+  // Para operaciones tolerantes a "sin identity" (wipeUserScope, clear de
+  // outbox durante logout). Devuelve null en vez de lanzar.
+  private async getUserEmailOrNull(): Promise<string | null> {
+    const identity = await this.identityStorage.read();
+    return identity?.email ?? null;
   }
 
   private put(db: IDBDatabase, key: string, value: unknown): Promise<void> {
