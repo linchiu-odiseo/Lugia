@@ -71,14 +71,14 @@
 - [x] 8.1 Actualizar `tests/feature/LR_render/view-models/simulacro.view-model.spec.ts`: eliminar los tests del bloque `describe` que asseran sobre `showHintToast` y `HINT_TOAST_VISIBLE_MS` (líneas ~640–693, 9 asserts en total: tap sobre locked no marca + dispara showHintToast, timer 4000ms, etc.). Reemplazar por un único test que verifique que el tap simple sobre fila `locked` no muta la marcación NI dispara ningún signal de hint (la ausencia de cambio es la única señal). Si existe un `simulacro.page.spec.ts` que assertea sobre el DOM `.hint-toast` o `.fila__hint`, actualizarlo: eliminar esos asserts y agregar uno que verifique `.row__chip` visible en filas `editing`.
 - [x] 8.2 Agregar test en `tests/feature/**/home.page.spec.ts` (o equivalente) que verifica que `<blockquote class="quote">` renderiza uno de los strings del array `INSPIRATIONAL_QUOTES`.
 - [x] 8.3 Agregar test (unit, sin Angular) en `tests/unit/**/inspirational-quotes.spec.ts` que verifica que `randomQuote()` devuelve un string del array y que el array tiene al menos 1 elemento.
-- [ ] 8.4 Ejecutar `npm test` y verificar que TODOS los tests pasan. Si alguno otro test asserta sobre colores hardcoded o snapshot de HTML que cambió, actualizarlo o eliminarlo según el caso.
-- [ ] 8.5 Ejecutar `npm run lint` y arreglar cualquier issue de ESLint introducida por el refactor.
-- [ ] 8.6 Ejecutar `npm run format:check` y arreglar cualquier issue de Prettier. Si hay muchos, ejecutar `npm run format` para auto-fix.
+- [x] 8.4 Ejecutar `npm test` y verificar que TODOS los tests pasan. Si alguno otro test asserta sobre colores hardcoded o snapshot de HTML que cambió, actualizarlo o eliminarlo según el caso.
+- [x] 8.5 Ejecutar `npm run lint` y arreglar cualquier issue de ESLint introducida por el refactor.
+- [x] 8.6 Ejecutar `npm run format:check` y arreglar cualquier issue de Prettier. Si hay muchos, ejecutar `npm run format` para auto-fix.
 
 ## 9. Auditoría hexagonal post-refactor
 
-- [ ] 9.1 Verificar que el refactor NO tocó nada en `src/L1_domain/**`, `src/L2_application/**`, ni `src/L3_periphery/**` (excepto cero cambios — el restyle es 100% LR + raíz). `git diff --name-only main` debe listar solo `src/LR_render/**`, `src/styles.scss`, `src/index.html`, `public/manifest.json`, `public/img/lugia.png` y archivos de tests.
-- [ ] 9.2 Lanzar el subagente `hexagonal-guard` sobre `src/` y verificar que reporta cero violaciones nuevas.
+- [x] 9.1 Verificar que el refactor NO tocó nada en `src/L1_domain/**`, `src/L2_application/**`, ni `src/L3_periphery/**` (excepto cero cambios — el restyle es 100% LR + raíz). `git diff --name-only main` debe listar solo `src/LR_render/**`, `src/styles.scss`, `src/index.html`, `public/manifest.json`, `public/img/lugia.png` y archivos de tests.
+- [x] 9.2 Lanzar el subagente `hexagonal-guard` sobre `src/` y verificar que reporta cero violaciones nuevas.
 
 ## 10. Verificación visual end-to-end
 
@@ -86,4 +86,4 @@
 - [ ] 10.2 Verificar que el status bar de la PWA (en modo standalone) cambia al primary container Lugia Blue.
 - [ ] 10.3 Verificar que la frase ambient cambia entre recargas de `/home` (Ctrl+R varias veces).
 - [ ] 10.4 Verificar que el chip "Toca para cambiar" aparece tras long-press en una fila ya marcada y desaparece tras 5 s sin acción.
-- [ ] 10.5 Build de producción (`npm run build`) sin warnings de bundle size críticos. Verificar tamaño antes/después documentado en el archive report.
+- [x] 10.5 Build de producción (`npm run build`) sin warnings de bundle size críticos. Verificar tamaño antes/después documentado en el archive report.

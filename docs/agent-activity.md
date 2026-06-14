@@ -30,3 +30,4 @@ Auto-generado por `.claude/hooks/log-agent-usage.ps1` en cada PostToolUse del to
 | 2026-06-12 16:02:53 | test-engineer    | Tests para protecci├│n anti-cambio accidental                    | opus-4-7 | 110,013      | --    | --       | $0.2325   |
 | 2026-06-12 17:46:36 | sdd-verify       | Verify cartilla-fase-2 SDD change                                | opus-4-7 | 59,438       | --    | --       | $0.2172   |
 | 2026-06-12 17:56:19 | sdd-archive      | Archive cartilla-fase-2 SDD change                               | opus-4-7 | 88,354       | --    | --       | $0.2238   |
+| 2026-06-13 23:55:37 | hexagonal-guard | Audit boundaries post restyle | opus-4-7 | 29,227 | -- | -- | $0.1590 |

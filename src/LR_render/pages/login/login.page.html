@@ -52,11 +52,7 @@
       </p>
     }
 
-    <button
-      type="submit"
-      class="login__submit"
-      [disabled]="form.invalid || vm.isSubmitting()"
-    >
+    <button type="submit" class="login__submit" [disabled]="form.invalid || vm.isSubmitting()">
       @if (vm.isSubmitting()) {
         Ingresando…
       } @else {

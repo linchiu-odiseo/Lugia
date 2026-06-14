@@ -220,9 +220,8 @@ describe('HomePage', () => {
       expect(blockquote).not.toBeNull();
       // La frase exacta cambia entre mounts (randomQuote), pero siempre debe
       // ser una entrada del set source de verdad.
-      const { INSPIRATIONAL_QUOTES } = await import(
-        '../../../../../src/LR_render/pages/home/inspirational-quotes'
-      );
+      const { INSPIRATIONAL_QUOTES } =
+        await import('../../../../../src/LR_render/pages/home/inspirational-quotes');
       const text = blockquote?.textContent?.trim();
       expect(INSPIRATIONAL_QUOTES).toContain(text);
     });
