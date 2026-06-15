@@ -102,8 +102,23 @@ El sistema SHALL definir en L1:
 - `RefreshFailedError` — el endpoint `/auth/refresh` devolvió 401 con `code` `TENANT_AUTH_REFRESH_TOKEN_INVALID` o `TENANT_AUTH_REFRESH_TOKEN_MISSING`.
 - `RateLimitError` — el back respondió HTTP 429.
 - `ProfileNotAvailableError` — 403 o 404 en `/{role}/me`.
+- `UnsupportedRoleError` — el back devolvió una identity con un rol fuera del set soportado por el cliente (hoy `{student, tutor}`). Expone la propiedad `role: string` con el valor recibido. Validado en el mapper L3 antes de construir `Identity`. Cuando el producto agregue soporte para `admin`/`teacher`, el error queda obsoleto.
 
 Los errores `InvalidCredentialsError`, `NetworkError` y `SessionExpiredError` se mantienen.
+
+#### Scenario: Login con rol no soportado (admin/teacher) es rechazado en el mapper L3
+
+- **WHEN** el back responde 200 a `POST /auth/login` con `user.roles: ["admin"]` o `user.roles: ["teacher"]`
+- **THEN** `HttpAuthRepository.mapIdentity` lanza `UnsupportedRoleError("admin"|"teacher")` ANTES de construir `Identity`
+- **AND** `LoginUseCase` propaga el error sin persistir en `IdentityStorage`
+- **AND** `LoginViewModel` muestra mensaje "Esta aplicación está disponible solo para alumnos y tutores. Contactá a tu administrador." y retorna outcome `'unsupported-role'`
+
+#### Scenario: AppInitializer con cookie viva de rol no soportado limpia server-side
+
+- **WHEN** `InitializeSessionUseCase.execute()` invoca `repo.me()` y recibe `UnsupportedRoleError`
+- **THEN** el use case llama `repo.logout()` best-effort (try/catch — errores de red ignorados)
+- **AND** `IdentityStorage.clear()` se ejecuta
+- **AND** el use case retorna `null` (igual que `SessionExpiredError`)
 
 ### Requirement: `LoginUseCase` reescrito — devuelve `Identity`
 

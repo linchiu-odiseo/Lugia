@@ -27,17 +27,29 @@
 
 **Cola de envíos pendientes** — Si el POST falla por `NetworkError`, el envío queda en `MarkingsStorage` con su `clientSubmittedAt` original. El `EnvioRetryDispatcher` global despacha la cola al arrancar la app y en cada transición a online del puerto `Connectivity`.
 
-## Términos de identidad y sesión
+## Términos de identidad y sesión (Fase 3 — learnex)
 
-**Usuario** — Alumno autenticado. Identidad mínima en Fase 1: `email` + `name`.
+**Usuario** — Persona autenticada contra learnex. Tiene **exactamente 1 rol**: `student` o `tutor` (admin/teacher pendientes — ver `UnsupportedRoleError`).
 
-**Sesión (Session)** — Entidad de dominio (L1) que representa un usuario autenticado activo. Contiene `bearerToken`, `userEmail`, `issuedAt`. Una sola sesión activa simultánea por dispositivo. Persistida en `localStorage` bajo la clave `lugia.session`.
+**Identity** — Entidad de dominio (L1) que representa la identidad autenticada activa. Contiene `id, tenantId, email, codigo, roles[], permissions[], expiresAt`. **Invariante single-role**: el constructor lanza `InvalidIdentityError` si `roles.length !== 1`. Métodos: `role()`, `isExpired(now)`, `shouldRefresh(now, threshold)`, `hasPermission(perm)`. Persistida en `localStorage` bajo la clave `lugia.identity`.
 
-**Bearer token (BearerToken)** — Value-object L1. Sanctum personal access token devuelto por `POST /auth/login`. String opaco. En Fase 2 tiene TTL nominal de 6h con renovación rolling vía header `X-New-Bearer` en respuestas autenticadas. Si el backend lo incluye, el interceptor dispara `ActualizarBearerSiRenovadoUseCase` silenciosamente.
+**Cookies HttpOnly** — `learnex_tenant_access` (TTL 15 min) y `learnex_tenant_refresh` (TTL 7 días). Seteadas por el back en login/refresh; invisibles al JS (`HttpOnly`). El browser las envía/recibe automáticamente con `withCredentials: true`. **Reemplazan completamente el modelo Bearer + X-API-Key de Fase 1+2.**
 
-**API key (X-API-Key)** — Header estático por entorno que identifica a la app cliente ante API-FAKE. NO es secreto de usuario; es secreto de aplicación. Vive en `.env` (build-time), nunca en código de dominio.
+**Tenant slug** — Identificador del cliente multi-tenant de learnex (`vonex` para Vonex). Viaja en el path: `/t/{slug}/...`. Build-time: viene de la env var `TENANT_SLUG` y se inyecta en `environment.tenantSlug`. Una build = un tenant. **Prohibido hardcodear `"vonex"` en `src/`.**
 
-**Principal** — Identificador legible del dueño de la sesión (en Fase 1: el `email`). Método `Session.principal()` lo devuelve para UI.
+**Profile** — Datos personales del usuario por rol. `StudentProfile { id, code, firstName, lastName, area }` o `TutorProfile { id, code, firstName, lastName, email, classrooms[] }`. Trae de `/t/{slug}/{student|tutor}/me`. Cacheado en IndexedDB con TTL 24h.
+
+**Code** — Propiedad de `Profile`. Para alumno: el **DNI** (ej. `"79507732"`). Para tutor: el **código interno** del tutor (ej. `"T001"`). La UI muestra ambos bajo la misma etiqueta "DNI / Código".
+
+**Permission** — String estructurado `<scope>:<resource>:<action>` (ej. `"student:dashboard:view"`). Vienen en `Identity.permissions[]`. `Identity.hasPermission(perm)` para chequeo en UI/guards.
+
+### Términos obsoletos (Fase 1+2, retirados en Fase 3)
+
+- ~~**Sesión (Session)**~~ — Reemplazada por **`Identity`**.
+- ~~**Bearer token (BearerToken)**~~ — Token no existe del lado cliente (cookies HttpOnly invisibles).
+- ~~**API key (X-API-Key)**~~ — Eliminada. learnex usa cookies + tenant slug en path.
+- ~~**Principal**~~ — Equivalente: `Identity.email`.
+- ~~`X-New-Bearer` rolling~~ — Reemplazado por refresh reactivo explícito via `POST /auth/refresh`.
 
 ## Términos arquitectónicos (resumen — detalle en `architecture-rules.md`)
 
@@ -63,19 +75,47 @@
 
 **`Connectivity`** — Puerto L1 reactivo. `current(): boolean` da el snapshot, `subscribe(listener): unsubscribe` notifica transiciones. Adapter L3: `BrowserConnectivity` con `navigator.onLine` + eventos `online`/`offline`.
 
-**`MarkingsStorage`** — Puerto L1 para persistencia local de marcaciones y cola de envíos. El adapter L3 (`IndexedDbMarkingsStorage`) deriva el `userEmail` de la sesión activa internamente — los métodos del puerto NO lo reciben. Wipe automático en logout vía `wipeUserScope()`.
+**`MarkingsStorage`** — Puerto L1 para persistencia local de marcaciones y cola de envíos. El adapter L3 (`IndexedDbMarkingsStorage`) inyecta el port `IdentityStorage` (Fase 3) para derivar el `userEmail` — los métodos del puerto NO lo reciben. Wipe automático en logout vía `wipeUserScope()` (sin argumento).
 
-**`SimulacrosApi`** — Puerto L1 para el backend de simulacros. `obtenerDelDia()` y `enviar(req)`. Adapter L3: `HttpSimulacrosApi`.
+**`SimulacrosApi`** — Puerto L1 para el backend de simulacros. `obtenerDelDia()` y `enviar(req)`. Adapter L3: `HttpSimulacrosApi`. **Nota Fase 3**: la cartilla queda rota en runtime hasta `fase-3-exam-learnex` migre estos endpoints.
+
+## Puertos nuevos en Fase 3 (learnex)
+
+**`IdentityStorage`** — Puerto L1 para persistencia local de la `Identity`. `read() / write(identity) / clear()`. Adapter L3: `LocalStorageIdentityStorage` (key `lugia.identity`). DI via `InjectionToken IDENTITY_STORAGE` en `src/L3_periphery/tokens.ts`.
+
+**`ProfileStorage`** — Puerto L1 para cache de `Profile` por rol. `read(role) / write(role, profile) / clear()`. Devuelve `CachedProfile {profile, cachedAt}`. La política de TTL la decide el use case (`GetProfileUseCase` con TTL 24h), no el storage. Adapter L3: `IndexedDbProfileStorage` (DB `lugia-profile`, store `profile`).
+
+**`OutboxStoragePort`** — Puerto L1 para la cola de envíos pendientes (extracción del adapter Markings). Solo expone `clear()` (usado en logout). El mismo `IndexedDbMarkingsStorage` implementa ambos ports (`useExisting` binding).
+
+**`RouterPort`** — Puerto L1 para navegación abstracta sin importar `@angular/router` desde L2. `navigate(commands: unknown[]): void`. Adapter L3: factory inline en `app.config.ts` que envuelve el `Router` de Angular.
+
+**`SwMessengerPort`** — Puerto L1 opcional para notificar al Service Worker (ej. `LOGOUT` en logout para invalidar caches). `post(message): void`.
+
+**`AuthRepository`** (evolucionado en Fase 3) — `login(creds) / me() / refresh() / logout() / getProfile(role)`. Adapter L3: `HttpAuthRepository`. Todas las requests con `withCredentials: true`. URLs vía helper `apiPath` (interpola `tenantSlug` desde environment).
 
 ## Errores de dominio
 
-**`InvalidCredentialsError`** — Login rechazado por credenciales incorrectas (HTTP 401 en `POST /auth/login`). UI: "Credenciales inválidas".
+**`InvalidCredentialsError`** — Login rechazado por credenciales incorrectas (HTTP 401 en `POST /auth/login`, con o sin `code: TENANT_AUTH_INVALID_CREDENTIALS`). UI: "Credenciales inválidas".
 
 **`NetworkError`** — Falla de transporte o respuesta 5xx. UI: "No se pudo conectar al servidor. Inténtalo de nuevo."
 
-**`InvalidSessionError`** — Datos persistidos corruptos o sesión inválida en construcción (ej: bearer vacío). NO se muestra al usuario; el código de L3 limpia el storage y procede como "sin sesión".
+**`SessionExpiredError`** — Endpoint protegido (no `/auth/*`) respondió 401 mid-operación. El `credentialsInterceptor` intenta refresh; si falla → propaga este error. Se distingue de `InvalidCredentialsError` (solo aplica a login).
 
-**`SessionExpiredError`** — Endpoint protegido respondió 401 mid-operación. Dispara logout silencioso + redirect a `/login`. Se distingue de `InvalidCredentialsError` (solo aplica a login).
+### Errores nuevos en Fase 3 (learnex)
+
+**`InvalidIdentityError`** — Invariante single-role roto en el constructor de `Identity` (`roles.length !== 1`). Lanzado defensivamente. No mostrado al usuario.
+
+**`RefreshFailedError`** — `POST /auth/refresh` respondió 401 (con `code: TENANT_AUTH_REFRESH_TOKEN_INVALID` o `_MISSING`). El interceptor invoca `LogoutUseCase` y redirige a `/login`. Sin reintentos.
+
+**`RateLimitError`** — `POST /auth/login` respondió 429 (5 intentos/min por IP). UI: "Demasiados intentos, esperá un minuto.".
+
+**`ProfileNotAvailableError`** — `GET /{role}/me` respondió 403 (sin permission del rol) o 404 (TenantUser sin fila en `students`/`tutors`). UI alumno: header degradado con solo email + mensaje "Perfil no disponible".
+
+**`UnsupportedRoleError`** — El back devolvió una identity con rol fuera del set soportado por el cliente (hoy `{student, tutor}`). Expone `role: string` con el valor recibido. Validado en `HttpAuthRepository.mapIdentity` ANTES de construir `Identity`. UI login: "Esta aplicación está disponible solo para alumnos y tutores. Contactá a tu administrador." Obsoleto cuando el producto agregue `admin`/`teacher`.
+
+### Errores obsoletos (Fase 1+2, retirados en Fase 3)
+
+- ~~**`InvalidSessionError`**~~ — Reemplazado por `InvalidIdentityError` + validación defensiva en `LocalStorageIdentityStorage.read()` (shape inválido → null + clear key).
 
 **`InvalidServerTimeError`** — `ServerTime` recibido del backend no es ISO8601 parseable. Bug de backend; raramente visible al usuario.
 
