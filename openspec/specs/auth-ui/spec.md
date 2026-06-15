@@ -1,98 +1,162 @@
-# auth-ui Specification
+# auth-ui — Delta Spec (fase-3-login-learnex)
 
-## Purpose
-TBD - created by archiving change add-auth-login. Update Purpose after archive.
-## Requirements
-### Requirement: Página de login con formulario reactivo de email y password
+## REMOVED Requirements
 
-`LoginPage` (LR_render) SHALL exponer un formulario reactivo (`ReactiveFormsModule`) con dos campos: `email` (validado como formato de email) y `password` (mínimo 1 carácter), más un botón submit. El estado del formulario SHALL conectarse a un `LoginViewModel` que expone Signals.
+### Requirement ELIMINADO: Login exitoso redirige a `/home` y limpia el formulario
 
-#### Scenario: Validación de email vacío
+La ruta destino post-login ya no es `/home` genérico — se navega a `/${identity.role()}/home`. El requirement se reemplaza por el ADDED equivalente con role-based routing. Los scenarios de "Submit de credenciales válidas" que apuntaban a `/home` quedan obsoletos y reemplazados.
 
-- **WHEN** el usuario deja el campo `email` vacío
-- **THEN** el botón submit está deshabilitado
-- **AND** se muestra un mensaje de validación bajo el campo
+### Requirement ELIMINADO: `HomePage` es un shell protegido con acción de logout (Fase 1)
 
-#### Scenario: Validación de formato de email
+La `HomePage` stub de Fase 1 (sin perfil, sin rol) se reemplaza por `StudentHomePage` y `TutorHomePage` con comportamiento diferenciado. El requirement anterior queda obsoleto.
 
-- **WHEN** el usuario ingresa un valor en `email` que no cumple formato `<algo>@<dominio>`
-- **THEN** se muestra un mensaje "Email inválido" bajo el campo
-- **AND** el botón submit está deshabilitado
+---
 
-#### Scenario: Validación de password vacío
+## ADDED Requirements
 
-- **WHEN** el usuario deja el campo `password` vacío
-- **THEN** el botón submit está deshabilitado
+### Requirement: `LoginViewModel` maneja `RateLimitError` (429)
 
-### Requirement: Login exitoso redirige a `/home` y limpia el formulario
+Cuando `LoginUseCase` rechaza con `RateLimitError`, `LoginViewModel` SHALL establecer `errorMessage` con el texto "Demasiados intentos, esperá un minuto" y SHALL habilitar el formulario para reintentar.
 
-Cuando `LoginUseCase` resuelve exitosamente, `LoginPage` SHALL navegar a `/home` y limpiar el contenido del formulario para evitar exponer credenciales en memoria del componente.
+#### Scenario: Rate limit en login
 
-#### Scenario: Submit de credenciales válidas
-
-- **WHEN** el usuario envía credenciales válidas y `LoginUseCase` resuelve
-- **THEN** el navegador se mueve a `/home`
-- **AND** los campos `email` y `password` del formulario están vacíos
-- **AND** el indicador `isSubmitting` del view-model vuelve a `false`
-
-### Requirement: Login fallido muestra error legible y mantiene el formulario usable
-
-Cuando `LoginUseCase` rechaza, `LoginPage` SHALL mostrar un mensaje de error legible bajo el formulario y SHALL dejar el formulario editable para reintentar. El password SHALL limpiarse para forzar al usuario a re-tipearlo; el email SHALL conservarse.
-
-#### Scenario: Credenciales inválidas
-
-- **WHEN** el backend reporta credenciales inválidas (`InvalidCredentialsError`)
-- **THEN** se muestra el mensaje "Credenciales inválidas" bajo el formulario
-- **AND** el campo `password` se limpia
+- **WHEN** el backend responde HTTP 429 y `LoginUseCase` rechaza con `RateLimitError`
+- **THEN** `loginViewModel.errorMessage()` devuelve `"Demasiados intentos, esperá un minuto"`
+- **AND** el botón submit vuelve a habilitarse
 - **AND** el campo `email` conserva su valor
-- **AND** el botón submit vuelve a habilitarse
 
-#### Scenario: Error de red
+### Requirement: Login exitoso navega a `/{role}/home` según `identity.role()`
 
-- **WHEN** el backend no responde o devuelve 5xx (`NetworkError`)
-- **THEN** se muestra el mensaje "No se pudo conectar al servidor. Inténtalo de nuevo."
-- **AND** los campos del formulario conservan sus valores
-- **AND** el botón submit vuelve a habilitarse
+Cuando `LoginUseCase` resuelve exitosamente, `LoginViewModel` SHALL navegar a `/${identity.role()}/home`, limpiando los campos del formulario.
 
-### Requirement: `HomePage` es un shell protegido con acción de logout
+#### Scenario: Login de alumno navega a `/student/home`
 
-`HomePage` (LR_render) SHALL renderizar un placeholder mínimo (texto identificador + botón "Cerrar sesión") tras el `authGuard`. Es la pantalla destino del login en Fase 1.
+- **WHEN** `LoginUseCase` devuelve `Identity` con `roles: ["student"]`
+- **THEN** el navegador se mueve a `/student/home`
+- **AND** los campos `email` y `password` del formulario están vacíos
 
-#### Scenario: Render como usuario autenticado
+#### Scenario: Login de tutor navega a `/tutor/home`
 
-- **WHEN** un usuario autenticado navega a `/home`
-- **THEN** se renderiza el shell con saludo (p. ej. "Hola, <email>") y botón "Cerrar sesión"
+- **WHEN** `LoginUseCase` devuelve `Identity` con `roles: ["tutor"]`
+- **THEN** el navegador se mueve a `/tutor/home`
+- **AND** los campos `email` y `password` del formulario están vacíos
 
-#### Scenario: Logout desde `HomePage`
+### Requirement: AppInitializer dispara `InitializeSessionUseCase` al arrancar
 
-- **WHEN** el usuario presiona el botón "Cerrar sesión"
+`app.config.ts` SHALL registrar un `provideAppInitializer` que ejecuta `InitializeSessionUseCase` antes de que la app renderice cualquier ruta. El resultado determina la navegación inicial:
+
+- Si devuelve `Identity` → navega a `/${identity.role()}/home`.
+- Si devuelve `null` (401 en `/auth/me`) → navega a `/login`.
+- Si devuelve `NetworkError` → muestra pantalla de error genérica/offline (sin asumir estado de identity).
+
+#### Scenario: AppInitializer con identity válida — navega a home del rol
+
+- **WHEN** `InitializeSessionUseCase` devuelve `Identity` con `roles: ["student"]`
+- **THEN** la app navega a `/student/home`
+
+- **WHEN** `InitializeSessionUseCase` devuelve `Identity` con `roles: ["tutor"]`
+- **THEN** la app navega a `/tutor/home`
+
+#### Scenario: AppInitializer con 401 — navega a `/login`
+
+- **WHEN** `InitializeSessionUseCase` devuelve `null` (sesión inválida)
+- **THEN** la app navega a `/login`
+
+#### Scenario: AppInitializer con NetworkError — pantalla offline/error
+
+- **WHEN** `InitializeSessionUseCase` propaga `NetworkError`
+- **THEN** la app muestra una pantalla de error genérica o indicador offline
+- **AND** NO asume que el usuario está o no autenticado
+- **AND** NO navega automáticamente a `/login`
+
+### Requirement: `StudentHomePage` muestra perfil del alumno
+
+`StudentHomePage` (LR_render) SHALL usar `GetProfileUseCase` para obtener el `StudentProfile` y SHALL mostrar: `userName = "${profile.firstName} ${profile.lastName}"`, `userEmail = identity.email`, `userDni = profile.code`. Mientras el fetch de perfil está en vuelo, los campos de nombre y DNI SHALL mostrar un skeleton.
+
+#### Scenario: Render alumno con perfil cargado
+
+- **WHEN** `GetProfileUseCase` resuelve con `StudentProfile { firstName: "Gabriel", lastName: "Acuña Acuña", code: "79507732" }`
+- **THEN** `StudentHomeViewModel.userName()` devuelve `"Gabriel Acuña Acuña"`
+- **AND** `StudentHomeViewModel.userDni()` devuelve `"79507732"`
+- **AND** `StudentHomeViewModel.userEmail()` refleja `identity.email`
+
+#### Scenario: Skeleton mientras el perfil está cargando
+
+- **WHEN** `GetProfileUseCase` está en vuelo (pendiente)
+- **THEN** los campos de nombre y DNI en la UI muestran skeleton
+- **AND** el email (disponible en identity) puede mostrarse de inmediato
+
+#### Scenario: `ProfileNotAvailableError` — degraded state
+
+- **WHEN** `GetProfileUseCase` rechaza con `ProfileNotAvailableError`
+- **THEN** la home muestra solo el email del usuario
+- **AND** se muestra el mensaje "Perfil no disponible"
+- **AND** la pantalla no queda bloqueada en estado de error total
+
+#### Scenario: Logout desde `StudentHomePage`
+
+- **WHEN** el alumno presiona el botón "Cerrar sesión"
 - **THEN** `LogoutUseCase` se invoca
 - **AND** el navegador se mueve a `/login`
-- **AND** un refresh posterior sigue en `/login` (sesión efectivamente eliminada)
+- **AND** un refresh posterior sigue en `/login`
 
-### Requirement: Los view-models exponen estado vía Signals
+### Requirement: `TutorHomePage` stub con datos del tutor
 
-Los view-models de `LoginPage` y `HomePage` SHALL exponer su estado reactivo exclusivamente como Angular Signals. Los templates SHALL leer signals directamente; no SHALL usarse `async pipe` para estado del view-model. Conversiones desde RxJS (p. ej. `valueChanges` de Reactive Forms) SHALL usar `toSignal()`.
+`TutorHomePage` (LR_render) SHALL ser identificable visualmente como modo tutor. SHALL mostrar:
 
-#### Scenario: `LoginViewModel` expone Signals
+- Badge / pill con el texto `"Tutor"` en el header.
+- Subtítulo `"Modo tutor"`.
+- Saludo: `"Hola, ${profile.firstName} ${profile.lastName}"`.
+- Email: `identity.email`.
+- DNI/Código: `profile.code` (ej. `"T001"`), etiquetado como `"DNI / Código"`.
+- Estadísticas derivadas: `"Tenés N aulas · M alumnos"` donde `N = classrooms.length` y `M = sum(classrooms[i].studentCount)`.
+- Mensaje placeholder: `"Próximamente vas a gestionar tus exámenes desde acá"`.
+- Botón `"Cerrar sesión"`.
+- Empty state si `classrooms.length === 0`: `"Aún no tenés aulas asignadas — contactá a tu administrador"`.
 
-- **WHEN** se inspecciona `LoginViewModel`
-- **THEN** expone al menos `isSubmitting: Signal<boolean>`, `errorMessage: Signal<string | null>`
-- **AND** sus campos derivados (p. ej. `canSubmit`) están implementados con `computed()`
+#### Scenario: Tutor con 2 aulas
 
-#### Scenario: Template lee signals como funciones
+- **WHEN** `TutorProfile.classrooms` tiene 2 entradas con `studentCount: 60` cada una
+- **THEN** `TutorHomeViewModel.statsText()` devuelve `"Tenés 2 aulas · 120 alumnos"`
+- **AND** se muestra el badge `"Tutor"` y el subtítulo `"Modo tutor"`
 
-- **WHEN** se inspecciona la plantilla de `LoginPage`
-- **THEN** las expresiones del template invocan los signals como `viewModel.isSubmitting()` (o equivalentes con `@if`)
-- **AND** no aparece `| async` para estado del view-model
+#### Scenario: Tutor sin aulas — empty state
 
-### Requirement: Mensajes de UI en español (es-PE) hardcoded en Fase 1
+- **WHEN** `TutorProfile.classrooms` es `[]`
+- **THEN** la UI muestra `"Aún no tenés aulas asignadas — contactá a tu administrador"`
+- **AND** NO se muestra la línea de estadísticas con cero aulas
 
-Todos los mensajes visibles al usuario en Fase 1 SHALL estar en español (es-PE) directamente en las plantillas. Se acepta como deuda técnica documentada; la i18n entrará en una fase posterior.
+#### Scenario: DNI/Código de tutor
 
-#### Scenario: Mensajes en español
+- **WHEN** `TutorProfile.code = "T001"`
+- **THEN** la UI muestra `"T001"` bajo la etiqueta `"DNI / Código"`
 
-- **WHEN** se inspeccionan los templates de `LoginPage` y `HomePage`
-- **THEN** todos los textos visibles están en español
-- **AND** no se usan claves de i18n ni `$localize` en Fase 1
+#### Scenario: Logout desde `TutorHomePage`
 
+- **WHEN** el tutor presiona el botón "Cerrar sesión"
+- **THEN** `LogoutUseCase` se invoca
+- **AND** el navegador se mueve a `/login`
+
+### Requirement: Los view-models de home exponen estado vía Signals
+
+`StudentHomeViewModel` y `TutorHomeViewModel` SHALL exponer su estado reactivo exclusivamente como Angular Signals. No SHALL usarse `async pipe` para estado del view-model.
+
+#### Scenario: `TutorHomeViewModel` expone Signals
+
+- **WHEN** se inspecciona `TutorHomeViewModel`
+- **THEN** expone al menos `profileLoading: Signal<boolean>`, `userName: Signal<string | null>`, `statsText: Signal<string | null>`, `errorMessage: Signal<string | null>`
+- **AND** sus campos derivados están implementados con `computed()`
+
+---
+
+## MODIFIED Requirements
+
+### Requirement MODIFICADO: Mensajes de UI en español (es-PE)
+
+Sigue vigente. Se extiende para incluir todos los textos nuevos: saludo del tutor, stats de aulas, empty states, etiqueta "DNI / Código", "Modo tutor", badge "Tutor", "Perfil no disponible", mensaje placeholder de TutorHome, y el mensaje de rate limit. Todos en español (es-PE) hardcodeados en plantilla.
+
+#### Scenario: Mensajes en español en páginas nuevas
+
+- **WHEN** se inspeccionan los templates de `StudentHomePage` y `TutorHomePage`
+- **THEN** todos los textos visibles están en español (es-PE)
+- **AND** no se usan claves de i18n ni `$localize`

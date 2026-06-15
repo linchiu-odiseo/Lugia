@@ -1,66 +1,146 @@
-# session-storage Specification
+# session-storage — Delta Spec (fase-3-login-learnex)
 
-## Purpose
-TBD - created by archiving change add-auth-login. Update Purpose after archive.
-## Requirements
-### Requirement: Persistencia de la sesión activa entre recargas
+## REMOVED Requirements
 
-El sistema SHALL persistir la sesión activa en almacenamiento del navegador de modo que un refresh de página NO obligue al usuario a re-autenticarse.
+### Requirement ELIMINADO: Persistencia de la sesión activa entre recargas (basada en `Session`)
 
-#### Scenario: La sesión sobrevive a un refresh
+La entidad `Session` y la key `lugia.session` dejan de existir. Reemplazados por `Identity` y la key `lugia.identity`.
 
-- **WHEN** el usuario inicia sesión exitosamente
-- **AND** el usuario recarga la página
-- **THEN** la sesión sigue activa sin volver a ingresar credenciales
-- **AND** el usuario permanece en la última ruta protegida visitada (o es enviado a `/home` si la ruta no se puede restaurar)
+### Requirement ELIMINADO: Almacenamiento aislado tras `SessionStorage`
 
-#### Scenario: Logout limpia la sesión persistida
+El puerto `SessionStorage` se elimina. Reemplazado por `IdentityStorage`.
 
-- **WHEN** el usuario invoca logout
-- **THEN** la sesión persistida se elimina del almacenamiento
-- **AND** un refresh posterior redirige a `/login`
+### Requirement ELIMINADO: Integridad de dato persistido con `bearerToken` / `userEmail`
 
-### Requirement: Almacenamiento aislado tras un puerto del dominio
+Los campos `bearerToken` y `userEmail` ya no son parte del dato persistido. El dato persiste `Identity`.
 
-El mecanismo de persistencia SHALL exponerse como un puerto `SessionStorage` definido en L1. Implementaciones concretas (p. ej. `LocalStorageSessionStorage`) viven en L3. Ningún módulo en L1, L2 o LR SHALL referenciar `localStorage`, `sessionStorage`, `window`, ni APIs equivalentes del navegador.
+### Requirement ELIMINADO: Clave de almacenamiento `lugia.session`
+
+La key `lugia.session` queda abandonada sin migración. Cualquier dato en esa key en el browser es tratado como legacy y se ignora.
+
+---
+
+## ADDED Requirements
+
+### Requirement: Puerto `IdentityStorage` en L1
+
+El sistema SHALL definir el puerto `IdentityStorage` en L1 con los métodos:
+
+- `read() → Promise<Identity | null>`
+- `write(identity: Identity) → Promise<void>`
+- `clear() → Promise<void>`
+
+La implementación concreta (`LocalStorageIdentityStorage`) reside en L3 y usa la key `lugia.identity`. Ningún código en L1 o L2 SHALL referenciar `localStorage`, `sessionStorage`, `window` ni APIs equivalentes del navegador.
 
 #### Scenario: L1 y L2 no referencian APIs de browser
 
 - **WHEN** se inspecciona el código de `L1_domain/` y `L2_application/`
 - **THEN** no aparecen los identificadores `localStorage`, `sessionStorage`, `window`, `document` ni `navigator`
 
-#### Scenario: LR consume `SessionStorage` solo vía DI
+#### Scenario: LR consume `IdentityStorage` solo vía DI
 
 - **WHEN** se inspecciona el código de `LR_render/`
-- **THEN** cualquier acceso a sesión se hace inyectando el puerto `SessionStorage` o use cases que lo orquestan
+- **THEN** cualquier acceso a la identity se hace inyectando `IdentityStorage` o use cases que lo orquestan
 
-### Requirement: Integridad del dato persistido
+### Requirement: `LocalStorageIdentityStorage` — key `lugia.identity`, shape `Identity`
 
-El `SessionStorage` SHALL serializar la `Session` como JSON bajo una clave única (`lugia.session`). Al leer, si el JSON no se puede parsear o no representa una `Session` válida, la entrada SHALL descartarse y la operación de lectura SHALL devolver `null`.
+La implementación SHALL serializar `Identity` como JSON bajo la key exacta `lugia.identity`. Al leer:
 
-#### Scenario: Lectura exitosa
+1. Si la key no existe → devolver `null`.
+2. Si el JSON no se puede parsear → devolver `null` y eliminar la key.
+3. Si el JSON no representa un `Identity` válido (campos faltantes o inválidos) → devolver `null` y eliminar la key.
+4. Si la key `lugia.session` (legacy) existe → ignorarla sin migrar ni tocarla.
 
-- **WHEN** se ha guardado una sesión válida y se invoca `sessionStorage.read()`
-- **THEN** devuelve la `Session` equivalente
+#### Scenario: Write + read round-trip de Identity
 
-#### Scenario: JSON corrupto
+- **WHEN** se invoca `identityStorage.write(identity)` y luego `identityStorage.read()`
+- **THEN** se obtiene la misma `Identity` serializada
 
-- **WHEN** la clave `lugia.session` contiene texto no parseable como JSON
-- **THEN** `sessionStorage.read()` devuelve `null`
-- **AND** la clave se elimina
+#### Scenario: Storage vacío devuelve null
 
-#### Scenario: JSON parseable pero con campos faltantes
+- **WHEN** `localStorage` no contiene la key `lugia.identity`
+- **THEN** `identityStorage.read()` devuelve `null`
 
-- **WHEN** la clave contiene JSON válido sin `bearerToken` o sin `userEmail`
-- **THEN** `sessionStorage.read()` devuelve `null`
-- **AND** la clave se elimina
+#### Scenario: JSON corrupto — null y limpieza
 
-### Requirement: Clave de almacenamiento estable y namespaced
+- **WHEN** la key `lugia.identity` contiene texto no parseable como JSON
+- **THEN** `identityStorage.read()` devuelve `null`
+- **AND** la key `lugia.identity` es eliminada del storage
 
-La clave usada en el storage SHALL ser exactamente `lugia.session`. Cambiarla SHALL considerarse un breaking change y requerir migración explícita.
+#### Scenario: Shape inválido — null y limpieza
 
-#### Scenario: Clave única para evitar colisiones
+- **WHEN** la key `lugia.identity` contiene JSON válido pero sin `roles`, `expiresAt` u otros campos requeridos de `Identity`
+- **THEN** `identityStorage.read()` devuelve `null`
+- **AND** la key `lugia.identity` es eliminada del storage
 
-- **WHEN** se inspecciona la implementación de `LocalStorageSessionStorage`
-- **THEN** usa la constante `STORAGE_KEY = 'lugia.session'` sin variantes ni prefijos dinámicos
+#### Scenario: Key legacy `lugia.session` es ignorada
 
+- **WHEN** `localStorage` contiene la key `lugia.session` (dato de Fase 1/2) pero no `lugia.identity`
+- **THEN** `identityStorage.read()` devuelve `null`
+- **AND** la key `lugia.session` NO es leída, migrada ni eliminada por este storage
+
+#### Scenario: Logout limpia `lugia.identity`
+
+- **WHEN** `identityStorage.clear()` es invocado
+- **THEN** la key `lugia.identity` es eliminada del storage
+- **AND** `identityStorage.read()` devuelve `null` después
+
+### Requirement: Puerto `ProfileStorage` en L1
+
+El sistema SHALL definir el puerto `ProfileStorage` en L1 con los métodos:
+
+- `read(role: 'student' | 'tutor') → Promise<CachedProfile | null>`
+- `write(role: 'student' | 'tutor', profile: StudentProfile | TutorProfile) → Promise<void>`
+- `clear() → Promise<void>`
+
+`CachedProfile` tiene la forma `{ profile: StudentProfile | TutorProfile, cachedAt: number }` donde `cachedAt` es un timestamp en milisegundos.
+
+La implementación concreta (`IndexedDbProfileStorage`) reside en L3. Usa stores separados por rol: `profile.student`, `profile.tutor`.
+
+#### Scenario: ProfileStorage write + read fresh — retorna profile
+
+- **WHEN** se invoca `profileStorage.write('student', studentProfile)` y luego `profileStorage.read('student')`
+- **THEN** devuelve `CachedProfile { profile: studentProfile, cachedAt }` con `cachedAt` dentro del TTL
+
+#### Scenario: ProfileStorage read stale (más de 24h) — retorna null
+
+- **WHEN** el `cachedAt` del profile almacenado es `now - 25 * 3600 * 1000`
+- **THEN** `profileStorage.read(role)` devuelve `null`
+
+#### Scenario: ProfileStorage read miss — retorna null
+
+- **WHEN** no hay ningún profile almacenado para el rol solicitado
+- **THEN** `profileStorage.read(role)` devuelve `null`
+
+#### Scenario: ProfileStorage clear — limpia ambos roles
+
+- **WHEN** `profileStorage.clear()` es invocado
+- **THEN** `profileStorage.read('student')` devuelve `null`
+- **AND** `profileStorage.read('tutor')` devuelve `null`
+
+### Requirement: Logout limpia ambos storages
+
+`LogoutUseCase` (L2) SHALL invocar tanto `IdentityStorage.clear()` como `ProfileStorage.clear()` durante el proceso de cierre de sesión. Ambas operaciones deben ejecutarse aunque el back falle.
+
+#### Scenario: Logout limpia identity y profile
+
+- **WHEN** `LogoutUseCase` se invoca
+- **THEN** `IdentityStorage.clear()` es invocado
+- **AND** `ProfileStorage.clear()` es invocado
+- **AND** un refresh posterior a `/student/home` o `/tutor/home` redirige a `/login`
+
+### Requirement: `MarkingsStorage` depende del port `IdentityStorage`, no de la implementación concreta
+
+`IndexedDbMarkingsStorage` SHALL inyectar el puerto `IdentityStorage` (L1) para obtener el email del usuario activo cuando necesite delimitar el scope de las marcaciones. NO SHALL importar `LocalStorageIdentityStorage` ni ninguna otra implementación concreta.
+
+#### Scenario: `IndexedDbMarkingsStorage` no importa implementación concreta de identity
+
+- **WHEN** se inspecciona el código de `IndexedDbMarkingsStorage`
+- **THEN** no importa `LocalStorageIdentityStorage` ni `LocalStorageSessionStorage`
+- **AND** inyecta `IdentityStorage` (el token de DI del port)
+
+#### Scenario: `wipeUserScope()` sin identity es no-op
+
+- **WHEN** `IdentityStorage.read()` devuelve `null`
+- **AND** se invoca `MarkingsStorage.wipeUserScope()`
+- **THEN** la operación completa sin errores y sin borrar datos de ningún usuario
