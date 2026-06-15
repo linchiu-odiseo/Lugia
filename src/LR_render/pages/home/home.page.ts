@@ -52,9 +52,6 @@ export class HomePage {
   protected onSimulacroClick(card: SimulacroCard): void {
     if (!card.clickable) return;
     if (this.vm.offlineStorageBlocked()) return;
-    // TODO sec.8: la ruta /simulacro/:id la crea el siguiente sub-cambio.
-    // Por ahora cableamos el click y dejamos el navigate listo — cuando exista
-    // la ruta no hay que tocar este archivo.
     void this.router.navigate(['/simulacro', card.id]);
   }
 

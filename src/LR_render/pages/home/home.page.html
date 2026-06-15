@@ -48,6 +48,12 @@
     </div>
   }
 
+  @if (vm.studentNotLinked()) {
+    <div class="banner banner--blocking" role="alert">
+      Tu cuenta no tiene un alumno asociado, contacta al tutor.
+    </div>
+  }
+
   <section class="simulacros">
     <h2 class="section-title">Simulacros de hoy</h2>
 
@@ -56,9 +62,9 @@
         <p>No se pudo conectar al servidor.</p>
         <button type="button" class="retry" (click)="retry()">Reintentar</button>
       </div>
-    } @else if (vm.isLoading() && vm.simulacros().length === 0) {
+    } @else if (vm.isLoading() && vm.exams().length === 0) {
       <p class="empty-state">Cargando simulacros…</p>
-    } @else if (vm.simulacros().length === 0) {
+    } @else if (vm.exams().length === 0) {
       <p class="empty-state">No tienes simulacros asignados para hoy.</p>
     } @else {
       <ul class="card-list">

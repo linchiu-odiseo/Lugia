@@ -46,12 +46,15 @@ export class SimulacroPage {
   private suppressNextClick = false;
 
   constructor() {
-    const id = this.route.snapshot.paramMap.get('id');
-    if (id === null || id.trim().length === 0) {
+    // URL param sigue siendo `:id` (la ruta `/simulacro/:id` queda en español
+    // según política de UI). Internamente lo llamamos `examId` para alinear
+    // con el dominio post-learnex.
+    const examId = this.route.snapshot.paramMap.get('id');
+    if (examId === null || examId.trim().length === 0) {
       void this.router.navigate(['/home']);
       return;
     }
-    void this.vm.start(id);
+    void this.vm.start(examId);
     this.destroyRef.onDestroy(() => {
       this.cancelLongPress();
       this.vm.stop();

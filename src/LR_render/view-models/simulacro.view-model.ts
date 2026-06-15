@@ -1,6 +1,6 @@
 import { Injectable, Signal, computed, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
-import { ObtenerSimulacrosDelDiaUseCase } from '../../L2_application/use-cases/obtener-simulacros-del-dia.use-case';
+import { GetTodaysExamsUseCase } from '../../L2_application/use-cases/get-todays-exams.use-case';
 import { MarcarRespuestaUseCase } from '../../L2_application/use-cases/marcar-respuesta.use-case';
 import { EnviarSimulacroUseCase } from '../../L2_application/use-cases/enviar-simulacro.use-case';
 import {
@@ -8,7 +8,7 @@ import {
   ProgramarAutoEnvioUseCase,
 } from '../../L2_application/use-cases/programar-auto-envio.use-case';
 import { CLOCK, MARKINGS_STORAGE } from '../../app.config';
-import { Simulacro } from '../../L1_domain/entities/simulacro';
+import { Exam } from '../../L1_domain/entities/exam';
 import { Alternativa } from '../../L1_domain/value-objects/alternativa';
 import { AlternativaValue, AnswersMap } from '../../L1_domain/ports/markings-storage';
 import { NetworkError } from '../../L1_domain/errors/network.error';
@@ -70,13 +70,13 @@ const EDITING_AUTO_LOCK_MS = 5_000;
 // View-model de /simulacro/:id. Provider-local a SimulacroPage (no providedIn
 // root) para que cada montaje arranque limpio sus timers y estado.
 //
-// DEUDA: hoy reutilizamos ObtenerSimulacrosDelDiaUseCase y filtramos en cliente.
-// Cuando el backend exponga GET /simulacros/{id} sería más limpio un
-// ObtenerSimulacroPorIdUseCase dedicado — evita traer N-1 simulacros que no
+// DEUDA: hoy reutilizamos GetTodaysExamsUseCase y filtramos en cliente. Cuando
+// learnex exponga `GET /t/{slug}/student/exam-sessions/{id}` sería más limpio
+// un ObtenerExamenPorIdUseCase dedicado — evita traer N-1 exámenes que no
 // vamos a usar y separa la responsabilidad de "lista del día" de "uno".
 @Injectable()
 export class SimulacroPageViewModel {
-  private readonly obtenerSimulacros = inject(ObtenerSimulacrosDelDiaUseCase);
+  private readonly getTodaysExams = inject(GetTodaysExamsUseCase);
   private readonly marcarRespuesta = inject(MarcarRespuestaUseCase);
   private readonly enviarSimulacro = inject(EnviarSimulacroUseCase);
   private readonly programarAutoEnvio = inject(ProgramarAutoEnvioUseCase);
@@ -84,7 +84,7 @@ export class SimulacroPageViewModel {
   private readonly clock = inject(CLOCK);
   private readonly router = inject(Router);
 
-  readonly simulacro = signal<Simulacro | null>(null);
+  readonly exam = signal<Exam | null>(null);
   readonly marcaciones = signal<AnswersMap>({});
   readonly isLoading = signal(false);
   readonly errorState = signal<SimulacroErrorState | null>(null);
@@ -100,27 +100,32 @@ export class SimulacroPageViewModel {
   readonly editingRow = signal<number | null>(null);
 
   // Lista derivada de números de pregunta 1..count. Recomputa solo cuando
-  // cambia el simulacro — barato.
+  // cambia el examen — barato.
   readonly preguntas: Signal<readonly number[]> = computed(() => {
-    const s = this.simulacro();
-    if (s === null) return [];
-    return Array.from({ length: s.count }, (_, i) => i + 1);
+    const e = this.exam();
+    if (e === null) return [];
+    return Array.from({ length: e.count }, (_, i) => i + 1);
   });
 
   // Countdown formateado para el header. Recomputa cada segundo (al cambiar
-  // nowTick) y cuando se setea/cambia el simulacro.
+  // nowTick) y cuando se setea/cambia el examen.
   readonly countdownRestante: Signal<string> = computed(() => {
-    const s = this.simulacro();
-    if (s === null) return '';
-    const remainingMs = s.fin.getTime() - this.nowTick().getTime();
-    return formatRestante(remainingMs);
+    const e = this.exam();
+    if (e === null) return '';
+    // started es no-null cuando estamos en in_progress (filtrado en start()),
+    // pero defendemos contra null para no romper si el flujo cambia.
+    const anchor = e.started ?? e.scheduled;
+    const elapsedMs = this.nowTick().getTime() - anchor.getTime();
+    const remainingSeconds = Math.max(0, e.duration - elapsedMs / 1000);
+    return formatRestante(remainingSeconds * 1000);
   });
 
   // Hora de cierre como "HH:MM" para mostrar junto al countdown.
   readonly cierreHHMM: Signal<string> = computed(() => {
-    const s = this.simulacro();
-    if (s === null) return '';
-    return formatHHMM(s.fin);
+    const e = this.exam();
+    if (e === null) return '';
+    const anchor = e.started ?? e.scheduled;
+    return formatHHMM(new Date(anchor.getTime() + e.duration * 1000));
   });
 
   private countdownTimer: ReturnType<typeof setInterval> | null = null;
@@ -129,12 +134,12 @@ export class SimulacroPageViewModel {
   private started = false;
   private stopped = false;
 
-  async start(simulacroId: string): Promise<void> {
+  async start(examId: string): Promise<void> {
     if (this.started) return;
     this.started = true;
     this.stopped = false;
 
-    const trimmedId = simulacroId.trim();
+    const trimmedId = examId.trim();
     if (trimmedId.length === 0) {
       this.errorState.set('not-found');
       void this.router.navigate(['/home']);
@@ -142,9 +147,9 @@ export class SimulacroPageViewModel {
     }
 
     this.isLoading.set(true);
-    let lista: readonly Simulacro[];
+    let lista: readonly Exam[];
     try {
-      lista = await this.obtenerSimulacros.execute();
+      lista = await this.getTodaysExams.execute();
     } catch (err) {
       if (err instanceof SessionExpiredError) {
         this.errorState.set('session-expired');
@@ -163,24 +168,25 @@ export class SimulacroPageViewModel {
       this.isLoading.set(false);
     }
 
-    const encontrado = lista.find((s) => s.id === trimmedId);
+    const encontrado = lista.find((e) => e.id === trimmedId);
     if (encontrado === undefined) {
       this.errorState.set('not-found');
       void this.router.navigate(['/home']);
       return;
     }
 
-    if (!encontrado.estado.is('abierto')) {
-      // Mapea estado → razón de redirect. La spec define qué mensaje mostrar
-      // por estado; la traducción a copy concreta puede vivir en /home (toast)
-      // o en este map si después lo movemos a un servicio compartido.
-      const estado = encontrado.estado.value;
-      this.errorState.set(estado === 'abierto' ? 'unknown' : estado);
+    if (!encontrado.serverStatus.permiteEntrada()) {
+      // Mapea status servidor → razón de redirect. `scheduled` → 'pendiente';
+      // `finalized` → 'cerrado'. La traducción a copy concreta vive en /home.
+      const status = encontrado.serverStatus.value;
+      const reason: SimulacroErrorState =
+        status === 'scheduled' ? 'pendiente' : status === 'finalized' ? 'cerrado' : 'unknown';
+      this.errorState.set(reason);
       void this.router.navigate(['/home']);
       return;
     }
 
-    this.simulacro.set(encontrado);
+    this.exam.set(encontrado);
     await this.loadMarcaciones(encontrado);
     this.startCountdownTicker();
     this.scheduleAutoEnvio(encontrado);
@@ -249,8 +255,8 @@ export class SimulacroPageViewModel {
   // disciplina del template.
   async marcar(pregunta: number, letra: AlternativaValue): Promise<void> {
     if (this.stopped) return;
-    const s = this.simulacro();
-    if (s === null) return;
+    const e = this.exam();
+    if (e === null) return;
 
     const state = this.rowState(pregunta);
     if (state === 'locked') {
@@ -266,7 +272,7 @@ export class SimulacroPageViewModel {
     // el storage (no actualizamos el signal porque la línea siguiente no
     // se ejecuta).
     await this.marcarRespuesta.execute({
-      simulacroId: s.id,
+      examId: e.id,
       pregunta,
       alternativa: Alternativa.fromString(proxima),
     });
@@ -294,16 +300,16 @@ export class SimulacroPageViewModel {
   // alumno puede tocar "Volver" cuando quiera, el envío ya está en cola.
   async submit(): Promise<void> {
     if (this.isSubmitting()) return;
-    const s = this.simulacro();
-    if (s === null) return;
-    if (!s.estado.is('abierto')) return;
+    const e = this.exam();
+    if (e === null) return;
+    if (!e.serverStatus.permiteEntrada()) return;
 
     this.cancelAutoEnvio();
     this.isSubmitting.set(true);
     this.submissionState.set('sending');
 
     try {
-      const result = await this.enviarSimulacro.execute({ simulacroId: s.id });
+      const result = await this.enviarSimulacro.execute({ examId: e.id });
       if (result.status === 'enviado') {
         this.submissionState.set('sent');
         void this.router.navigate(['/home']);
@@ -317,7 +323,7 @@ export class SimulacroPageViewModel {
     }
   }
 
-  // Programa el auto-envío en el momento de `simulacro.fin`. Los callbacks
+  // Programa el auto-envío en el momento de cierre del examen. Los callbacks
   // viven en el view-model para que cuando el timer dispare la UI reaccione
   // en signals locales — el use case no conoce ni el Router ni el estado.
   //
@@ -325,10 +331,10 @@ export class SimulacroPageViewModel {
   // cuando el timer dispara, el manual ya canceló este handle en `submit()`,
   // así que el callback NO debería correr. Lo defensivo aquí es no relanzar
   // estado de envío encima si ya hay uno en vuelo.
-  private scheduleAutoEnvio(simulacro: Simulacro): void {
+  private scheduleAutoEnvio(exam: Exam): void {
     this.cancelAutoEnvio();
     this.autoEnvioHandle = this.programarAutoEnvio.execute({
-      simulacro,
+      exam,
       onResult: (result) => {
         // El timer ya disparó: el handle representa un cancelable agotado.
         // Lo soltamos para que `maybeRedirectIfExpired` no quede bloqueado
@@ -391,6 +397,11 @@ export class SimulacroPageViewModel {
   // Mapea errores del envío a errorState + redirect. NetworkError no debería
   // llegar acá: EnviarSimulacroUseCase lo captura y devuelve `status: queued`.
   // Aun así lo dejamos por defensa: si llegara, lo tratamos como red caída.
+  //
+  // SubmissionNotAvailableError (POST stub en este change) cae en la rama
+  // genérica de "unknown" → redirect a /home sin copy especial. Cuando el
+  // POST real aterrice en `fase-3-exam-submit-learnex`, este error desaparece
+  // de runtime.
   private handleSubmissionError(err: unknown): void {
     this.submissionState.set('error');
     if (err instanceof SimulacroCerradoError) {
@@ -428,13 +439,13 @@ export class SimulacroPageViewModel {
     throw err;
   }
 
-  private async loadMarcaciones(s: Simulacro): Promise<void> {
-    const stored = await this.markings.getMarcaciones(s.id);
+  private async loadMarcaciones(e: Exam): Promise<void> {
+    const stored = await this.markings.getMarcaciones(e.id);
     // Inicializamos el map con todas las preguntas presentes (null por
     // defecto) y sobreescribimos con lo que vino del storage. El template
     // así puede leer marcaciones()[String(p)] sin chequeos extra de undefined.
     const fullMap: AnswersMap = {};
-    for (let i = 1; i <= s.count; i++) {
+    for (let i = 1; i <= e.count; i++) {
       fullMap[String(i)] = stored[String(i)] ?? null;
     }
     this.marcaciones.set(fullMap);
@@ -457,9 +468,9 @@ export class SimulacroPageViewModel {
     }
   }
 
-  // Si mientras la página está montada el tiempo cruza `fin`, redirigimos a
-  // /home. El estado oficial del simulacro lo derivará el backend en el
-  // próximo GET de /home; nuestra autoridad local es el `fin` ya recibido
+  // Si mientras la página está montada el tiempo cruza el cierre, redirigimos
+  // a /home. El estado oficial del examen lo derivará learnex en el próximo
+  // GET de /home; nuestra autoridad local es el cierre ya recibido
   // (anclado al server-time vía Clock).
   //
   // NO hacemos polling al backend desde acá: agregaría carga sin valor —
@@ -471,9 +482,11 @@ export class SimulacroPageViewModel {
   // si quedó en cola). Sin esto, el ticker correría primero y cancelaría
   // el auto-envío en `stop()` antes de que el timer dispare.
   private maybeRedirectIfExpired(now: Date): void {
-    const s = this.simulacro();
-    if (s === null) return;
-    if (now.getTime() < s.fin.getTime()) return;
+    const e = this.exam();
+    if (e === null) return;
+    const anchor = e.started ?? e.scheduled;
+    const closeAt = anchor.getTime() + e.duration * 1000;
+    if (now.getTime() < closeAt) return;
     if (this.errorState() !== null) return;
     if (this.autoEnvioHandle !== null) return;
     if (this.isSubmitting()) return;

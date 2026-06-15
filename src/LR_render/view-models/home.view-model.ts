@@ -2,18 +2,26 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { GetIdentityUseCase } from '../../L2_application/use-cases/get-identity.use-case';
 import { GetProfileUseCase } from '../../L2_application/use-cases/get-profile.use-case';
-import { ObtenerSimulacrosDelDiaUseCase } from '../../L2_application/use-cases/obtener-simulacros-del-dia.use-case';
+import { GetTodaysExamsUseCase } from '../../L2_application/use-cases/get-todays-exams.use-case';
+import { LogoutUseCase } from '../../L2_application/use-cases/logout.use-case';
 import { CLOCK, MARKINGS_STORAGE } from '../../app.config';
-import { Simulacro } from '../../L1_domain/entities/simulacro';
-import { EstadoValue } from '../../L1_domain/value-objects/estado-simulacro';
+import { Exam } from '../../L1_domain/entities/exam';
 import { StudentProfile } from '../../L1_domain/value-objects/student-profile';
 import { NetworkError } from '../../L1_domain/errors/network.error';
 import { SessionExpiredError } from '../../L1_domain/errors/session-expired.error';
 import { ProfileNotAvailableError } from '../../L1_domain/errors/profile-not-available.error';
 import { OfflineStorageUnavailableError } from '../../L1_domain/errors/offline-storage-unavailable.error';
+import { ExamsPermissionRevokedError } from '../../L1_domain/errors/exams-permission-revoked.error';
+import { StudentNotLinkedError } from '../../L1_domain/errors/student-not-linked.error';
 import { randomQuote } from '../pages/home/inspirational-quotes';
 
 export type ServerErrorKind = 'network' | 'session-expired' | 'unknown';
+
+// Estado visual de cada card en /home. Compuesto en el view-model a partir
+// de `exam.serverStatus` + `MarkingsStorage.hasSubmittedAck(exam.id)`. Las
+// claves se mantienen en español porque el template las usa como sufijo de
+// clase CSS (`card--abierto`, `card--cerrado`, etc.).
+export type CardEstado = 'pendiente' | 'abierto' | 'enviado' | 'cerrado';
 
 // Cada 120s mientras la pestaña está visible: refresca la lista contra backend.
 const POLL_INTERVAL_MS = 120_000;
@@ -29,15 +37,21 @@ const COUNTDOWN_TICK_MS = 1_000;
 export class HomePageViewModel {
   private readonly getIdentity = inject(GetIdentityUseCase);
   private readonly getProfile = inject(GetProfileUseCase);
-  private readonly obtenerSimulacros = inject(ObtenerSimulacrosDelDiaUseCase);
+  private readonly getTodaysExams = inject(GetTodaysExamsUseCase);
+  private readonly logoutUseCase = inject(LogoutUseCase);
   private readonly clock = inject(CLOCK);
   private readonly markings = inject(MARKINGS_STORAGE);
   private readonly router = inject(Router);
 
-  readonly simulacros = signal<readonly Simulacro[]>([]);
+  readonly exams = signal<readonly Exam[]>([]);
+  // Map examId → hasSubmittedAck. Se completa en cada refresh consultando el
+  // puerto MarkingsStorage. En `fase-3-exam-list-learnex` el adapter retorna
+  // siempre false; se reactiva en `fase-3-exam-submit-learnex`.
+  private readonly ackByExamId = signal<ReadonlyMap<string, boolean>>(new Map());
   readonly isLoading = signal(false);
   readonly serverError = signal<ServerErrorKind | null>(null);
   readonly offlineStorageBlocked = signal(false);
+  readonly studentNotLinked = signal(false);
   readonly lastRefreshAt = signal<Date | null>(null);
 
   // Header del home alumno. `userEmail` viene de la identity (siempre presente
@@ -64,7 +78,11 @@ export class HomePageViewModel {
 
   // Cards derivadas: estado, copy y countdown. Recomputa cuando cambia la lista
   // o cada tick del reloj.
-  readonly cards = computed(() => this.simulacros().map((s) => this.buildCard(s, this.nowTick())));
+  readonly cards = computed(() => {
+    const acks = this.ackByExamId();
+    const now = this.nowTick();
+    return this.exams().map((exam) => this.buildCard(exam, acks.get(exam.id) === true, now));
+  });
 
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   private countdownTimer: ReturnType<typeof setInterval> | null = null;
@@ -80,7 +98,7 @@ export class HomePageViewModel {
     // Profile en paralelo (no bloquea precheck ni refresh). Cuando resuelve,
     // los signals userEmail/userName/userDni re-emiten y el template re-renderea
     // reactivamente — el header puede mostrar el saludo sin haber esperado a la
-    // lista de simulacros. Mantiene la misma semántica que el `void loadEmail()`
+    // lista de exámenes. Mantiene la misma semántica que el `void loadEmail()`
     // que hacía el page component pre-C4.
     void this.loadUserProfile();
     await this.runOfflineStoragePrecheck();
@@ -102,13 +120,29 @@ export class HomePageViewModel {
     if (this.stopped) return;
     this.isLoading.set(true);
     try {
-      const list = await this.obtenerSimulacros.execute();
+      const list = await this.getTodaysExams.execute();
       this.handleAbiertosDegradation(list);
-      this.simulacros.set(list);
+      this.exams.set(list);
+      await this.refreshAcks(list);
+      this.studentNotLinked.set(false);
       this.serverError.set(null);
       this.lastRefreshAt.set(this.clock.now());
     } catch (err) {
-      if (err instanceof SessionExpiredError) {
+      if (err instanceof ExamsPermissionRevokedError) {
+        // El back retiró el permiso `student:exams:view`. Limpiamos sesión y
+        // mandamos al login; no mostramos banner — el logout flow se encarga
+        // de la navegación final.
+        this.exams.set([]);
+        this.ackByExamId.set(new Map());
+        void this.logoutUseCase.execute();
+      } else if (err instanceof StudentNotLinkedError) {
+        // Usuario sin Student asociado en learnex. Mantenemos el resto del
+        // home visible y mostramos el banner dedicado; la lista queda vacía.
+        this.exams.set([]);
+        this.ackByExamId.set(new Map());
+        this.studentNotLinked.set(true);
+        this.serverError.set(null);
+      } else if (err instanceof SessionExpiredError) {
         this.serverError.set('session-expired');
         // Limpieza completa la hace el interceptor / logout silencioso; aquí
         // solo redirigimos para no quedarnos pintando una lista vieja.
@@ -162,7 +196,7 @@ export class HomePageViewModel {
     }
   }
 
-  // Pre-check temprano de IndexedDB. ObtenerSimulacrosDelDia no toca el storage,
+  // Pre-check temprano de IndexedDB. GetTodaysExamsUseCase no toca el storage,
   // pero queremos detectar IDB unavailable ANTES de que el alumno tape en una
   // card abierta y fracase en /simulacro/:id.
   private async runOfflineStoragePrecheck(): Promise<void> {
@@ -180,11 +214,28 @@ export class HomePageViewModel {
     }
   }
 
-  private handleAbiertosDegradation(list: readonly Simulacro[]): void {
-    const abiertos = list.filter((s) => s.estado.is('abierto'));
+  // Consulta `hasSubmittedAck` por cada examen y arma el mapa que alimenta la
+  // composición de estado de card. En `fase-3-exam-list-learnex` el adapter
+  // retorna siempre false (seam: activa en fase-3-exam-submit-learnex).
+  private async refreshAcks(list: readonly Exam[]): Promise<void> {
+    const next = new Map<string, boolean>();
+    for (const exam of list) {
+      try {
+        next.set(exam.id, await this.markings.hasSubmittedAck(exam.id));
+      } catch {
+        // Si el storage falla por examen puntual, asumimos false: el ack
+        // local nunca debe bloquear la visibilidad de la lista.
+        next.set(exam.id, false);
+      }
+    }
+    this.ackByExamId.set(next);
+  }
+
+  private handleAbiertosDegradation(list: readonly Exam[]): void {
+    const abiertos = list.filter((e) => e.serverStatus.is('in_progress'));
     if (abiertos.length > 1) {
       console.warn(
-        `Backend devolvió ${abiertos.length} simulacros abiertos simultáneos; ` +
+        `Backend devolvió ${abiertos.length} exámenes en progreso simultáneos; ` +
           `tratando el primero (${abiertos[0].id}) como activo.`,
       );
     }
@@ -243,46 +294,75 @@ export class HomePageViewModel {
     this.visibilityListener = null;
   }
 
-  private buildCard(s: Simulacro, now: Date): SimulacroCard {
-    const estado = s.estado.value;
+  private buildCard(exam: Exam, hasSubmittedAck: boolean, now: Date): SimulacroCard {
+    const estado = this.composeEstado(exam, hasSubmittedAck);
     const clickable = estado === 'abierto';
     const tone: CardTone = clickable ? 'verde' : 'gris';
 
     return {
-      id: s.id,
-      area: s.area,
-      name: s.name,
-      count: s.count,
+      id: exam.id,
+      area: exam.area ?? exam.course ?? '—',
+      name: exam.name,
+      count: exam.count,
       estado,
       clickable,
       tone,
-      primaryText: this.primaryText(s, now),
-      secondaryText: this.secondaryText(s),
+      primaryText: this.primaryText(exam, estado, now),
+      secondaryText: this.secondaryText(exam),
     };
   }
 
-  private primaryText(s: Simulacro, now: Date): string {
-    switch (s.estado.value) {
+  // Matriz de composición de estado (5 ramas; 2 quedan inertes hasta que el
+  // adapter de MarkingsStorage devuelva acks reales):
+  //
+  //   serverStatus      | hasSubmittedAck | estado
+  //   scheduled         | (any)           | pendiente
+  //   in_progress       | false           | abierto
+  //   in_progress       | true            | enviado    (seam C2)
+  //   finalized         | true            | enviado    (seam C2)
+  //   finalized         | false           | cerrado
+  private composeEstado(exam: Exam, hasSubmittedAck: boolean): CardEstado {
+    switch (exam.serverStatus.value) {
+      case 'scheduled':
+        return 'pendiente';
+      case 'in_progress':
+        // seam: activa en fase-3-exam-submit-learnex
+        if (hasSubmittedAck) return 'enviado';
+        return 'abierto';
+      case 'finalized':
+        // seam: activa en fase-3-exam-submit-learnex
+        if (hasSubmittedAck) return 'enviado';
+        return 'cerrado';
+    }
+  }
+
+  private primaryText(exam: Exam, estado: CardEstado, now: Date): string {
+    switch (estado) {
       case 'pendiente':
-        return `Disponible a las ${formatHHMM(s.inicio)}`;
+        return `Disponible a las ${formatHHMM(exam.scheduled)}`;
       case 'abierto': {
-        const restante = msToMinutesCeiling(s.fin.getTime() - now.getTime());
+        const closeAt = closeAtMs(exam);
+        const closeDate = new Date(closeAt);
+        const restante = msToMinutesCeiling(closeAt - now.getTime());
         if (restante <= 0) {
-          return `Cierra a las ${formatHHMM(s.fin)} · cerrando…`;
+          return `Cierra a las ${formatHHMM(closeDate)} · cerrando…`;
         }
-        return `Cierra a las ${formatHHMM(s.fin)} · ${restante} min restantes`;
+        return `Cierra a las ${formatHHMM(closeDate)} · ${restante} min restantes`;
       }
-      case 'enviado':
-        // DEUDA: el shape del DTO de Fase 2 todavía no expone `enviadoEn`. Usamos
-        // `fin` como aproximación visible. Cuando se agregue, cambiar aquí.
-        return `Enviado a las ${formatHHMM(s.fin)}`;
+      case 'enviado': {
+        // Hora de cierre como mejor aproximación visible del momento de envío.
+        // El DTO de learnex aún no expone `enviadoEn`; cuando lo haga, cambiar.
+        const closeDate = new Date(closeAtMs(exam));
+        return `Enviado a las ${formatHHMM(closeDate)}`;
+      }
       case 'cerrado':
         return 'No enviaste · cerrado';
     }
   }
 
-  private secondaryText(s: Simulacro): string {
-    return `${s.area} · ${s.count} preguntas`;
+  private secondaryText(exam: Exam): string {
+    const label = exam.area ?? exam.course ?? '—';
+    return `${label} · ${exam.count} preguntas`;
   }
 }
 
@@ -293,11 +373,18 @@ export interface SimulacroCard {
   area: string;
   name: string;
   count: number;
-  estado: EstadoValue;
+  estado: CardEstado;
   clickable: boolean;
   tone: CardTone;
   primaryText: string;
   secondaryText: string;
+}
+
+// Cierre de la ventana del examen en epoch ms. Ancla: `started` si ya empezó,
+// `scheduled` si no. Factor ×1000 porque `duration` viene en SEGUNDOS.
+function closeAtMs(exam: Exam): number {
+  const anchor = exam.started ?? exam.scheduled;
+  return anchor.getTime() + exam.duration * 1000;
 }
 
 function formatHHMM(d: Date): string {
