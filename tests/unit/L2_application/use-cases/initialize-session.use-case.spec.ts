@@ -3,6 +3,7 @@ import { InitializeSessionUseCase } from '../../../../src/L2_application/use-cas
 import { Identity } from '../../../../src/L1_domain/entities/identity';
 import { SessionExpiredError } from '../../../../src/L1_domain/errors/session-expired.error';
 import { NetworkError } from '../../../../src/L1_domain/errors/network.error';
+import { UnsupportedRoleError } from '../../../../src/L1_domain/errors/unsupported-role.error';
 import { FakeAuthRepository } from '../../fixtures/auth-repository.fake';
 import { FakeIdentityStorage } from '../../fixtures/identity-storage.fake';
 import { FakeProfileStorage } from '../../fixtures/profile-storage.fake';
@@ -79,5 +80,37 @@ describe('InitializeSessionUseCase', () => {
     // No debe rechazar
     const result = await useCase.execute();
     expect(result).toBe(identity);
+  });
+
+  describe('UnsupportedRoleError', () => {
+    it('invoca logout best-effort + limpia storage + devuelve null', async () => {
+      const identity = makeStudentIdentity();
+      await identityStorage.write(identity);
+      repo.willRejectMe(new UnsupportedRoleError('admin'));
+
+      const result = await useCase.execute();
+
+      expect(result).toBeNull();
+      expect(await identityStorage.read()).toBeNull();
+      expect(repo.getLogoutCalls()).toBe(1);
+    });
+
+    it('si logout best-effort falla, igual limpia storage local y devuelve null', async () => {
+      const identity = makeStudentIdentity();
+      await identityStorage.write(identity);
+      repo.willRejectMe(new UnsupportedRoleError('teacher'));
+      repo.willRejectLogout();
+
+      const result = await useCase.execute();
+
+      expect(result).toBeNull();
+      expect(await identityStorage.read()).toBeNull();
+      expect(repo.getLogoutCalls()).toBe(1);
+    });
+
+    it('storage ya vacío cuando UnsupportedRoleError → no falla', async () => {
+      repo.willRejectMe(new UnsupportedRoleError('admin'));
+      await expect(useCase.execute()).resolves.toBeNull();
+    });
   });
 });

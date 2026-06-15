@@ -11,7 +11,13 @@ import { RateLimitError } from '../../L1_domain/errors/rate-limit.error';
 import { RefreshFailedError } from '../../L1_domain/errors/refresh-failed.error';
 import { ProfileNotAvailableError } from '../../L1_domain/errors/profile-not-available.error';
 import { SessionExpiredError } from '../../L1_domain/errors/session-expired.error';
+import { UnsupportedRoleError } from '../../L1_domain/errors/unsupported-role.error';
 import { apiPath } from './api-paths';
+
+// Roles que Lugia soporta hoy. Cualquier otro (admin, teacher, custom)
+// que devuelva el back se rechaza en el mapper con UnsupportedRoleError.
+// Cuando se agregue soporte, ampliar este set y el tipo `Role` en L1.
+const SUPPORTED_ROLES: ReadonlySet<Role> = new Set(['student', 'tutor']);
 
 // Shapes del back learnex (verificados al 2026-06-13 contra responses reales).
 // Ver .authentic/pwa-auth-contract.md y proposal.md del change.
@@ -77,6 +83,9 @@ export class HttpAuthRepository implements AuthRepository {
       );
       return this.mapIdentity(dto);
     } catch (err) {
+      // UnsupportedRoleError viene de mapIdentity (post-200), NO es error HTTP.
+      // Propagar tal cual sin clasificar.
+      if (err instanceof UnsupportedRoleError) throw err;
       throw this.classifyLoginError(err);
     }
   }
@@ -88,6 +97,7 @@ export class HttpAuthRepository implements AuthRepository {
       );
       return this.mapIdentity(dto);
     } catch (err) {
+      if (err instanceof UnsupportedRoleError) throw err;
       throw this.classifyMeError(err);
     }
   }
@@ -99,6 +109,7 @@ export class HttpAuthRepository implements AuthRepository {
       );
       return this.mapIdentity(dto);
     } catch (err) {
+      if (err instanceof UnsupportedRoleError) throw err;
       throw this.classifyRefreshError(err);
     }
   }
@@ -133,12 +144,20 @@ export class HttpAuthRepository implements AuthRepository {
   // --- mappers ---
 
   private mapIdentity(dto: LoginResponseDto): Identity {
+    // Validamos rol ANTES de construir Identity: el cast `as Role[]` sería
+    // una mentira de TypeScript si el back devuelve admin/teacher. El
+    // invariante single-role de Identity ya se aplica en su constructor;
+    // acá agregamos el invariante "rol soportado por este cliente".
+    const rawRole = dto.user.roles[0];
+    if (dto.user.roles.length !== 1 || !SUPPORTED_ROLES.has(rawRole as Role)) {
+      throw new UnsupportedRoleError(rawRole ?? '(empty)');
+    }
     return new Identity(
       dto.user.id,
       dto.user.tenantId,
       dto.user.email,
       dto.user.codigo,
-      dto.user.roles as Role[],
+      [rawRole as Role],
       dto.user.permissions,
       dto.expiresAt,
     );

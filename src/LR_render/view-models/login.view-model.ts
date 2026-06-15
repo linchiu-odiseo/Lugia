@@ -4,8 +4,9 @@ import { LoginUseCase } from '../../L2_application/use-cases/login.use-case';
 import { InvalidCredentialsError } from '../../L1_domain/errors/invalid-credentials.error';
 import { NetworkError } from '../../L1_domain/errors/network.error';
 import { RateLimitError } from '../../L1_domain/errors/rate-limit.error';
+import { UnsupportedRoleError } from '../../L1_domain/errors/unsupported-role.error';
 
-export type SubmitOutcome = 'ok' | 'invalid' | 'network' | 'rate-limit';
+export type SubmitOutcome = 'ok' | 'invalid' | 'network' | 'rate-limit' | 'unsupported-role';
 
 @Injectable()
 export class LoginViewModel {
@@ -30,6 +31,17 @@ export class LoginViewModel {
       if (err instanceof RateLimitError) {
         this.errorMessage.set('Demasiados intentos, esperá un minuto.');
         return 'rate-limit';
+      }
+      if (err instanceof UnsupportedRoleError) {
+        // El back autenticó pero el rol no está soportado por este cliente
+        // (hoy: solo student/tutor; admin/teacher pendientes). El mapper L3
+        // ya rechazó antes de persistir identity, así que no hay storage que
+        // limpiar acá. Las cookies HttpOnly del back se invalidarán en el
+        // próximo arranque (AppInitializer detecta y limpia) o por TTL.
+        this.errorMessage.set(
+          'Esta aplicación está disponible solo para alumnos y tutores. Contactá a tu administrador.',
+        );
+        return 'unsupported-role';
       }
       if (err instanceof NetworkError) {
         this.errorMessage.set('No se pudo conectar al servidor. Inténtalo de nuevo.');

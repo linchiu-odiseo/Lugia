@@ -21,6 +21,7 @@ import { RateLimitError } from '../../../../src/L1_domain/errors/rate-limit.erro
 import { RefreshFailedError } from '../../../../src/L1_domain/errors/refresh-failed.error';
 import { ProfileNotAvailableError } from '../../../../src/L1_domain/errors/profile-not-available.error';
 import { SessionExpiredError } from '../../../../src/L1_domain/errors/session-expired.error';
+import { UnsupportedRoleError } from '../../../../src/L1_domain/errors/unsupported-role.error';
 import { environment } from '../../../../src/environments/environment';
 
 const BASE = `${environment.apiBaseUrl}/t/${environment.tenantSlug}`;
@@ -194,6 +195,58 @@ describe('HttpAuthRepository', () => {
       const req = httpMock.expectOne(LOGIN_URL);
       req.error(new ProgressEvent('error'), { status: 0, statusText: 'Network failure' });
       await expect(pending).rejects.toBeInstanceOf(NetworkError);
+    });
+
+    it('mapea 200 con roles: ["admin"] a UnsupportedRoleError', async () => {
+      const pending = repo.login(credentials);
+      const req = httpMock.expectOne(LOGIN_URL);
+      req.flush({
+        ...STUDENT_LOGIN_RESPONSE,
+        user: { ...STUDENT_LOGIN_RESPONSE.user, roles: ['admin'] },
+      });
+      await expect(pending).rejects.toBeInstanceOf(UnsupportedRoleError);
+    });
+
+    it('mapea 200 con roles: ["teacher"] a UnsupportedRoleError', async () => {
+      const pending = repo.login(credentials);
+      const req = httpMock.expectOne(LOGIN_URL);
+      req.flush({
+        ...STUDENT_LOGIN_RESPONSE,
+        user: { ...STUDENT_LOGIN_RESPONSE.user, roles: ['teacher'] },
+      });
+      await expect(pending).rejects.toBeInstanceOf(UnsupportedRoleError);
+    });
+
+    it('expone el rol no soportado en la propiedad `role` del error', async () => {
+      const pending = repo.login(credentials).catch((err: unknown) => err);
+      const req = httpMock.expectOne(LOGIN_URL);
+      req.flush({
+        ...STUDENT_LOGIN_RESPONSE,
+        user: { ...STUDENT_LOGIN_RESPONSE.user, roles: ['admin'] },
+      });
+      const err = (await pending) as UnsupportedRoleError;
+      expect(err).toBeInstanceOf(UnsupportedRoleError);
+      expect(err.role).toBe('admin');
+    });
+
+    it('mapea 200 con roles: [] a UnsupportedRoleError (defensivo)', async () => {
+      const pending = repo.login(credentials);
+      const req = httpMock.expectOne(LOGIN_URL);
+      req.flush({
+        ...STUDENT_LOGIN_RESPONSE,
+        user: { ...STUDENT_LOGIN_RESPONSE.user, roles: [] },
+      });
+      await expect(pending).rejects.toBeInstanceOf(UnsupportedRoleError);
+    });
+
+    it('mapea 200 con roles: ["student", "tutor"] a UnsupportedRoleError (rompe single-role invariant)', async () => {
+      const pending = repo.login(credentials);
+      const req = httpMock.expectOne(LOGIN_URL);
+      req.flush({
+        ...STUDENT_LOGIN_RESPONSE,
+        user: { ...STUDENT_LOGIN_RESPONSE.user, roles: ['student', 'tutor'] },
+      });
+      await expect(pending).rejects.toBeInstanceOf(UnsupportedRoleError);
     });
   });
 

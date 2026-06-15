@@ -8,6 +8,7 @@ import { Identity } from '../../../../src/L1_domain/entities/identity';
 import { InvalidCredentialsError } from '../../../../src/L1_domain/errors/invalid-credentials.error';
 import { NetworkError } from '../../../../src/L1_domain/errors/network.error';
 import { RateLimitError } from '../../../../src/L1_domain/errors/rate-limit.error';
+import { UnsupportedRoleError } from '../../../../src/L1_domain/errors/unsupported-role.error';
 
 // Stubs de ruta para que provideRouter pueda navegar realmente y no quejarse.
 @Component({ template: '' })
@@ -165,6 +166,21 @@ describe('LoginViewModel', () => {
 
       expect(outcome).toBe('network');
       expect(vm.errorMessage()).toBe('No se pudo conectar al servidor. Inténtalo de nuevo.');
+      expect(navigateSpy).not.toHaveBeenCalled();
+    });
+
+    it('UnsupportedRoleError → errorMessage con el copy es-PE y devuelve "unsupported-role"', async () => {
+      fakeUseCase.willRejectWith(new UnsupportedRoleError('admin'));
+      const router = TestBed.inject(Router);
+      const navigateSpy = vi.spyOn(router, 'navigate');
+
+      const vm = createVm();
+      const outcome = await vm.submit(validCredentials);
+
+      expect(outcome).toBe('unsupported-role');
+      expect(vm.errorMessage()).toBe(
+        'Esta aplicación está disponible solo para alumnos y tutores. Contactá a tu administrador.',
+      );
       expect(navigateSpy).not.toHaveBeenCalled();
     });
 

@@ -5,6 +5,7 @@ import { InvalidIdentityError } from '../../../../src/L1_domain/errors/invalid-i
 import { RefreshFailedError } from '../../../../src/L1_domain/errors/refresh-failed.error';
 import { RateLimitError } from '../../../../src/L1_domain/errors/rate-limit.error';
 import { ProfileNotAvailableError } from '../../../../src/L1_domain/errors/profile-not-available.error';
+import { UnsupportedRoleError } from '../../../../src/L1_domain/errors/unsupported-role.error';
 
 describe('Errores de dominio', () => {
   describe('InvalidCredentialsError', () => {
@@ -92,6 +93,33 @@ describe('Errores de dominio', () => {
 
     it('tiene name correcto', () => {
       expect(new ProfileNotAvailableError().name).toBe('ProfileNotAvailableError');
+    });
+  });
+
+  describe('UnsupportedRoleError', () => {
+    it('es instanceof Error y UnsupportedRoleError', () => {
+      const err = new UnsupportedRoleError('admin');
+      expect(err).toBeInstanceOf(Error);
+      expect(err).toBeInstanceOf(UnsupportedRoleError);
+    });
+
+    it('tiene name correcto', () => {
+      expect(new UnsupportedRoleError('admin').name).toBe('UnsupportedRoleError');
+    });
+
+    it('expone el rol no soportado en la propiedad `role`', () => {
+      expect(new UnsupportedRoleError('admin').role).toBe('admin');
+      expect(new UnsupportedRoleError('teacher').role).toBe('teacher');
+    });
+
+    it('arma un message por defecto con el rol', () => {
+      expect(new UnsupportedRoleError('admin').message).toBe(
+        'Role "admin" is not supported by this client',
+      );
+    });
+
+    it('acepta message custom', () => {
+      expect(new UnsupportedRoleError('admin', 'foo').message).toBe('foo');
     });
   });
 
