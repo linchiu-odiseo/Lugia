@@ -11,6 +11,7 @@ import { environment } from '../../environments/environment';
 //   POST /t/{slug}/auth/logout
 //   GET  /t/{slug}/auth/me
 //   GET  /t/{slug}/{role}/me
+//   GET  /t/{slug}/student/exam-sessions
 function base(): string {
   return `${environment.apiBaseUrl}/t/${environment.tenantSlug}`;
 }
@@ -21,4 +22,5 @@ export const apiPath = {
   logout: (): string => `${base()}/auth/logout`,
   me: (): string => `${base()}/auth/me`,
   profile: (role: 'student' | 'tutor'): string => `${base()}/${role}/me`,
+  studentExamSessions: (): string => `${base()}/student/exam-sessions`,
 };

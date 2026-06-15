@@ -15,10 +15,14 @@ const STORE = 'data';
 
 // Patrón de keys planas en un único object store. La key encapsula el
 // scope por usuario (`userEmail`) y la entidad (marcacion vs queue).
-//   marcacion: cartilla.<email>.simulacro.<simulacroId>.<pregunta>
-//   queue:     cartilla.<email>.queue.<simulacroId>
+//   marcacion: cartilla.<email>.simulacro.<examId>.<pregunta>
+//   queue:     cartilla.<email>.queue.<examId>
 // El prefijo `cartilla.<email>.` permite que `wipeUserScope()` use un
 // rango de IDBKeyRange.bound(...) sin tocar datos de otros usuarios.
+//
+// El segmento literal "simulacro" en la key se MANTIENE adrede (sin
+// migración de schema en este change) — corresponde al cleanup futuro
+// per design D4 y openspec/changes/fase-3-exam-list-learnex/specs/offline-storage.
 const KEY_ROOT = 'cartilla';
 
 // También implementa `OutboxStoragePort.clear()` para que el `LogoutUseCase`
@@ -30,19 +34,19 @@ export class IndexedDbMarkingsStorage implements MarkingsStorage, OutboxStorageP
   private dbPromise: Promise<IDBDatabase> | null = null;
 
   async setMarcacion(
-    simulacroId: string,
+    examId: string,
     pregunta: number,
     alternativa: AlternativaValue,
   ): Promise<void> {
     const email = await this.requireUserEmail();
     const db = await this.db();
-    await this.put(db, marcacionKey(email, simulacroId, pregunta), { alternativa });
+    await this.put(db, marcacionKey(email, examId, pregunta), { alternativa });
   }
 
-  async getMarcaciones(simulacroId: string): Promise<AnswersMap> {
+  async getMarcaciones(examId: string): Promise<AnswersMap> {
     const email = await this.requireUserEmail();
     const db = await this.db();
-    const prefix = `${KEY_ROOT}.${email}.simulacro.${simulacroId}.`;
+    const prefix = `${KEY_ROOT}.${email}.simulacro.${examId}.`;
     const entries = await this.getRange(db, prefix);
     const out: AnswersMap = {};
     for (const { key, value } of entries) {
@@ -52,17 +56,17 @@ export class IndexedDbMarkingsStorage implements MarkingsStorage, OutboxStorageP
     return out;
   }
 
-  async clearMarcaciones(simulacroId: string): Promise<void> {
+  async clearMarcaciones(examId: string): Promise<void> {
     const email = await this.requireUserEmail();
     const db = await this.db();
-    const prefix = `${KEY_ROOT}.${email}.simulacro.${simulacroId}.`;
+    const prefix = `${KEY_ROOT}.${email}.simulacro.${examId}.`;
     await this.deleteRange(db, prefix);
   }
 
   async enqueueEnvio(envio: EnvioPendiente): Promise<void> {
     const email = await this.requireUserEmail();
     const db = await this.db();
-    await this.put(db, queueKey(email, envio.simulacroId), envio);
+    await this.put(db, queueKey(email, envio.examId), envio);
   }
 
   async getEnviosPendientes(): Promise<EnvioPendiente[]> {
@@ -73,10 +77,18 @@ export class IndexedDbMarkingsStorage implements MarkingsStorage, OutboxStorageP
     return entries.map(({ value }) => value as EnvioPendiente);
   }
 
-  async dequeueEnvio(simulacroId: string): Promise<void> {
+  async dequeueEnvio(examId: string): Promise<void> {
     const email = await this.requireUserEmail();
     const db = await this.db();
-    await this.delete(db, queueKey(email, simulacroId));
+    await this.delete(db, queueKey(email, examId));
+  }
+
+  // Seam D4: en `fase-3-exam-list-learnex` el POST sigue como stub y el
+  // server nunca confirma envíos, así que este método siempre devuelve
+  // false. En `fase-3-exam-submit-learnex` se reactiva con la consulta
+  // real al IDB (presencia de marker confirmado por server).
+  async hasSubmittedAck(_examId: string): Promise<boolean> {
+    return false;
   }
 
   // Sin identity → no-op (caso normal durante logout cuando el storage ya
@@ -193,12 +205,12 @@ export class IndexedDbMarkingsStorage implements MarkingsStorage, OutboxStorageP
 
 // --- utilidades libres ---
 
-function marcacionKey(email: string, simulacroId: string, pregunta: number): string {
-  return `${KEY_ROOT}.${email}.simulacro.${simulacroId}.${pregunta}`;
+function marcacionKey(email: string, examId: string, pregunta: number): string {
+  return `${KEY_ROOT}.${email}.simulacro.${examId}.${pregunta}`;
 }
 
-function queueKey(email: string, simulacroId: string): string {
-  return `${KEY_ROOT}.${email}.queue.${simulacroId}`;
+function queueKey(email: string, examId: string): string {
+  return `${KEY_ROOT}.${email}.queue.${examId}`;
 }
 
 // Rango "key starts with prefix" — IndexedDB ordena keys lexicográficamente,
