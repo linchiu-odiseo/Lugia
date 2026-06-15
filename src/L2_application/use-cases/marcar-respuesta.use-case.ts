@@ -3,7 +3,7 @@ import { Alternativa } from '../../L1_domain/value-objects/alternativa';
 import { MarkingsStorage } from '../../L1_domain/ports/markings-storage';
 
 export interface MarcarRespuestaInput {
-  simulacroId: string;
+  examId: string;
   pregunta: number;
   alternativa: Alternativa;
 }
@@ -15,9 +15,9 @@ export class MarcarRespuestaUseCase {
   constructor(private readonly storage: MarkingsStorage) {}
 
   async execute(input: MarcarRespuestaInput): Promise<void> {
-    const marcacion = new Marcacion(input.simulacroId, input.pregunta, input.alternativa);
+    const marcacion = new Marcacion(input.examId, input.pregunta, input.alternativa);
     await this.storage.setMarcacion(
-      marcacion.simulacroId,
+      marcacion.examId,
       marcacion.pregunta,
       marcacion.alternativa.value,
     );
