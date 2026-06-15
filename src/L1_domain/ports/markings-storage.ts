@@ -1,4 +1,4 @@
-// Las marcaciones de un simulacro son un objeto plano: clave = número de
+// Las marcaciones de un examen son un objeto plano: clave = número de
 // pregunta como string ("1".."count"), valor = alternativa elegida o null
 // para desmarcado. El backend espera este mismo shape en el POST de envío.
 export type AlternativaValue = 'A' | 'B' | 'C' | 'D' | 'E' | null;
@@ -9,7 +9,7 @@ export type AnswersMap = Record<string, AlternativaValue>;
 // conserva el `clientSubmittedAt` original (anclado al server-time del
 // momento del intento), no la hora del retry.
 export interface EnvioPendiente {
-  simulacroId: string;
+  examId: string;
   answers: AnswersMap;
   clientSubmittedAt: string;
 }
@@ -26,16 +26,24 @@ export interface EnvioPendiente {
 // El email NO se pasa como argumento — el adapter (L3) lo resuelve vía DI.
 // Si no hay identity disponible al momento de `wipeUserScope()` → no-op.
 //
+// `hasSubmittedAck(examId)` indica si este alumno tiene un envío confirmado
+// por el server para ese examen — se usa en el view-model LR para componer
+// el card-state "enviado" vs "cerrado" en `serverStatus: 'finalized'`.
+// En el cambio `fase-3-exam-list-learnex` la implementación L3 retorna
+// siempre `false` porque el POST sigue como stub; en Change 2
+// `fase-3-exam-submit-learnex` se cablea contra el ack real.
+//
 // Cualquier operación SHALL rechazar con `OfflineStorageUnavailableError`
 // si IndexedDB no está disponible en el browser.
 //
 // Implementación concreta vive en L3 (`IndexedDbMarkingsStorage`).
 export interface MarkingsStorage {
-  setMarcacion(simulacroId: string, pregunta: number, alternativa: AlternativaValue): Promise<void>;
-  getMarcaciones(simulacroId: string): Promise<AnswersMap>;
-  clearMarcaciones(simulacroId: string): Promise<void>;
+  setMarcacion(examId: string, pregunta: number, alternativa: AlternativaValue): Promise<void>;
+  getMarcaciones(examId: string): Promise<AnswersMap>;
+  clearMarcaciones(examId: string): Promise<void>;
   enqueueEnvio(envio: EnvioPendiente): Promise<void>;
   getEnviosPendientes(): Promise<EnvioPendiente[]>;
-  dequeueEnvio(simulacroId: string): Promise<void>;
+  dequeueEnvio(examId: string): Promise<void>;
+  hasSubmittedAck(examId: string): Promise<boolean>;
   wipeUserScope(): Promise<void>; // sin argumento — el adapter lee IdentityStorage internamente
 }
