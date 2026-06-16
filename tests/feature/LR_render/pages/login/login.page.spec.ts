@@ -8,6 +8,7 @@ import { Identity } from '../../../../../src/L1_domain/entities/identity';
 import { InvalidCredentialsError } from '../../../../../src/L1_domain/errors/invalid-credentials.error';
 import { NetworkError } from '../../../../../src/L1_domain/errors/network.error';
 import { RateLimitError } from '../../../../../src/L1_domain/errors/rate-limit.error';
+import { environment } from '../../../../../src/environments/environment';
 
 @Component({ template: '' })
 class StudentHomeStub {}
@@ -198,5 +199,42 @@ describe('LoginPage', () => {
     expect((el.querySelector('input[formcontrolname="email"]') as HTMLInputElement).value).toBe(
       validCredentials.email,
     );
+  });
+
+  describe('version footer', () => {
+    // 15.1 — Render inicial: el footer aparece con el copy literal y la
+    // versión leída desde environment.appVersion (no acoplamos a un string
+    // hardcoded: leemos lo que el build generó).
+    it('renderiza el footer de versión con copy literal en initial render', () => {
+      const fixture = TestBed.createComponent(LoginPage);
+      fixture.detectChanges();
+      const el = fixture.nativeElement as HTMLElement;
+      const footer = el.querySelector('.version-footer');
+      expect(footer).not.toBeNull();
+      expect(footer?.textContent?.trim()).toBe(`Lugia · versión ${environment.appVersion}`);
+    });
+
+    // 15.2 — El footer sigue visible aún con un error de form activo
+    // (ej. RateLimitError): el copy no se pierde por el banner de error.
+    it('el footer sigue visible cuando hay errorMessage por RateLimitError', async () => {
+      const fixture = TestBed.createComponent(LoginPage);
+      fixture.detectChanges();
+      setEmailAndPasswordViaDOM(fixture, validCredentials);
+      fixture.detectChanges();
+      fakeUseCase.willRejectRateLimit();
+
+      const form = fixture.nativeElement.querySelector('form') as HTMLFormElement;
+      form.dispatchEvent(new Event('submit'));
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      const el = fixture.nativeElement as HTMLElement;
+      // Confirmamos que el error sí está renderizado (precondición del test).
+      expect(el.querySelector('.error')).not.toBeNull();
+      // Y que el footer no fue desplazado/ocultado por el banner.
+      const footer = el.querySelector('.version-footer');
+      expect(footer).not.toBeNull();
+      expect(footer?.textContent?.trim()).toBe(`Lugia · versión ${environment.appVersion}`);
+    });
   });
 });

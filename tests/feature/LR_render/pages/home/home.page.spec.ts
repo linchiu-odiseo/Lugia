@@ -1,12 +1,15 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
-import { Component } from '@angular/core';
+import { Component, signal } from '@angular/core';
 import { HomePage } from '../../../../../src/LR_render/pages/home/home.page';
 import { GetIdentityUseCase } from '../../../../../src/L2_application/use-cases/get-identity.use-case';
 import { GetProfileUseCase } from '../../../../../src/L2_application/use-cases/get-profile.use-case';
 import { LogoutUseCase } from '../../../../../src/L2_application/use-cases/logout.use-case';
 import { GetTodaysExamsUseCase } from '../../../../../src/L2_application/use-cases/get-todays-exams.use-case';
+import { PwaUpdateService } from '../../../../../src/L3_periphery/pwa/pwa-update.service';
+import { PendingUpdate } from '../../../../../src/L3_periphery/pwa/pwa-update.types';
+import { environment } from '../../../../../src/environments/environment';
 import { CLOCK, MARKINGS_STORAGE } from '../../../../../src/app.config';
 import { Identity, Role } from '../../../../../src/L1_domain/entities/identity';
 import { StudentProfile } from '../../../../../src/L1_domain/value-objects/student-profile';
@@ -195,6 +198,22 @@ const buildExam = (
   });
 };
 
+// Fake del PwaUpdateService consumido por UpdateBannerComponent (que se inyecta
+// directamente desde el child component embebido en HomePage), por el modal y
+// por el HomePage. El test ajusta `pendingUpdate` (signal mutable) y observa
+// `applyUpdate` (vi.fn) en los specs del banner/modal/footer.
+class FakePwaUpdateService {
+  readonly pendingUpdate = signal<PendingUpdate>({
+    available: false,
+    fromVersion: '',
+    toVersion: '',
+  });
+  readonly applyUpdate = vi.fn().mockResolvedValue(undefined);
+  start(): void {
+    /* no-op en tests */
+  }
+}
+
 describe('HomePage', () => {
   let fakeGetIdentity: FakeGetIdentityUseCase;
   let fakeGetProfile: FakeGetProfileUseCase;
@@ -202,6 +221,7 @@ describe('HomePage', () => {
   let fakeGetTodaysExams: FakeGetTodaysExamsUseCase;
   let fakeClock: FakeClock;
   let fakeMarkings: FakeMarkingsStorage;
+  let fakePwa: FakePwaUpdateService;
 
   beforeEach(async () => {
     fakeGetIdentity = new FakeGetIdentityUseCase();
@@ -210,6 +230,7 @@ describe('HomePage', () => {
     fakeGetTodaysExams = new FakeGetTodaysExamsUseCase();
     fakeClock = new FakeClock();
     fakeMarkings = new FakeMarkingsStorage();
+    fakePwa = new FakePwaUpdateService();
     // Default sano.
     fakeGetIdentity.willReturn(buildIdentity());
     fakeGetProfile.willResolveStudent({ firstName: 'Fulano', lastName: 'Panda' });
@@ -230,6 +251,7 @@ describe('HomePage', () => {
         { provide: GetTodaysExamsUseCase, useValue: fakeGetTodaysExams },
         { provide: CLOCK, useValue: fakeClock },
         { provide: MARKINGS_STORAGE, useValue: fakeMarkings },
+        { provide: PwaUpdateService, useValue: fakePwa },
       ],
     }).compileComponents();
   });
@@ -408,6 +430,148 @@ describe('HomePage', () => {
       );
       const text = blockquote?.textContent?.trim();
       expect(INSPIRATIONAL_QUOTES).toContain(text);
+    });
+  });
+
+  describe('PWA update banner', () => {
+    // Helper: monta HomePage, espera el bootstrap async del view-model, y
+    // retorna el fixture listo para query/assert.
+    const mountHome = async () => {
+      const fixture = TestBed.createComponent(HomePage);
+      fixture.detectChanges();
+      await flushPromises();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      return fixture;
+    };
+
+    // 14.2 — banner ausente cuando no hay update.
+    it('NO renderiza el banner cuando pendingUpdate().available es false', async () => {
+      fakePwa.pendingUpdate.set({ available: false, fromVersion: '', toVersion: '' });
+      const fixture = await mountHome();
+      const el = fixture.nativeElement as HTMLElement;
+      expect(el.textContent ?? '').not.toContain('Hay una versión nueva');
+      expect(el.querySelector('.banner--update')).toBeNull();
+    });
+
+    // 14.3 — banner visible con copy exacto cuando available === true.
+    it('renderiza el banner con el copy literal cuando available es true', async () => {
+      fakePwa.pendingUpdate.set({ available: true, fromVersion: '1.0.0', toVersion: '1.1.0' });
+      const fixture = await mountHome();
+      const el = fixture.nativeElement as HTMLElement;
+      const banner = el.querySelector('.banner--update');
+      expect(banner).not.toBeNull();
+      expect(banner?.textContent).toContain('Hay una versión nueva — Toca para actualizar');
+    });
+
+    // 14.4 — tap en el banner → modal abierto con título exacto.
+    it('tap en el banner abre el modal con título "Actualizar Lugia"', async () => {
+      fakePwa.pendingUpdate.set({ available: true, fromVersion: '1.0.0', toVersion: '1.1.0' });
+      const fixture = await mountHome();
+      const el = fixture.nativeElement as HTMLElement;
+      const bannerButton = el.querySelector('.banner--update') as HTMLButtonElement;
+      bannerButton.click();
+      fixture.detectChanges();
+      // El modal se renderiza FUERA del <main> en el host del componente,
+      // así que lo buscamos en el host de la fixture.
+      const host = fixture.debugElement.nativeElement as HTMLElement;
+      const title = host.querySelector('[role="dialog"] .modal__title');
+      expect(title?.textContent).toContain('Actualizar Lugia');
+    });
+
+    // 14.5 — modal muestra versiones reales en los slots correspondientes.
+    it('el modal renderiza fromVersion y toVersion en los slots de versiones', async () => {
+      fakePwa.pendingUpdate.set({ available: true, fromVersion: '1.0.0', toVersion: '1.1.0' });
+      const fixture = await mountHome();
+      const host = fixture.debugElement.nativeElement as HTMLElement;
+      (host.querySelector('.banner--update') as HTMLButtonElement).click();
+      fixture.detectChanges();
+
+      const rows = host.querySelectorAll('[role="dialog"] .modal__version-row');
+      expect(rows.length).toBe(2);
+      // Row 0: Versión actual.
+      expect(rows[0]?.textContent).toContain('Versión actual');
+      expect(rows[0]?.textContent).toContain('1.0.0');
+      // Row 1: Versión nueva.
+      expect(rows[1]?.textContent).toContain('Versión nueva');
+      expect(rows[1]?.textContent).toContain('1.1.0');
+    });
+
+    // 14.6 — fallback em-dash en fromVersion.
+    it('el modal renderiza el em-dash cuando fromVersion es "—"', async () => {
+      fakePwa.pendingUpdate.set({ available: true, fromVersion: '—', toVersion: '1.1.0' });
+      const fixture = await mountHome();
+      const host = fixture.debugElement.nativeElement as HTMLElement;
+      (host.querySelector('.banner--update') as HTMLButtonElement).click();
+      fixture.detectChanges();
+
+      const rows = host.querySelectorAll('[role="dialog"] .modal__version-row');
+      expect(rows[0]?.textContent).toContain('—');
+      expect(rows[1]?.textContent).toContain('1.1.0');
+    });
+
+    // 14.7 — click en Cancelar cierra el modal, banner sigue visible.
+    it('click en Cancelar cierra el modal y el banner sigue visible', async () => {
+      fakePwa.pendingUpdate.set({ available: true, fromVersion: '1.0.0', toVersion: '1.1.0' });
+      const fixture = await mountHome();
+      const host = fixture.debugElement.nativeElement as HTMLElement;
+      (host.querySelector('.banner--update') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      expect(host.querySelector('[role="dialog"]')).not.toBeNull();
+
+      // El botón Cancelar es el .modal__btn--ghost.
+      const cancelBtn = host.querySelector(
+        '[role="dialog"] .modal__btn--ghost',
+      ) as HTMLButtonElement;
+      cancelBtn.click();
+      fixture.detectChanges();
+
+      expect(host.querySelector('[role="dialog"]')).toBeNull();
+      // El banner sigue ahí (no se invocó applyUpdate, available sigue true).
+      expect(host.querySelector('.banner--update')).not.toBeNull();
+      expect(fakePwa.applyUpdate).not.toHaveBeenCalled();
+    });
+
+    // 14.8 — click en Actualizar invoca pwaService.applyUpdate.
+    it('click en Actualizar invoca pwaService.applyUpdate exactamente una vez', async () => {
+      fakePwa.pendingUpdate.set({ available: true, fromVersion: '1.0.0', toVersion: '1.1.0' });
+      const fixture = await mountHome();
+      const host = fixture.debugElement.nativeElement as HTMLElement;
+      (host.querySelector('.banner--update') as HTMLButtonElement).click();
+      fixture.detectChanges();
+
+      const confirmBtn = host.querySelector(
+        '[role="dialog"] .modal__btn--primary',
+      ) as HTMLButtonElement;
+      confirmBtn.click();
+      await flushPromises();
+
+      expect(fakePwa.applyUpdate).toHaveBeenCalledTimes(1);
+    });
+
+    // 14.9 — copy del modal NO contiene lenguaje de pérdida de datos. Critical.
+    it('el textContent del modal NO contiene lenguaje de borrado/pérdida de marcaciones', async () => {
+      fakePwa.pendingUpdate.set({ available: true, fromVersion: '1.0.0', toVersion: '1.1.0' });
+      const fixture = await mountHome();
+      const host = fixture.debugElement.nativeElement as HTMLElement;
+      (host.querySelector('.banner--update') as HTMLButtonElement).click();
+      fixture.detectChanges();
+
+      const dialog = host.querySelector('[role="dialog"]');
+      expect(dialog).not.toBeNull();
+      const text = dialog?.textContent ?? '';
+      // Regex case-insensitive cubriendo singular/plural y variantes con/sin tilde.
+      const forbidden = /se borrar[áa]n|vas a perder|se eliminar[áa]n|se borran|se pierden|se eliminan/i;
+      expect(forbidden.test(text)).toBe(false);
+    });
+
+    // 14.10 — version-footer presente con el copy literal "Lugia · versión X.Y.Z".
+    it('renderiza el footer de versión con copy literal "Lugia · versión {appVersion}"', async () => {
+      const fixture = await mountHome();
+      const el = fixture.nativeElement as HTMLElement;
+      const footer = el.querySelector('.version-footer');
+      expect(footer).not.toBeNull();
+      expect(footer?.textContent?.trim()).toBe(`Lugia · versión ${environment.appVersion}`);
     });
   });
 });
