@@ -148,6 +148,18 @@ Los view-models exponen Signals, no Observables. El template lee `viewModel.isSu
 - Cobertura objetivo: L1 ≥ 90%, L2 ≥ 80%, LR ≥ 60%.
 - **NUNCA** matchear sobre strings de error HTTP del backend — clasificar por `(status, endpoint)`. Ver `agents/api-contract.md`.
 
+## Tech debt aceptado
+
+### Inyección de `appData.version` en `ngsw.json` post-build (change `pwa-auto-update`)
+
+`scripts/build-env.mjs` muta `dist/**/browser/ngsw.json` post-`ng build` para inyectar `appData: { version: APP_VERSION }`. Esto permite que `SwUpdate.versionUpdates` exponga la versión SemVer humana al cliente (modal de actualización).
+
+**¿Por qué workaround?** `ngsw-config.json` no soporta variables de entorno. La alternativa "oficial" sería hardcodear `appData` en `ngsw-config.json`, pero eso obliga a editar dos archivos en cada release (`.env` + `ngsw-config.json`), y el segundo termina olvidado.
+
+**Riesgo:** si Angular cambia el shape de `ngsw.json` en una versión mayor, el script falla en build. Mitigación: el servicio `PwaUpdateService` tiene fallback (`VERSION_FALLBACK = '—'`) si `appData.version` falta, así que el cliente no se rompe en producción aunque el script tenga un bug.
+
+**Cuándo retirarlo:** cuando Angular ofrezca lectura nativa de envs en `ngsw-config.json`, o cuando montemos CI/CD con un step de bump automático que reemplace este mecanismo manual.
+
 ## Checklist antes de un PR
 
 - [ ] `npm run lint` pasa limpio (0 errores, 0 warnings).

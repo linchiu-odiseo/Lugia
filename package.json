@@ -9,7 +9,7 @@
     "predev": "npm run build-env",
     "dev": "ng serve",
     "prebuild": "npm run build-env",
-    "build": "ng build",
+    "build": "ng build && node scripts/inject-ngsw-appdata.mjs",
     "watch": "ng build --watch --configuration development",
     "pretest": "npm run build-env",
     "test": "ng test",

@@ -49,7 +49,7 @@ try {
   throw err;
 }
 
-const required = ['API_BASE_URL', 'TENANT_SLUG'];
+const required = ['API_BASE_URL', 'TENANT_SLUG', 'APP_VERSION'];
 const missing = required.filter((k) => !env[k] || env[k].startsWith('<'));
 if (missing.length) {
   console.error(`✘ Faltan o quedan placeholders en .env: ${missing.join(', ')}`);
@@ -67,6 +67,7 @@ const banner =
 const sq = (s) => `'${String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
 const apiBaseUrl = sq(env.API_BASE_URL);
 const tenantSlug = sq(env.TENANT_SLUG);
+const appVersion = sq(env.APP_VERSION);
 
 writeFileSync(
   resolve(envDir, 'environment.ts'),
@@ -74,6 +75,7 @@ writeFileSync(
     `  production: false,\n` +
     `  apiBaseUrl: ${apiBaseUrl},\n` +
     `  tenantSlug: ${tenantSlug},\n` +
+    `  appVersion: ${appVersion},\n` +
     `};\n`,
 );
 
@@ -83,10 +85,16 @@ writeFileSync(
     `  production: true,\n` +
     `  apiBaseUrl: ${apiBaseUrl},\n` +
     `  tenantSlug: ${tenantSlug},\n` +
+    `  appVersion: ${appVersion},\n` +
     `};\n`,
 );
 
 console.log(`✓ Generated src/environments/environment{,.production}.ts from .env`);
+
+// Nota: la inyección de `appData.version` en `ngsw.json` se hace en
+// `scripts/inject-ngsw-appdata.mjs`, ejecutado por el hook `postbuild` de
+// package.json. NO se hace acá porque `ng build` regenera `ngsw.json` desde
+// cero y descartaría la mutación.
 
 // --- Sincronizar CSP del index.html con API_BASE_URL ---
 //
