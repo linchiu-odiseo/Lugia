@@ -1,10 +1,11 @@
 import { Component, inject } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { VersionFooterComponent } from '../../components/version-footer/version-footer.component';
 import { LoginViewModel } from '../../view-models/login.view-model';
 
 @Component({
   selector: 'app-login-page',
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, VersionFooterComponent],
   templateUrl: './login.page.html',
   styleUrl: './login.page.scss',
   providers: [LoginViewModel],

@@ -42,6 +42,8 @@
     </header>
   }
 
+  <app-update-banner (tap)="onBannerTap()" />
+
   @if (vm.offlineStorageBlocked()) {
     <div class="banner banner--blocking" role="alert">
       Tu navegador no soporta marcaciones offline. No podrás entrar a simulacros.
@@ -121,4 +123,15 @@
       }
     </button>
   </footer>
+
+  <app-version-footer />
 </main>
+
+@if (showConfirmModal()) {
+  <app-update-confirm-modal
+    [fromVersion]="pwa.pendingUpdate().fromVersion"
+    [toVersion]="pwa.pendingUpdate().toVersion"
+    (dismiss)="onModalCancel()"
+    (accept)="onModalConfirm()"
+  />
+}
