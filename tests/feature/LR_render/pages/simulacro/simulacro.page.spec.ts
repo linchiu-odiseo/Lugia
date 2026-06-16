@@ -522,11 +522,12 @@ describe('SimulacroPage', () => {
     });
   });
 
-  describe('banner "Examen no iniciado"', () => {
-    it('aparece cuando started cae en el futuro con copy "Empieza a las HH:MM"', async () => {
+  describe('banner "tomando un café" y botón Enviar', () => {
+    it('aparece el banner con la copy completa cuando started cae en el futuro', async () => {
       fakeClock.setNow(new Date('2026-06-11T10:00:00Z'));
-      const started = new Date('2026-06-11T11:30:00Z');
-      const exam = buildExam('exam-1', 'in_progress', { started });
+      const exam = buildExam('exam-1', 'in_progress', {
+        started: new Date('2026-06-11T11:30:00Z'),
+      });
       fakeGetTodaysExams.willResolve([exam]);
       await configureTestBed('exam-1');
 
@@ -539,14 +540,12 @@ describe('SimulacroPage', () => {
       const el = fixture.nativeElement as HTMLElement;
       const banner = el.querySelector('.not-started-banner');
       expect(banner).not.toBeNull();
-      const title = banner!.querySelector('.not-started-banner__title')?.textContent ?? '';
-      const detail = banner!.querySelector('.not-started-banner__detail')?.textContent ?? '';
-      expect(title).toContain('Examen no iniciado');
-      const expectedHHMM = `${String(started.getHours()).padStart(2, '0')}:${String(started.getMinutes()).padStart(2, '0')}`;
-      expect(detail).toContain(`Empieza a las ${expectedHHMM}`);
+      const msg = banner!.querySelector('.not-started-banner__msg')?.textContent ?? '';
+      expect(msg).toContain('El examen está tomando un café');
+      expect(msg).toContain('¡espera la señal para empezar!');
     });
 
-    it('NO aparece cuando started ya pasó', async () => {
+    it('NO aparece el banner cuando started ya pasó', async () => {
       fakeClock.setNow(new Date('2026-06-11T11:00:00Z'));
       const exam = buildExam('exam-1', 'in_progress', {
         started: new Date('2026-06-11T10:00:00Z'),
@@ -582,6 +581,46 @@ describe('SimulacroPage', () => {
       const el = fixture.nativeElement as HTMLElement;
       expect(el.querySelector('.not-started-banner')).not.toBeNull();
       expect(el.querySelectorAll('.fila').length).toBe(3);
+    });
+
+    it('el botón Enviar queda DISABLED mientras el examen no esté vigente', async () => {
+      fakeClock.setNow(new Date('2026-06-11T10:00:00Z'));
+      const exam = buildExam('exam-1', 'in_progress', {
+        started: new Date('2026-06-11T11:00:00Z'),
+      });
+      fakeGetTodaysExams.willResolve([exam]);
+      await configureTestBed('exam-1');
+
+      const fixture = TestBed.createComponent(SimulacroPage);
+      fixture.detectChanges();
+      await flushPromises();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      const el = fixture.nativeElement as HTMLElement;
+      const enviarBtn = el.querySelector('.btn--primary') as HTMLButtonElement;
+      expect(enviarBtn).not.toBeNull();
+      expect(enviarBtn.disabled).toBe(true);
+      expect(enviarBtn.getAttribute('aria-disabled')).toBe('true');
+    });
+
+    it('el botón Enviar está ENABLED cuando el examen sí está vigente', async () => {
+      fakeClock.setNow(new Date('2026-06-11T11:00:00Z'));
+      const exam = buildExam('exam-1', 'in_progress', {
+        started: new Date('2026-06-11T10:00:00Z'),
+      });
+      fakeGetTodaysExams.willResolve([exam]);
+      await configureTestBed('exam-1');
+
+      const fixture = TestBed.createComponent(SimulacroPage);
+      fixture.detectChanges();
+      await flushPromises();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      const el = fixture.nativeElement as HTMLElement;
+      const enviarBtn = el.querySelector('.btn--primary') as HTMLButtonElement;
+      expect(enviarBtn.disabled).toBe(false);
     });
   });
 });

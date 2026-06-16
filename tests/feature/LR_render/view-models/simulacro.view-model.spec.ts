@@ -819,22 +819,6 @@ describe('SimulacroPageViewModel', () => {
       vm.stop();
     });
 
-    it('inicioHHMM formatea started cuando está seteado', async () => {
-      fakeClock.setNow(new Date('2026-06-11T10:00:00Z'));
-      const exam = buildExam('exam-1', 'in_progress', {
-        started: new Date('2026-06-11T11:30:00Z'),
-      });
-      fakeGetTodaysExams.willResolve([exam]);
-      const vm = createVm();
-      await vm.start('exam-1');
-
-      // formatHHMM en hora local del runner — comparamos contra el started
-      // formateado con el mismo getHours/getMinutes.
-      const s = new Date('2026-06-11T11:30:00Z');
-      const expected = `${String(s.getHours()).padStart(2, '0')}:${String(s.getMinutes()).padStart(2, '0')}`;
-      expect(vm.inicioHHMM()).toBe(expected);
-      vm.stop();
-    });
   });
 
   describe('cierreHHMM y countdownRestante usan effectiveCloseAt', () => {

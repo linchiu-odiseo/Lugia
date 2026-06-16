@@ -13,15 +13,9 @@
 
     @if (vm.examenNoIniciado()) {
       <div class="not-started-banner" role="status" aria-live="polite">
-        <span class="material-symbols-outlined not-started-banner__icon" aria-hidden="true">
-          schedule
-        </span>
-        <div class="not-started-banner__copy">
-          <p class="not-started-banner__title">Examen no iniciado</p>
-          <p class="not-started-banner__detail">
-            Empieza a las {{ vm.inicioHHMM() }}. Puedes marcar y se guardará localmente.
-          </p>
-        </div>
+        <p class="not-started-banner__msg">
+          ☕ El examen está tomando un café, ¡espera la señal para empezar!
+        </p>
       </div>
     }
 
@@ -81,8 +75,12 @@
       <button
         type="button"
         class="btn btn--primary"
-        [disabled]="vm.isSubmitting() || vm.submissionState() === 'queued'"
-        [attr.aria-disabled]="vm.isSubmitting() || vm.submissionState() === 'queued'"
+        [disabled]="
+          vm.isSubmitting() || vm.submissionState() === 'queued' || vm.examenNoIniciado()
+        "
+        [attr.aria-disabled]="
+          vm.isSubmitting() || vm.submissionState() === 'queued' || vm.examenNoIniciado()
+        "
         (click)="onEnviarClick()"
       >
         @if (vm.isSubmitting()) {

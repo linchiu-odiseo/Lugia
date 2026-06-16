@@ -132,23 +132,16 @@ export class SimulacroPageViewModel {
     return formatHHMM(e.effectiveCloseAt());
   });
 
-  // True cuando el reloj cliente aún no cruzó `started`. El banner
-  // "Examen no iniciado" en la página depende de este signal.
+  // True cuando el reloj cliente aún no cruzó `started`. La página usa
+  // este signal para mostrar el banner "tomando un café" y para
+  // deshabilitar el botón Enviar — el examen es entrable (status =
+  // in_progress) pero no vigente todavía.
   // `Exam.hasStartedBy(now)` devuelve false también cuando `started === null`,
-  // pero ese caso no llega acá: `start()` filtra exámenes que no permiten
-  // entrada y `scheduled` → no entrable.
+  // caso defensivo: si llegara así, banner aparece y Enviar queda gris.
   readonly examenNoIniciado: Signal<boolean> = computed(() => {
     const e = this.exam();
     if (e === null) return false;
     return !e.hasStartedBy(this.nowTick());
-  });
-
-  // Hora de inicio formateada para el banner "Empieza a las HH:MM".
-  // Cuando `started` es null cae a `scheduled` como mejor aproximación.
-  readonly inicioHHMM: Signal<string> = computed(() => {
-    const e = this.exam();
-    if (e === null) return '';
-    return formatHHMM(e.started ?? e.scheduled);
   });
 
   private countdownTimer: ReturnType<typeof setInterval> | null = null;
