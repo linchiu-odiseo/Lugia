@@ -47,6 +47,7 @@ import { ServerAnchoredClock } from './L3_periphery/clock/server-anchored-clock'
 import { BrowserConnectivity } from './L3_periphery/connectivity/browser-connectivity';
 import { EnvioRetryDispatcher } from './L3_periphery/envio/envio-retry-dispatcher.service';
 import { credentialsInterceptor } from './L3_periphery/interceptors/credentials.interceptor';
+import { PwaUpdateService } from './L3_periphery/pwa/pwa-update.service';
 import { IDENTITY_STORAGE, PROFILE_STORAGE, OUTBOX_STORAGE } from './L3_periphery/tokens';
 
 // Tokens DI para ports de Fase 2 que aún no migraron a src/L3_periphery/tokens.ts.
@@ -184,6 +185,13 @@ export const appConfig: ApplicationConfig = {
     // Connectivity para reintentar la cola cuando vuelve la red.
     provideAppInitializer(() => {
       inject(EnvioRetryDispatcher).start();
+    }),
+
+    // PwaUpdateService: arranca suscripción a SwUpdate.versionUpdates y
+    // listener visibilitychange. Es sync (no devuelve Promise), no bloquea
+    // boot. En dev mode el servicio detecta isEnabled=false y no-op.
+    provideAppInitializer(() => {
+      inject(PwaUpdateService).start();
     }),
   ],
 };
