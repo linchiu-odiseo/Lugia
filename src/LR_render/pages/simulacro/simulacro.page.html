@@ -5,10 +5,12 @@
         <p class="header__area">{{ e.course ?? e.area ?? '—' }}</p>
         <h1 class="header__name">{{ e.name }}</h1>
       </div>
-      <div class="header__countdown" role="timer" aria-live="polite">
-        <span class="header__cierre">Cierra a las {{ vm.cierreHHMM() }}</span>
-        <span class="header__restante">{{ vm.countdownRestante() }}</span>
-      </div>
+      @if (!vm.examenNoIniciado()) {
+        <div class="header__countdown" role="timer" aria-live="polite">
+          <span class="header__cierre">Cierra a las {{ vm.cierreHHMM() }}</span>
+          <span class="header__restante">{{ vm.countdownRestante() }}</span>
+        </div>
+      }
     </header>
 
     @if (vm.examenNoIniciado()) {

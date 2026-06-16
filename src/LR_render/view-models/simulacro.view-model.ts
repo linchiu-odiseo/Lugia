@@ -109,27 +109,30 @@ export class SimulacroPageViewModel {
 
   // Countdown formateado para el header. Recomputa cada segundo (al cambiar
   // nowTick) y cuando se setea/cambia el examen. Cuenta hasta el cierre
-  // efectivo (`effectiveCloseAt`) usando `started` como referencia mínima:
-  // si el examen aún no inició (`now < started`), mostramos el restante
-  // completo hasta el cierre — la alerta `examenNoIniciado` clarifica que
-  // el reloj todavía no arrancó.
+  // efectivo (`effectiveCloseAt`) usando `started` como referencia mínima.
+  // Cuando `effectiveCloseAt` es null (examen aún no activado por el tutor),
+  // retorna vacío — el banner "tomando un café" comunica el estado.
   readonly countdownRestante: Signal<string> = computed(() => {
     const e = this.exam();
     if (e === null) return '';
-    const closeAtMs = e.effectiveCloseAt().getTime();
+    const closeAt = e.effectiveCloseAt();
+    if (closeAt === null) return '';
     const anchor = e.started ?? e.scheduled;
     const referenceNow = Math.max(this.nowTick().getTime(), anchor.getTime());
-    const remainingMs = Math.max(0, closeAtMs - referenceNow);
+    const remainingMs = Math.max(0, closeAt.getTime() - referenceNow);
     return formatRestante(remainingMs);
   });
 
   // Hora de cierre efectivo como "HH:MM" para mostrar junto al countdown.
   // Lo decide el dominio (`Exam.effectiveCloseAt()`): `finished` si learnex
-  // ya lo emitió, sino `started + duration`.
+  // ya lo emitió, sino `started + duration`. Vacío cuando aún no es
+  // determinable (examen no activado).
   readonly cierreHHMM: Signal<string> = computed(() => {
     const e = this.exam();
     if (e === null) return '';
-    return formatHHMM(e.effectiveCloseAt());
+    const closeAt = e.effectiveCloseAt();
+    if (closeAt === null) return '';
+    return formatHHMM(closeAt);
   });
 
   // True cuando el reloj cliente aún no cruzó `started`. La página usa
@@ -505,7 +508,10 @@ export class SimulacroPageViewModel {
   private maybeRedirectIfExpired(now: Date): void {
     const e = this.exam();
     if (e === null) return;
-    if (now.getTime() < e.effectiveCloseAt().getTime()) return;
+    const closeAt = e.effectiveCloseAt();
+    // Examen aún no activado: no hay cierre determinable, nada que expirar.
+    if (closeAt === null) return;
+    if (now.getTime() < closeAt.getTime()) return;
     if (this.errorState() !== null) return;
     if (this.autoEnvioHandle !== null) return;
     if (this.isSubmitting()) return;

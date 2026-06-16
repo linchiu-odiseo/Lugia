@@ -351,6 +351,10 @@ export class HomePageViewModel {
         return '';
       case 'abierto': {
         const closeDate = exam.effectiveCloseAt();
+        // Examen aún no activado por el tutor (started y finished null):
+        // no hay cierre determinable. Mostramos vacío para no fingir un
+        // countdown — el banner "tomando un café" aparece al entrar.
+        if (closeDate === null) return '';
         // Si `started` cae en el futuro (reloj cliente atrasado o `started`
         // configurado a futuro), `closeAt - now` infla el restante por
         // encima de la duración real. Usamos `started` como referencia
@@ -369,7 +373,9 @@ export class HomePageViewModel {
       case 'enviado': {
         // Hora de cierre como mejor aproximación visible del momento de envío.
         // El DTO de learnex aún no expone `enviadoEn`; cuando lo haga, cambiar.
-        return `Enviado a las ${formatHHMM(exam.effectiveCloseAt())}`;
+        const closeDate = exam.effectiveCloseAt();
+        if (closeDate === null) return 'Enviado';
+        return `Enviado a las ${formatHHMM(closeDate)}`;
       }
       case 'cerrado':
         return 'No enviaste · cerrado';

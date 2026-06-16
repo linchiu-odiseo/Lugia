@@ -211,6 +211,10 @@ describe('SimulacroPage', () => {
 
   describe('render — exam in_progress', () => {
     it('muestra el name del exam, el countdown y count filas con 5 bubbles cada una', async () => {
+      // Examen ya vigente: started en el pasado relativo al clock fake.
+      // Necesario para que el countdown esté visible (se oculta cuando
+      // examenNoIniciado === true).
+      fakeClock.setNow(new Date('2026-06-11T10:05:00Z'));
       const exam = buildExam('exam-1', 'in_progress', {
         count: 4,
         name: 'Examen Demo',
@@ -543,6 +547,33 @@ describe('SimulacroPage', () => {
       const msg = banner!.querySelector('.not-started-banner__msg')?.textContent ?? '';
       expect(msg).toContain('El examen está tomando un café');
       expect(msg).toContain('¡espera la señal para empezar!');
+      // El countdown debe estar OCULTO mientras el banner está visible:
+      // no tiene sentido mostrar "Cierra a las ..." cuando el examen aún
+      // no arrancó y el cierre no es determinable.
+      expect(el.querySelector('[role="timer"]')).toBeNull();
+    });
+
+    it('aparece el banner cuando started y finished son null (examen no activado)', async () => {
+      fakeClock.setNow(new Date('2026-06-11T10:00:00Z'));
+      const exam = buildExam('exam-1', 'in_progress', {
+        started: null,
+      });
+      fakeGetTodaysExams.willResolve([exam]);
+      await configureTestBed('exam-1');
+
+      const fixture = TestBed.createComponent(SimulacroPage);
+      fixture.detectChanges();
+      await flushPromises();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      const el = fixture.nativeElement as HTMLElement;
+      expect(el.querySelector('.not-started-banner')).not.toBeNull();
+      // Sin started ni finished, no hay cierre determinable: el countdown
+      // queda oculto en lugar de mostrar "cerrando…" o un timestamp viejo.
+      expect(el.querySelector('[role="timer"]')).toBeNull();
+      // El alumno NO es expulsado al home: la grilla queda visible.
+      expect(el.querySelectorAll('.fila').length).toBeGreaterThan(0);
     });
 
     it('NO aparece el banner cuando started ya pasó', async () => {
