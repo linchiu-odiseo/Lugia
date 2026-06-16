@@ -277,4 +277,92 @@ describe('Exam', () => {
       ).toThrow(InvalidExamError);
     });
   });
+
+  describe('effectiveCloseAt()', () => {
+    it('devuelve `finished` cuando está seteado (manda sobre duration)', () => {
+      const finished = new Date('2026-06-11T11:30:00Z');
+      const e = new Exam({
+        ...validParams,
+        serverStatus: new ExamServerStatus('finalized'),
+        started: validStarted,
+        finished,
+        duration: 3600, // started + duration = 11:00:05; finished < esto (cierre manual antes)
+      });
+      expect(e.effectiveCloseAt()).toEqual(finished);
+    });
+
+    it('respeta `finished` aunque sea posterior a started+duration (tiempo extra)', () => {
+      const finishedConTiempoExtra = new Date('2026-06-11T13:00:00Z');
+      const e = new Exam({
+        ...validParams,
+        serverStatus: new ExamServerStatus('finalized'),
+        started: validStarted,
+        finished: finishedConTiempoExtra,
+        duration: 300, // started + duration = 10:05:05; finished > esto (tiempo extra)
+      });
+      expect(e.effectiveCloseAt()).toEqual(finishedConTiempoExtra);
+    });
+
+    it('cae a started + duration cuando finished === null', () => {
+      const e = new Exam({
+        ...validParams,
+        serverStatus: new ExamServerStatus('in_progress'),
+        started: new Date('2026-06-11T10:00:00Z'),
+        finished: null,
+        duration: 1800, // 30 min
+      });
+      expect(e.effectiveCloseAt()).toEqual(new Date('2026-06-11T10:30:00Z'));
+    });
+
+    it('cae a scheduled + duration cuando started y finished son null', () => {
+      const e = new Exam({
+        ...validParams,
+        scheduled: new Date('2026-06-11T09:00:00Z'),
+        started: null,
+        finished: null,
+        duration: 600, // 10 min
+      });
+      expect(e.effectiveCloseAt()).toEqual(new Date('2026-06-11T09:10:00Z'));
+    });
+
+    it('factor ×1000 (segundos a ms), NO ×60000', () => {
+      const e = new Exam({
+        ...validParams,
+        started: new Date('2026-06-11T10:00:00Z'),
+        finished: null,
+        duration: 60, // 60 segundos = 1 min
+      });
+      // started + 60_000 ms = 10:01:00, NO 11:00:00
+      expect(e.effectiveCloseAt()).toEqual(new Date('2026-06-11T10:01:00Z'));
+    });
+  });
+
+  describe('hasStartedBy(now)', () => {
+    it('true cuando now ≥ started', () => {
+      const e = new Exam({
+        ...validParams,
+        serverStatus: new ExamServerStatus('in_progress'),
+        started: new Date('2026-06-11T10:00:00Z'),
+      });
+      expect(e.hasStartedBy(new Date('2026-06-11T10:00:00Z'))).toBe(true);
+      expect(e.hasStartedBy(new Date('2026-06-11T10:00:01Z'))).toBe(true);
+    });
+
+    it('false cuando now < started (started en el futuro relativo a now)', () => {
+      const e = new Exam({
+        ...validParams,
+        serverStatus: new ExamServerStatus('in_progress'),
+        started: new Date('2026-06-11T11:00:00Z'),
+      });
+      expect(e.hasStartedBy(new Date('2026-06-11T10:00:00Z'))).toBe(false);
+    });
+
+    it('false cuando started === null (todavía esperando al tutor)', () => {
+      const e = new Exam({
+        ...validParams,
+        started: null,
+      });
+      expect(e.hasStartedBy(new Date('2026-06-11T10:00:00Z'))).toBe(false);
+    });
+  });
 });

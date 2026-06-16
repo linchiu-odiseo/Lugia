@@ -5,9 +5,9 @@ import { EnviarSimulacroOutput, EnviarSimulacroUseCase } from './enviar-simulacr
 // Jitter máximo en ms a sumar/restar del `setTimeout` para evitar
 // thundering herd cuando 20k alumnos auto-envían al mismo segundo.
 // El `clientSubmittedAt` que se envía al backend SIEMPRE es exactamente
-// el cierre de ventana (started + duration*1000, o scheduled+duration*1000
-// como fallback), NO el momento en que el timer dispara — así dos disparos
-// a 9:00:02 vs 9:00:00 quedan ambos registrados como envío a las 9:00:00.
+// `exam.effectiveCloseAt()`, NO el momento en que el timer dispara — así
+// dos disparos a 9:00:02 vs 9:00:00 quedan ambos registrados como envío
+// a las 9:00:00.
 const JITTER_MAX_MS = 3000;
 
 export interface ProgramarAutoEnvioInput {
@@ -21,11 +21,11 @@ export interface AutoEnvioHandle {
 }
 
 // Programa el envío automático del examen para cuando el reloj
-// server-anchored cruce el cierre de la ventana. El caller (view-model)
-// cancela el handle si el alumno envía manualmente antes.
+// server-anchored cruce el cierre efectivo de la ventana. El caller
+// (view-model) cancela el handle si el alumno envía manualmente antes.
 //
-// Cálculo del cierre: `(started ?? scheduled).getTime() + duration * 1000`.
-// El factor es ×1000 porque `duration` viene de learnex en SEGUNDOS.
+// El cierre lo decide el dominio (`Exam.effectiveCloseAt()`): prioriza
+// `finished` si el back ya emitió cierre, sino cae a `started + duration`.
 export class ProgramarAutoEnvioUseCase {
   constructor(
     private readonly enviar: EnviarSimulacroUseCase,
@@ -34,9 +34,8 @@ export class ProgramarAutoEnvioUseCase {
 
   execute(input: ProgramarAutoEnvioInput): AutoEnvioHandle {
     const ahoraMs = this.clock.now().getTime();
-    const anchor = input.exam.started ?? input.exam.scheduled;
-    const finMs = anchor.getTime() + input.exam.duration * 1000;
-    const finDate = new Date(finMs);
+    const finDate = input.exam.effectiveCloseAt();
+    const finMs = finDate.getTime();
     const jitter = (Math.random() * 2 - 1) * JITTER_MAX_MS;
     const delay = Math.max(0, finMs - ahoraMs + jitter);
 

@@ -90,4 +90,35 @@ export class Exam {
     this.started = params.started;
     this.finished = params.finished;
   }
+
+  // Cierre efectivo de la vigencia. Prioridad:
+  //   1. `finished` (cierre real ya emitido por learnex — manual del tutor
+  //      o automático al cumplirse duration). Manda siempre que esté seteado:
+  //      el back puede cerrarlo antes (manual) o con tiempo extra (después
+  //      de started + duration). Sea cual sea el caso, la verdad es `finished`.
+  //   2. `started + duration` (cierre automático esperado si nadie cierra
+  //      antes). Solo cuando `finished` aún no fue emitido.
+  //   3. `scheduled + duration` (fallback): cuando el examen aún no fue
+  //      activado por el tutor (`started === null`). Se usa para preview en
+  //      cards `pendientes` que necesitan estimar una hora de cierre.
+  //
+  // Factor ×1000 porque `duration` viene de learnex en SEGUNDOS.
+  effectiveCloseAt(): Date {
+    if (this.finished !== null) return this.finished;
+    const anchor = this.started ?? this.scheduled;
+    return new Date(anchor.getTime() + this.duration * 1000);
+  }
+
+  // Si la vigencia ya arrancó para el momento `now`. La puerta de entrada
+  // del alumno está controlada por `serverStatus.permiteEntrada()`, pero
+  // un examen `in_progress` con `started` aún en el futuro (caso límite:
+  // tutor configuró arranque programado, o el reloj cliente está
+  // desfasado) NO es vigente todavía. El view-model usa este predicado
+  // para mostrar alerta "Examen no iniciado" sin bloquear la entrada.
+  // Si `started === null` retorna false: no hay vigencia hasta que el
+  // tutor active.
+  hasStartedBy(now: Date): boolean {
+    if (this.started === null) return false;
+    return now.getTime() >= this.started.getTime();
+  }
 }
