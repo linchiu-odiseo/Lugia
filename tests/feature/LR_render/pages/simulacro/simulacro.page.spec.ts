@@ -521,4 +521,67 @@ describe('SimulacroPage', () => {
       }
     });
   });
+
+  describe('banner "Examen no iniciado"', () => {
+    it('aparece cuando started cae en el futuro con copy "Empieza a las HH:MM"', async () => {
+      fakeClock.setNow(new Date('2026-06-11T10:00:00Z'));
+      const started = new Date('2026-06-11T11:30:00Z');
+      const exam = buildExam('exam-1', 'in_progress', { started });
+      fakeGetTodaysExams.willResolve([exam]);
+      await configureTestBed('exam-1');
+
+      const fixture = TestBed.createComponent(SimulacroPage);
+      fixture.detectChanges();
+      await flushPromises();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      const el = fixture.nativeElement as HTMLElement;
+      const banner = el.querySelector('.not-started-banner');
+      expect(banner).not.toBeNull();
+      const title = banner!.querySelector('.not-started-banner__title')?.textContent ?? '';
+      const detail = banner!.querySelector('.not-started-banner__detail')?.textContent ?? '';
+      expect(title).toContain('Examen no iniciado');
+      const expectedHHMM = `${String(started.getHours()).padStart(2, '0')}:${String(started.getMinutes()).padStart(2, '0')}`;
+      expect(detail).toContain(`Empieza a las ${expectedHHMM}`);
+    });
+
+    it('NO aparece cuando started ya pasó', async () => {
+      fakeClock.setNow(new Date('2026-06-11T11:00:00Z'));
+      const exam = buildExam('exam-1', 'in_progress', {
+        started: new Date('2026-06-11T10:00:00Z'),
+      });
+      fakeGetTodaysExams.willResolve([exam]);
+      await configureTestBed('exam-1');
+
+      const fixture = TestBed.createComponent(SimulacroPage);
+      fixture.detectChanges();
+      await flushPromises();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      const el = fixture.nativeElement as HTMLElement;
+      expect(el.querySelector('.not-started-banner')).toBeNull();
+    });
+
+    it('la grilla queda accesible aunque el banner esté visible', async () => {
+      fakeClock.setNow(new Date('2026-06-11T10:00:00Z'));
+      const exam = buildExam('exam-1', 'in_progress', {
+        started: new Date('2026-06-11T11:00:00Z'),
+        count: 3,
+      });
+      fakeGetTodaysExams.willResolve([exam]);
+      await configureTestBed('exam-1');
+
+      const fixture = TestBed.createComponent(SimulacroPage);
+      fixture.detectChanges();
+      await flushPromises();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      const el = fixture.nativeElement as HTMLElement;
+      expect(el.querySelector('.not-started-banner')).not.toBeNull();
+      expect(el.querySelectorAll('.fila').length).toBe(3);
+    });
+  });
 });

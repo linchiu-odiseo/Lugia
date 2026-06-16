@@ -11,6 +11,20 @@
       </div>
     </header>
 
+    @if (vm.examenNoIniciado()) {
+      <div class="not-started-banner" role="status" aria-live="polite">
+        <span class="material-symbols-outlined not-started-banner__icon" aria-hidden="true">
+          schedule
+        </span>
+        <div class="not-started-banner__copy">
+          <p class="not-started-banner__title">Examen no iniciado</p>
+          <p class="not-started-banner__detail">
+            Empieza a las {{ vm.inicioHHMM() }}. Puedes marcar y se guardará localmente.
+          </p>
+        </div>
+      </div>
+    }
+
     <section class="grilla" aria-label="Cartilla de marcaciones">
       @for (pregunta of vm.preguntas(); track pregunta) {
         <div

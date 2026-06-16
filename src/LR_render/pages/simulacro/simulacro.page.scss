@@ -228,6 +228,45 @@
   padding-top: var(--space-xl);
 }
 
+.not-started-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.75rem 0.9rem;
+  margin-top: var(--space-md);
+  border-radius: var(--radius);
+  background: var(--color-warning-container);
+  border: 1px solid var(--color-warning);
+  color: var(--color-on-warning-container);
+
+  &__icon {
+    color: var(--color-warning);
+    font-size: 1.4rem;
+    line-height: 1;
+  }
+
+  &__copy {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    min-width: 0;
+  }
+
+  &__title {
+    margin: 0;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--color-on-warning-container);
+  }
+
+  &__detail {
+    margin: 0;
+    font-size: 0.8rem;
+    color: var(--color-on-warning-container);
+    line-height: 1.3;
+  }
+}
+
 .queued-banner {
   display: flex;
   align-items: center;

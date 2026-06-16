@@ -108,28 +108,47 @@ export class SimulacroPageViewModel {
   });
 
   // Countdown formateado para el header. Recomputa cada segundo (al cambiar
-  // nowTick) y cuando se setea/cambia el examen.
+  // nowTick) y cuando se setea/cambia el examen. Cuenta hasta el cierre
+  // efectivo (`effectiveCloseAt`) usando `started` como referencia mínima:
+  // si el examen aún no inició (`now < started`), mostramos el restante
+  // completo hasta el cierre — la alerta `examenNoIniciado` clarifica que
+  // el reloj todavía no arrancó.
   readonly countdownRestante: Signal<string> = computed(() => {
     const e = this.exam();
     if (e === null) return '';
-    // started es no-null cuando estamos en in_progress (filtrado en start()),
-    // pero defendemos contra null para no romper si el flujo cambia.
+    const closeAtMs = e.effectiveCloseAt().getTime();
     const anchor = e.started ?? e.scheduled;
-    // Si `now` aún no alcanzó el anchor (started en el futuro), elapsedMs
-    // sería negativo y el `duration - elapsedMs/1000` inflaría el restante
-    // por encima de duration. Clampeamos a 0 para mostrar el restante igual
-    // a duration (el countdown arrancará al cruzarse el anchor).
-    const elapsedMs = Math.max(0, this.nowTick().getTime() - anchor.getTime());
-    const remainingSeconds = Math.max(0, e.duration - elapsedMs / 1000);
-    return formatRestante(remainingSeconds * 1000);
+    const referenceNow = Math.max(this.nowTick().getTime(), anchor.getTime());
+    const remainingMs = Math.max(0, closeAtMs - referenceNow);
+    return formatRestante(remainingMs);
   });
 
-  // Hora de cierre como "HH:MM" para mostrar junto al countdown.
+  // Hora de cierre efectivo como "HH:MM" para mostrar junto al countdown.
+  // Lo decide el dominio (`Exam.effectiveCloseAt()`): `finished` si learnex
+  // ya lo emitió, sino `started + duration`.
   readonly cierreHHMM: Signal<string> = computed(() => {
     const e = this.exam();
     if (e === null) return '';
-    const anchor = e.started ?? e.scheduled;
-    return formatHHMM(new Date(anchor.getTime() + e.duration * 1000));
+    return formatHHMM(e.effectiveCloseAt());
+  });
+
+  // True cuando el reloj cliente aún no cruzó `started`. El banner
+  // "Examen no iniciado" en la página depende de este signal.
+  // `Exam.hasStartedBy(now)` devuelve false también cuando `started === null`,
+  // pero ese caso no llega acá: `start()` filtra exámenes que no permiten
+  // entrada y `scheduled` → no entrable.
+  readonly examenNoIniciado: Signal<boolean> = computed(() => {
+    const e = this.exam();
+    if (e === null) return false;
+    return !e.hasStartedBy(this.nowTick());
+  });
+
+  // Hora de inicio formateada para el banner "Empieza a las HH:MM".
+  // Cuando `started` es null cae a `scheduled` como mejor aproximación.
+  readonly inicioHHMM: Signal<string> = computed(() => {
+    const e = this.exam();
+    if (e === null) return '';
+    return formatHHMM(e.started ?? e.scheduled);
   });
 
   private countdownTimer: ReturnType<typeof setInterval> | null = null;
@@ -189,6 +208,11 @@ export class SimulacroPageViewModel {
       void this.router.navigate(['/home']);
       return;
     }
+
+    // `in_progress` con `started` en el futuro NO bloquea entrada: el
+    // alumno entra pero ve el banner `examenNoIniciado` y la grilla
+    // queda accesible. Las marcaciones se guardan en IDB; el countdown
+    // arranca cuando el reloj cliente cruza `started`.
 
     this.exam.set(encontrado);
     await this.loadMarcaciones(encontrado);
@@ -488,9 +512,7 @@ export class SimulacroPageViewModel {
   private maybeRedirectIfExpired(now: Date): void {
     const e = this.exam();
     if (e === null) return;
-    const anchor = e.started ?? e.scheduled;
-    const closeAt = anchor.getTime() + e.duration * 1000;
-    if (now.getTime() < closeAt) return;
+    if (now.getTime() < e.effectiveCloseAt().getTime()) return;
     if (this.errorState() !== null) return;
     if (this.autoEnvioHandle !== null) return;
     if (this.isSubmitting()) return;

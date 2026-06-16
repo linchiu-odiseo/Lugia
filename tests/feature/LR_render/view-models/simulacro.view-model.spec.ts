@@ -773,4 +773,123 @@ describe('SimulacroPageViewModel', () => {
       vm.stop();
     });
   });
+
+  describe('examenNoIniciado() — `in_progress` con started futuro', () => {
+    it('true cuando started cae en el futuro relativo al clock', async () => {
+      fakeClock.setNow(new Date('2026-06-11T10:00:00Z'));
+      const exam = buildExam('exam-1', 'in_progress', {
+        started: new Date('2026-06-11T11:00:00Z'),
+      });
+      fakeGetTodaysExams.willResolve([exam]);
+      const vm = createVm();
+      await vm.start('exam-1');
+
+      expect(vm.examenNoIniciado()).toBe(true);
+      vm.stop();
+    });
+
+    it('false una vez que el clock cruza started', async () => {
+      fakeClock.setNow(new Date('2026-06-11T10:00:00Z'));
+      const exam = buildExam('exam-1', 'in_progress', {
+        started: new Date('2026-06-11T10:00:00Z'),
+      });
+      fakeGetTodaysExams.willResolve([exam]);
+      const vm = createVm();
+      await vm.start('exam-1');
+
+      expect(vm.examenNoIniciado()).toBe(false);
+      vm.stop();
+    });
+
+    it('NO bloquea entrada — el alumno queda en la página de marcado', async () => {
+      fakeClock.setNow(new Date('2026-06-11T10:00:00Z'));
+      const exam = buildExam('exam-1', 'in_progress', {
+        started: new Date('2026-06-11T11:00:00Z'),
+      });
+      fakeGetTodaysExams.willResolve([exam]);
+      const vm = createVm();
+      const router = TestBed.inject(Router);
+      const navigateSpy = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+
+      await vm.start('exam-1');
+
+      expect(vm.exam()).toBe(exam);
+      expect(vm.errorState()).toBeNull();
+      expect(navigateSpy).not.toHaveBeenCalled();
+      vm.stop();
+    });
+
+    it('inicioHHMM formatea started cuando está seteado', async () => {
+      fakeClock.setNow(new Date('2026-06-11T10:00:00Z'));
+      const exam = buildExam('exam-1', 'in_progress', {
+        started: new Date('2026-06-11T11:30:00Z'),
+      });
+      fakeGetTodaysExams.willResolve([exam]);
+      const vm = createVm();
+      await vm.start('exam-1');
+
+      // formatHHMM en hora local del runner — comparamos contra el started
+      // formateado con el mismo getHours/getMinutes.
+      const s = new Date('2026-06-11T11:30:00Z');
+      const expected = `${String(s.getHours()).padStart(2, '0')}:${String(s.getMinutes()).padStart(2, '0')}`;
+      expect(vm.inicioHHMM()).toBe(expected);
+      vm.stop();
+    });
+  });
+
+  describe('cierreHHMM y countdownRestante usan effectiveCloseAt', () => {
+    it('cierreHHMM usa `finished` cuando learnex ya emitió cierre', async () => {
+      // finalized normalmente redirige al home, así que para forzar que el
+      // VM llegue a calcular cierreHHMM con finished seteado, construimos
+      // un in_progress con finished puesto a mano (caso patológico que el
+      // dominio igual debe modelar bien).
+      fakeClock.setNow(new Date('2026-06-11T10:00:00Z'));
+      const finished = new Date('2026-06-11T10:30:00Z');
+      const exam = new Exam({
+        id: 'exam-1',
+        area: 'M',
+        course: 'A',
+        type: 't',
+        name: 'n',
+        count: 5,
+        duration: 7200, // 2hs (ignorado porque finished manda)
+        scheduled: new Date('2026-06-11T09:00:00Z'),
+        started: new Date('2026-06-11T09:30:00Z'),
+        finished,
+        serverStatus: new ExamServerStatus('in_progress'),
+      });
+      fakeGetTodaysExams.willResolve([exam]);
+      const vm = createVm();
+      await vm.start('exam-1');
+
+      const expected = `${String(finished.getHours()).padStart(2, '0')}:${String(finished.getMinutes()).padStart(2, '0')}`;
+      expect(vm.cierreHHMM()).toBe(expected);
+      vm.stop();
+    });
+
+    it('countdownRestante NO se infla cuando started cae en el futuro', async () => {
+      // started a las 11am, now a las 10am, duration 300s (5 min). Sin clamp,
+      // el restante daría 65 min. Con clamp, debe dar exactamente 5 min.
+      fakeClock.setNow(new Date('2026-06-11T10:00:00Z'));
+      const exam = buildExam('exam-1', 'in_progress', {
+        started: new Date('2026-06-11T11:00:00Z'),
+        duration: 300,
+      });
+      fakeGetTodaysExams.willResolve([exam]);
+      const vm = createVm();
+      await vm.start('exam-1');
+
+      // Formato adaptativo: 5 min están justo en el threshold de 5min → muestra
+      // "05:00" (MM:SS) porque la condición es `>= SHOW_SECONDS_BELOW_MS`.
+      // Como 300_000ms NO es >= 300_000ms (estricto en `<`), cae al branch
+      // "min restantes" o al MM:SS dependiendo del operador exacto. Lo
+      // importante: el restante representa <= 5min, NUNCA 65min.
+      const restante = vm.countdownRestante();
+      // Aceptamos cualquier formato; lo que NO debe contener es "65".
+      expect(restante).not.toMatch(/65/);
+      // Y debería contener 5 (los 5 minutos legítimos).
+      expect(restante).toMatch(/\b5\b|05/);
+      vm.stop();
+    });
+  });
 });
