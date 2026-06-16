@@ -115,7 +115,11 @@ export class SimulacroPageViewModel {
     // started es no-null cuando estamos en in_progress (filtrado en start()),
     // pero defendemos contra null para no romper si el flujo cambia.
     const anchor = e.started ?? e.scheduled;
-    const elapsedMs = this.nowTick().getTime() - anchor.getTime();
+    // Si `now` aún no alcanzó el anchor (started en el futuro), elapsedMs
+    // sería negativo y el `duration - elapsedMs/1000` inflaría el restante
+    // por encima de duration. Clampeamos a 0 para mostrar el restante igual
+    // a duration (el countdown arrancará al cruzarse el anchor).
+    const elapsedMs = Math.max(0, this.nowTick().getTime() - anchor.getTime());
     const remainingSeconds = Math.max(0, e.duration - elapsedMs / 1000);
     return formatRestante(remainingSeconds * 1000);
   });

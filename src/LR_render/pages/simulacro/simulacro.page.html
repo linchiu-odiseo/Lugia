@@ -2,7 +2,7 @@
   @if (vm.exam(); as e) {
     <header class="header">
       <div class="header__meta">
-        <p class="header__area">{{ e.area ?? e.course ?? '—' }}</p>
+        <p class="header__area">{{ e.course ?? e.area ?? '—' }}</p>
         <h1 class="header__name">{{ e.name }}</h1>
       </div>
       <div class="header__countdown" role="timer" aria-live="polite">

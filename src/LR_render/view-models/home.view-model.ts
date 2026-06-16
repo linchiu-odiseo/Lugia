@@ -301,7 +301,7 @@ export class HomePageViewModel {
 
     return {
       id: exam.id,
-      area: exam.area ?? exam.course ?? '—',
+      area: exam.course ?? exam.area ?? '—',
       name: exam.name,
       count: exam.count,
       estado,
@@ -339,11 +339,22 @@ export class HomePageViewModel {
   private primaryText(exam: Exam, estado: CardEstado, now: Date): string {
     switch (estado) {
       case 'pendiente':
-        return `Disponible a las ${formatHHMM(exam.scheduled)}`;
+        // serverStatus === 'scheduled' implica `started === null`: el tutor
+        // todavía no apretó "empezar". No mostramos timestamp — `scheduled`
+        // es solo el horario de programación del tutor, no algo accionable
+        // para el alumno hasta que arranque la sesión.
+        return '';
       case 'abierto': {
         const closeAt = closeAtMs(exam);
         const closeDate = new Date(closeAt);
-        const restante = msToMinutesCeiling(closeAt - now.getTime());
+        // Si `started` cae en el futuro (reloj cliente atrasado o bug de
+        // backend), `closeAt - now` infla el restante por encima de
+        // `duration`. Clampeamos al máximo legítimo usando `anchor` como
+        // referencia mínima: nunca decimos "65 min restantes" cuando la
+        // duración real es 5 min.
+        const anchor = exam.started ?? exam.scheduled;
+        const referenceNow = Math.max(now.getTime(), anchor.getTime());
+        const restante = msToMinutesCeiling(closeAt - referenceNow);
         if (restante <= 0) {
           return `Cierra a las ${formatHHMM(closeDate)} · cerrando…`;
         }
@@ -361,7 +372,7 @@ export class HomePageViewModel {
   }
 
   private secondaryText(exam: Exam): string {
-    const label = exam.area ?? exam.course ?? '—';
+    const label = exam.course ?? exam.area ?? '—';
     return `${label} · ${exam.count} preguntas`;
   }
 }
