@@ -18,7 +18,7 @@ import { AuthRepository } from './L1_domain/ports/auth-repository';
 import { Clock } from './L1_domain/ports/clock';
 import { Connectivity } from './L1_domain/ports/connectivity';
 import { MarkingsStorage } from './L1_domain/ports/markings-storage';
-import { SimulacrosApi } from './L1_domain/ports/simulacros-api';
+import { ExamsApi } from './L1_domain/ports/exams-api';
 import { IdentityStorage } from './L1_domain/ports/identity-storage';
 import { ProfileStorage } from './L1_domain/ports/profile-storage';
 import { OutboxStoragePort } from './L1_domain/ports/outbox-storage.port';
@@ -31,7 +31,7 @@ import { GetIdentityUseCase } from './L2_application/use-cases/get-identity.use-
 import { RefreshIdentityUseCase } from './L2_application/use-cases/refresh-identity.use-case';
 import { GetProfileUseCase } from './L2_application/use-cases/get-profile.use-case';
 import { InitializeSessionUseCase } from './L2_application/use-cases/initialize-session.use-case';
-import { ObtenerSimulacrosDelDiaUseCase } from './L2_application/use-cases/obtener-simulacros-del-dia.use-case';
+import { GetTodaysExamsUseCase } from './L2_application/use-cases/get-todays-exams.use-case';
 import { MarcarRespuestaUseCase } from './L2_application/use-cases/marcar-respuesta.use-case';
 import { EnviarSimulacroUseCase } from './L2_application/use-cases/enviar-simulacro.use-case';
 import { RetomarEnviosPendientesUseCase } from './L2_application/use-cases/retomar-envios-pendientes.use-case';
@@ -39,7 +39,7 @@ import { ProgramarAutoEnvioUseCase } from './L2_application/use-cases/programar-
 
 // L3 implementaciones de los puertos.
 import { HttpAuthRepository } from './L3_periphery/http/http-auth-repository';
-import { HttpSimulacrosApi } from './L3_periphery/http/http-simulacros-api';
+import { HttpExamsApi } from './L3_periphery/http/http-exams-api';
 import { LocalStorageIdentityStorage } from './L3_periphery/storage/local-storage-identity-storage';
 import { IndexedDbProfileStorage } from './L3_periphery/storage/indexed-db-profile-storage';
 import { IndexedDbMarkingsStorage } from './L3_periphery/storage/indexed-db-markings-storage';
@@ -55,7 +55,7 @@ export const AUTH_REPOSITORY = new InjectionToken<AuthRepository>('AUTH_REPOSITO
 export const CLOCK = new InjectionToken<Clock>('CLOCK');
 export const CONNECTIVITY = new InjectionToken<Connectivity>('CONNECTIVITY');
 export const MARKINGS_STORAGE = new InjectionToken<MarkingsStorage>('MARKINGS_STORAGE');
-export const SIMULACROS_API = new InjectionToken<SimulacrosApi>('SIMULACROS_API');
+export const EXAMS_API = new InjectionToken<ExamsApi>('EXAMS_API');
 export const ROUTER_PORT = new InjectionToken<RouterPort>('ROUTER_PORT');
 
 // Adapter Angular `Router` → `RouterPort` (L1). Inline factory; sin nuevo archivo
@@ -88,7 +88,7 @@ export const appConfig: ApplicationConfig = {
     { provide: OUTBOX_STORAGE, useExisting: IndexedDbMarkingsStorage },
     { provide: CLOCK, useExisting: ServerAnchoredClock },
     { provide: CONNECTIVITY, useExisting: BrowserConnectivity },
-    { provide: SIMULACROS_API, useExisting: HttpSimulacrosApi },
+    { provide: EXAMS_API, useExisting: HttpExamsApi },
     {
       provide: ROUTER_PORT,
       useFactory: makeRouterPort,
@@ -145,10 +145,9 @@ export const appConfig: ApplicationConfig = {
       deps: [AUTH_REPOSITORY, IDENTITY_STORAGE, GetProfileUseCase],
     },
     {
-      provide: ObtenerSimulacrosDelDiaUseCase,
-      useFactory: (api: SimulacrosApi, clock: Clock) =>
-        new ObtenerSimulacrosDelDiaUseCase(api, clock),
-      deps: [SIMULACROS_API, CLOCK],
+      provide: GetTodaysExamsUseCase,
+      useFactory: (api: ExamsApi, clock: Clock) => new GetTodaysExamsUseCase(api, clock),
+      deps: [EXAMS_API, CLOCK],
     },
     {
       provide: MarcarRespuestaUseCase,
@@ -157,15 +156,15 @@ export const appConfig: ApplicationConfig = {
     },
     {
       provide: EnviarSimulacroUseCase,
-      useFactory: (api: SimulacrosApi, markings: MarkingsStorage, clock: Clock) =>
+      useFactory: (api: ExamsApi, markings: MarkingsStorage, clock: Clock) =>
         new EnviarSimulacroUseCase(api, markings, clock),
-      deps: [SIMULACROS_API, MARKINGS_STORAGE, CLOCK],
+      deps: [EXAMS_API, MARKINGS_STORAGE, CLOCK],
     },
     {
       provide: RetomarEnviosPendientesUseCase,
-      useFactory: (api: SimulacrosApi, markings: MarkingsStorage) =>
+      useFactory: (api: ExamsApi, markings: MarkingsStorage) =>
         new RetomarEnviosPendientesUseCase(api, markings),
-      deps: [SIMULACROS_API, MARKINGS_STORAGE],
+      deps: [EXAMS_API, MARKINGS_STORAGE],
     },
     {
       provide: ProgramarAutoEnvioUseCase,
