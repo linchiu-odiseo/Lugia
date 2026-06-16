@@ -175,10 +175,11 @@ describe('ProgramarAutoEnvioUseCase', () => {
     });
   });
 
-  describe('disparo del timer — scheduled (started null, fallback)', () => {
-    // Cuando started es null (caso scheduled), el anchor del cierre es scheduled.
-    // Con SCHEDULED 90s antes de NOW y duration=180s → cierre = NOW+90s.
-    it('usa scheduled cuando started es null — override = (scheduled + duration*1000)', async () => {
+  describe('examen aún no activado (started y finished ambos null)', () => {
+    // `Exam.effectiveCloseAt()` retorna null cuando no es determinable. El
+    // use case NO debe programar timer en ese caso — el polling de /home
+    // refrescará la lista cuando el tutor active y se programará entonces.
+    it('NO programa timer cuando effectiveCloseAt es null', async () => {
       vi.useFakeTimers();
       vi.spyOn(Math, 'random').mockReturnValue(0.5);
       const exam = buildExam({
@@ -189,13 +190,16 @@ describe('ProgramarAutoEnvioUseCase', () => {
       });
       enviar.willResolve();
 
-      useCase.execute({ exam });
+      const handle = useCase.execute({ exam });
 
-      await vi.advanceTimersByTimeAsync(93_000);
+      // Avanzamos hora suficiente para cubrir cualquier delay imaginable —
+      // si hubo timer programado, dispararía dentro de este lapso.
+      await vi.advanceTimersByTimeAsync(24 * 60 * 60 * 1000);
 
-      expect(enviar.calls).toHaveLength(1);
-      const expectedClose = new Date(SCHEDULED_ISO).getTime() + 180 * 1000;
-      expect(enviar.calls[0].override?.getTime()).toBe(expectedClose);
+      // 0 invocaciones: el use case detectó null y devolvió handle no-op.
+      expect(enviar.calls).toHaveLength(0);
+      // cancel() del handle no-op no debe explotar.
+      expect(() => handle.cancel()).not.toThrow();
     });
   });
 

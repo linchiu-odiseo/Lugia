@@ -98,15 +98,21 @@ export class Exam {
   //      de started + duration). Sea cual sea el caso, la verdad es `finished`.
   //   2. `started + duration` (cierre automático esperado si nadie cierra
   //      antes). Solo cuando `finished` aún no fue emitido.
-  //   3. `scheduled + duration` (fallback): cuando el examen aún no fue
-  //      activado por el tutor (`started === null`). Se usa para preview en
-  //      cards `pendientes` que necesitan estimar una hora de cierre.
+  //   3. `null` cuando el examen aún NO fue activado (`started === null` y
+  //      `finished === null`). No usamos `scheduled + duration` como fallback
+  //      porque `scheduled` puede ser de hace tiempo y eso induciría
+  //      countdowns negativos ("cerrando…") en la UI para exámenes que el
+  //      tutor todavía no arrancó. Los consumidores tratan `null` como
+  //      "no hay cierre todavía": no muestran countdown, no redirigen por
+  //      expiración, no programan auto-envío.
   //
   // Factor ×1000 porque `duration` viene de learnex en SEGUNDOS.
-  effectiveCloseAt(): Date {
+  effectiveCloseAt(): Date | null {
     if (this.finished !== null) return this.finished;
-    const anchor = this.started ?? this.scheduled;
-    return new Date(anchor.getTime() + this.duration * 1000);
+    if (this.started !== null) {
+      return new Date(this.started.getTime() + this.duration * 1000);
+    }
+    return null;
   }
 
   // Si la vigencia ya arrancó para el momento `now`. La puerta de entrada

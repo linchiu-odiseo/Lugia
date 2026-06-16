@@ -314,15 +314,18 @@ describe('Exam', () => {
       expect(e.effectiveCloseAt()).toEqual(new Date('2026-06-11T10:30:00Z'));
     });
 
-    it('cae a scheduled + duration cuando started y finished son null', () => {
+    it('retorna null cuando started y finished son null (examen no activado)', () => {
       const e = new Exam({
         ...validParams,
         scheduled: new Date('2026-06-11T09:00:00Z'),
         started: null,
         finished: null,
-        duration: 600, // 10 min
+        duration: 600,
       });
-      expect(e.effectiveCloseAt()).toEqual(new Date('2026-06-11T09:10:00Z'));
+      // NO usamos `scheduled + duration` como fallback: el scheduled puede
+      // ser viejo y eso provoca countdowns negativos en la UI. null = "no
+      // hay cierre todavía"; los consumidores lo manejan como tal.
+      expect(e.effectiveCloseAt()).toBeNull();
     });
 
     it('factor ×1000 (segundos a ms), NO ×60000', () => {

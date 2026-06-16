@@ -33,8 +33,15 @@ export class ProgramarAutoEnvioUseCase {
   ) {}
 
   execute(input: ProgramarAutoEnvioInput): AutoEnvioHandle {
-    const ahoraMs = this.clock.now().getTime();
     const finDate = input.exam.effectiveCloseAt();
+    if (finDate === null) {
+      // Examen aún no activado (started y finished ambos null): no hay
+      // cierre determinable. NO programamos timer. El polling de /home
+      // refrescará la lista cuando el tutor active y el caller volverá a
+      // invocar este use case con un cierre real.
+      return { cancel: () => undefined };
+    }
+    const ahoraMs = this.clock.now().getTime();
     const finMs = finDate.getTime();
     const jitter = (Math.random() * 2 - 1) * JITTER_MAX_MS;
     const delay = Math.max(0, finMs - ahoraMs + jitter);
