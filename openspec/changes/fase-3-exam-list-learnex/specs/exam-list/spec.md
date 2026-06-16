@@ -65,14 +65,14 @@ Clasificación de errores por `(status, endpoint, body.code)` — NUNCA por `mes
 - **WHEN** se invoca `GetTodaysExamsUseCase.execute()`
 - **THEN** el use case rechaza con `NetworkError`
 
-#### Scenario: Dato de bug — started null con serverStatus in_progress (skip silencioso)
+#### Scenario: started null con serverStatus in_progress (se incluye, alerta en LR)
 
-- **GIVEN** el backend retorna una lista con un examen malformado (`serverStatus: "in_progress"` y `started: null`) y otros exámenes válidos
+- **GIVEN** el backend retorna una lista con un examen `serverStatus: "in_progress"` y `started: null` junto a otros exámenes válidos
 - **WHEN** el adapter procesa la respuesta
-- **THEN** el adapter excluye el examen malformado de la lista resultante
-- **AND** el adapter emite `console.warn('[ExamsApi] Skipping malformed exam', { id, reason: 'in_progress without started' })`
-- **AND** los exámenes válidos se devuelven normalmente al use case
-- **AND** el use case NO rechaza por este caso (resiliencia ante bug del backend)
+- **THEN** el adapter incluye TODOS los exámenes (incluido el de `started: null`) en el resultado, en el orden recibido
+- **AND** el examen problemático se construye como `Exam` con `started: null`
+- **AND** el view-model de `/simulacro/:id` muestra el banner "☕ El examen está tomando un café, ¡espera la señal para empezar!" y deshabilita el botón Enviar mientras `hasStartedBy(now) === false`
+- **AND** el alumno puede marcar; las marcaciones quedan en IDB hasta que el examen entre en vigencia
 
 #### Scenario: Valor de serverStatus fuera del set permitido
 

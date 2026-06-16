@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
@@ -12,8 +12,10 @@ import { StudentNotLinkedError } from '../../../../src/L1_domain/errors/student-
 import { environment } from '../../../../src/environments/environment';
 
 // Cubre `HttpExamsApi.getTodaysExams()` (L3): hit a
-// `/t/{slug}/student/exam-sessions`, mapeo de DTO → Exam, skip silencioso
-// del item malformado y clasificación de errores por `(status, body.code)`.
+// `/t/{slug}/student/exam-sessions`, mapeo de DTO → Exam y clasificación
+// de errores por `(status, body.code)`. El adapter NO filtra items: incluso
+// `status: 'in_progress'` con `started: null` se pasa al dominio — el
+// view-model lo muestra con banner "tomando un café" + botón Enviar disabled.
 // IMPORTANTE: nunca asertamos sobre `message` del body — solo por (status, code).
 describe('HttpExamsApi', () => {
   let httpMock: HttpTestingController;
@@ -163,36 +165,37 @@ describe('HttpExamsApi', () => {
     );
   });
 
-  describe('getTodaysExams — skip silencioso de item malformado', () => {
-    it('excluye el item con status=in_progress + started=null y emite console.warn', async () => {
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+  describe('getTodaysExams — incluye items con started=null + in_progress', () => {
+    it('NO filtra: el item se devuelve para que LR muestre banner "tomando un café"', async () => {
       const pending = adapter.getTodaysExams();
       const req = httpMock.expectOne(EXAMS_URL);
       req.flush({
         serverTime: '2026-06-11T11:30:00Z',
         exams: [
-          // Válido — in_progress con started.
+          // Válido — in_progress con started seteado.
           dtoFor({ id: 'exam-valid', status: 'in_progress' }),
-          // Malformado: in_progress sin started.
-          dtoFor({ id: 'exam-malformed', status: 'in_progress', started: null }),
-          // Otro válido — scheduled (started null es legítimo acá).
+          // in_progress con started=null: el back en teoría no emite esto,
+          // pero si lo hace, lo pasamos al dominio. El view-model lo trata
+          // como "no vigente" y muestra el banner.
+          dtoFor({ id: 'exam-no-started', status: 'in_progress', started: null }),
+          // Scheduled — started null es legítimo.
           dtoFor({ id: 'exam-scheduled', status: 'scheduled', started: null }),
         ],
       });
 
       const result = await pending;
 
-      // El malformado fue excluido.
-      expect(result.exams.map((e) => e.id)).toEqual(['exam-valid', 'exam-scheduled']);
-      // console.warn se llamó exactamente una vez con el formato esperado.
-      expect(warnSpy).toHaveBeenCalledTimes(1);
-      expect(warnSpy.mock.calls[0][0]).toBe('[ExamsApi] Skipping malformed exam');
-      expect(warnSpy.mock.calls[0][1]).toMatchObject({
-        id: 'exam-malformed',
-        reason: 'in_progress without started',
-      });
-
-      warnSpy.mockRestore();
+      // Los 3 items pasan al dominio en el orden recibido.
+      expect(result.exams.map((e) => e.id)).toEqual([
+        'exam-valid',
+        'exam-no-started',
+        'exam-scheduled',
+      ]);
+      const noStarted = result.exams.find((e) => e.id === 'exam-no-started')!;
+      expect(noStarted.started).toBeNull();
+      expect(noStarted.serverStatus.value).toBe('in_progress');
+      // hasStartedBy(now) === false → el view-model va a mostrar el banner.
+      expect(noStarted.hasStartedBy(new Date('2026-06-11T11:30:00Z'))).toBe(false);
     });
   });
 

@@ -43,15 +43,17 @@ Alternativa: mantener `fin: Date` y derivar duración. Rechazada: el DTO learnex
 
 Rationale: alineación literal con learnex. El factor ×1000 (NO ×60000) se documenta como invariante: `duration` es **segundos**, no minutos.
 
-### D3: `started: null` con `serverStatus === 'in_progress'` → skip silencioso con `console.warn` (resiliencia)
+### D3: `started: null` con `serverStatus === 'in_progress'` → incluir + alerta en LR (entrar + banner)
 
-**Chosen (Option B, decisión del usuario tras checkpoint).** El adapter detecta el item malformado, emite `console.warn('[ExamsApi] Skipping malformed exam', { id, reason })` y lo **excluye de la lista resultante**. Los exámenes válidos se muestran normalmente.
+**Chosen (revisado el 2026-06-16 post-uso real contra learnex).** El adapter **NO filtra** items con `status: 'in_progress' && started: null`. Los pasa al dominio. El view-model de `/simulacro/:id` los trata como cualquier otro `in_progress` con `started` no vigente: se muestra el banner amarillo "☕ El examen está tomando un café, ¡espera la señal para empezar!" y el botón Enviar queda deshabilitado hasta que `hasStartedBy(now)` sea true.
 
-Alternativas: (A) `InvalidExamError` all-or-nothing — rechazada por el usuario porque deja al alumno sin lista por un bug del back; (C) coerción `started = scheduled` — rechazada por enmascarar datos rotos.
+Alternativas históricas: (A) `InvalidExamError` all-or-nothing — rechaza la lista entera por un dato raro; (B, planteada inicialmente) skip silencioso con `console.warn` — el alumno no ve el examen; (C) coerción `started = scheduled` — enmascara.
 
-Rationale (del usuario): "el back se encarga de no enviar así; si llega a mandar así, que la PWA lo acepte y resista". La PWA debe ser **resiliente** ante datos imposibles que learnex nunca debería mandar. El `console.warn` deja rastro para debugging en dev tools; no se reporta a error-tracking porque no existe pipeline. Si el back empieza a emitir items malformados sistemáticamente, se detecta inspeccionando consola — no por banner al alumno.
+Rationale (revisión 2026-06-16): el alumno **necesita ver todos los exámenes que el GET trae**. Aunque `started: null + in_progress` sea raro y en producción no debería ocurrir (el back valida la consistencia), durante desarrollo el dba puede editar la BD a mano y los datos no consistentes deben mostrarse igual con la UX de "no vigente todavía", no esconderse. La PWA pasa de "filtrar para que no se note" a "aceptar y comunicar". El usuario lo expresó así: "la cartilla tenía un mensaje amarillo que decía 'puedes marcar por mientras se guardarán en IDB'".
 
-Condición exacta del skip (solo este caso, no otros): `dto.status === 'in_progress' && dto.started === null`. Otros shapes inválidos (ej. `count <= 0`, `duration <= 0`) siguen rechazándose por el constructor de `Exam` y propagan como `InvalidExamError` global; el adapter solo absorbe la combinación started-null + in_progress.
+Implementación: el adapter mapea el DTO 1:1 a `Exam`. `Exam.hasStartedBy(null)` retorna `false`, lo que activa `examenNoIniciado` en el view-model y dispara banner + Enviar disabled.
+
+Casos NO cubiertos por esta resiliencia: shapes que rompen invariantes duras del dominio (`count <= 0`, `duration <= 0`, fechas no ISO8601, `serverStatus` fuera del set permitido) siguen propagando `InvalidExamError`. Solo `started: null + in_progress` se acepta — es el único caso "semánticamente raro pero no inválido" que el dominio puede modelar bien.
 
 ### D4: `yaEnvie` derivado de nuevo método `MarkingsStorage.hasSubmittedAck(examId)`
 

@@ -45,22 +45,14 @@ export class HttpExamsApi implements ExamsApi {
       const dto = await firstValueFrom(
         this.http.get<ExamsListResponseDto>(apiPath.studentExamSessions()),
       );
-      // Skip silencioso (D3): el adapter excluye items malformados que
-      // learnex nunca debería emitir, pero la PWA es tolerante. Loggea
-      // por consola para que se detecte en dev tools si pasa.
-      const exams: Exam[] = [];
-      for (const e of dto.exams) {
-        if (e.status === 'in_progress' && e.started === null) {
-          console.warn('[ExamsApi] Skipping malformed exam', {
-            id: e.id,
-            reason: 'in_progress without started',
-          });
-          continue;
-        }
-        exams.push(this.toExam(e));
-      }
+      // Pasa el DTO al dominio sin filtrar: los casos `in_progress` con
+      // `started === null` (data rara que el back en teoría nunca emite)
+      // se aceptan igual. La PWA es resiliente — el view-model los muestra
+      // como entrables con banner "tomando un café" + botón Enviar disabled,
+      // exactamente como cuando `started` cae en el futuro. La puerta
+      // sigue siendo `serverStatus`; la vigencia la decide `hasStartedBy(now)`.
       return {
-        exams,
+        exams: dto.exams.map((e) => this.toExam(e)),
         serverTime: new ServerTime(dto.serverTime),
       };
     } catch (err) {
