@@ -43,6 +43,14 @@ export class ProgramarAutoEnvioUseCase {
     }
     const ahoraMs = this.clock.now().getTime();
     const finMs = finDate.getTime();
+    if (finMs <= ahoraMs) {
+      // El cierre ya pasó al momento de programar (alumno entró tarde con
+      // el reloj cliente más allá del closeAt). NO disparamos auto-envío
+      // inmediato — si quedó pendiente, lo decide el server cuando vuelva
+      // a contactarse; mientras tanto el banner "tiempo agotado" del
+      // view-model comunica el estado y el botón Enviar queda disabled.
+      return { cancel: () => undefined };
+    }
     const jitter = (Math.random() * 2 - 1) * JITTER_MAX_MS;
     const delay = Math.max(0, finMs - ahoraMs + jitter);
 

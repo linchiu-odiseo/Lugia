@@ -175,6 +175,31 @@ describe('ProgramarAutoEnvioUseCase', () => {
     });
   });
 
+  describe('cierre ya pasó al programar (alumno entró tarde)', () => {
+    it('NO programa timer cuando effectiveCloseAt ya quedó en el pasado', async () => {
+      vi.useFakeTimers();
+      vi.spyOn(Math, 'random').mockReturnValue(0.5);
+      // Examen "in_progress" cuyo started+duration cae 5 minutos antes de NOW.
+      // El back todavía no procesó el cierre (finished sigue null) pero el
+      // reloj cliente ya lo cruzó. NO disparamos auto-envío inmediato.
+      const startedAncient = new Date(new Date(NOW_ISO).getTime() - 10 * 60 * 1000);
+      const exam = buildExam({
+        scheduled: startedAncient,
+        started: startedAncient,
+        duration: 5 * 60, // 5 min: closeAt = startedAncient + 5min = NOW-5min
+      });
+      enviar.willResolve();
+
+      const handle = useCase.execute({ exam });
+
+      // Avanzamos tiempo más que suficiente para cubrir cualquier timer.
+      await vi.advanceTimersByTimeAsync(24 * 60 * 60 * 1000);
+
+      expect(enviar.calls).toHaveLength(0);
+      expect(() => handle.cancel()).not.toThrow();
+    });
+  });
+
   describe('examen aún no activado (started y finished ambos null)', () => {
     // `Exam.effectiveCloseAt()` retorna null cuando no es determinable. El
     // use case NO debe programar timer en ese caso — el polling de /home
@@ -283,27 +308,4 @@ describe('ProgramarAutoEnvioUseCase', () => {
     });
   });
 
-  describe('clamping del delay', () => {
-    it('si cierre <= ahora (examen ya cerrado al programar), delay=0 (dispara inmediato)', async () => {
-      vi.useFakeTimers();
-      // Math.random=0.0 daría jitter -3000ms; pero `Math.max(0, ...)` clampa.
-      vi.spyOn(Math, 'random').mockReturnValue(0.0);
-      // cierre == NOW: started == NOW y duration=0 no es válido, así que
-      // usamos duration=1 con started=NOW-1s → cierre cae justo en NOW.
-      const exam = buildExam({
-        started: new Date(new Date(NOW_ISO).getTime() - 1000),
-        duration: 1,
-      });
-      enviar.willResolve();
-
-      useCase.execute({ exam });
-
-      // En el siguiente tick del event loop dispara con delay=0.
-      await vi.advanceTimersByTimeAsync(0);
-
-      expect(enviar.calls).toHaveLength(1);
-      const expectedClose = exam.started!.getTime() + exam.duration * 1000;
-      expect(enviar.calls[0].override?.getTime()).toBe(expectedClose);
-    });
-  });
 });

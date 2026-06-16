@@ -17,6 +17,7 @@ import { SimulacroCerradoError } from '../../L1_domain/errors/simulacro-cerrado.
 import { SimulacroNoAsignadoError } from '../../L1_domain/errors/simulacro-no-asignado.error';
 import { InvalidSubmissionTimeError } from '../../L1_domain/errors/invalid-submission-time.error';
 import { InvalidPayloadError } from '../../L1_domain/errors/invalid-payload.error';
+import { SubmissionNotAvailableError } from '../../L1_domain/errors/submission-not-available.error';
 
 // Razón de redirect al /home, lo usa el view-model para no renderizar UI de
 // error en la página. Si en el futuro queremos un toast global, el `flash`
@@ -437,12 +438,21 @@ export class SimulacroPageViewModel {
   // llegar acá: EnviarSimulacroUseCase lo captura y devuelve `status: queued`.
   // Aun así lo dejamos por defensa: si llegara, lo tratamos como red caída.
   //
-  // SubmissionNotAvailableError (POST stub en este change) cae en la rama
-  // genérica de "unknown" → redirect a /home sin copy especial. Cuando el
-  // POST real aterrice en `fase-3-exam-submit-learnex`, este error desaparece
-  // de runtime.
+  // SubmissionNotAvailableError es transitorio del change `fase-3-exam-list-learnex`:
+  // el POST es stub y siempre rechaza. Si llega acá (auto-envío disparado
+  // tras un cierre que ya pasó, por ejemplo), NO redirigimos — el alumno
+  // se queda en la cartilla y el banner "tiempo agotado" comunica el
+  // estado. Cuando el POST real aterrice en `fase-3-exam-submit-learnex`,
+  // este caso desaparece de runtime.
   private handleSubmissionError(err: unknown): void {
     this.submissionState.set('error');
+    if (err instanceof SubmissionNotAvailableError) {
+      // Stub del change actual: no hay nada útil que hacer; dejamos al
+      // alumno en la página y volvemos al estado idle para que pueda
+      // intentar de nuevo cuando el POST real esté disponible.
+      this.submissionState.set('idle');
+      return;
+    }
     if (err instanceof SimulacroCerradoError) {
       this.errorState.set('cerrado');
       void this.router.navigate(['/home']);

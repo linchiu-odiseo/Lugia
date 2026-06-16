@@ -542,6 +542,29 @@ describe('SimulacroPageViewModel', () => {
       vm.stop();
     });
 
+    it('SubmissionNotAvailableError (POST stub) → no redirige, vuelve a idle', async () => {
+      const { SubmissionNotAvailableError } = await import(
+        '../../../../src/L1_domain/errors/submission-not-available.error'
+      );
+      const exam = buildExam('exam-1', 'in_progress');
+      fakeGetTodaysExams.willResolve([exam]);
+      const vm = createVm();
+      await vm.start('exam-1');
+      fakeEnviar.willReject(new SubmissionNotAvailableError());
+      const router = TestBed.inject(Router);
+      const navigateSpy = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+
+      await vm.submit();
+
+      // El alumno queda en la cartilla — no redirige.
+      expect(navigateSpy).not.toHaveBeenCalled();
+      // No marca errorState visible: el banner correspondiente comunica el estado.
+      expect(vm.errorState()).toBeNull();
+      // Vuelve a idle para permitir reintento manual cuando el POST real exista.
+      expect(vm.submissionState()).toBe('idle');
+      vm.stop();
+    });
+
     it('SimulacroCerradoError → errorState=cerrado y navigate /home', async () => {
       const exam = buildExam('exam-1', 'in_progress');
       fakeGetTodaysExams.willResolve([exam]);
