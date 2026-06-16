@@ -542,9 +542,9 @@ describe('SimulacroPage', () => {
       fixture.detectChanges();
 
       const el = fixture.nativeElement as HTMLElement;
-      const banner = el.querySelector('.not-started-banner');
+      const banner = el.querySelector('.simulacro-banner');
       expect(banner).not.toBeNull();
-      const msg = banner!.querySelector('.not-started-banner__msg')?.textContent ?? '';
+      const msg = banner!.querySelector('.simulacro-banner__msg')?.textContent ?? '';
       expect(msg).toContain('El examen está tomando un café');
       expect(msg).toContain('¡espera la señal para empezar!');
       // El countdown debe estar OCULTO mientras el banner está visible:
@@ -568,7 +568,7 @@ describe('SimulacroPage', () => {
       fixture.detectChanges();
 
       const el = fixture.nativeElement as HTMLElement;
-      expect(el.querySelector('.not-started-banner')).not.toBeNull();
+      expect(el.querySelector('.simulacro-banner')).not.toBeNull();
       // Sin started ni finished, no hay cierre determinable: el countdown
       // queda oculto en lugar de mostrar "cerrando…" o un timestamp viejo.
       expect(el.querySelector('[role="timer"]')).toBeNull();
@@ -591,7 +591,7 @@ describe('SimulacroPage', () => {
       fixture.detectChanges();
 
       const el = fixture.nativeElement as HTMLElement;
-      expect(el.querySelector('.not-started-banner')).toBeNull();
+      expect(el.querySelector('.simulacro-banner')).toBeNull();
     });
 
     it('la grilla queda accesible aunque el banner esté visible', async () => {
@@ -610,7 +610,7 @@ describe('SimulacroPage', () => {
       fixture.detectChanges();
 
       const el = fixture.nativeElement as HTMLElement;
-      expect(el.querySelector('.not-started-banner')).not.toBeNull();
+      expect(el.querySelector('.simulacro-banner')).not.toBeNull();
       expect(el.querySelectorAll('.fila').length).toBe(3);
     });
 
@@ -652,6 +652,83 @@ describe('SimulacroPage', () => {
       const el = fixture.nativeElement as HTMLElement;
       const enviarBtn = el.querySelector('.btn--primary') as HTMLButtonElement;
       expect(enviarBtn.disabled).toBe(false);
+    });
+  });
+
+  describe('banner "tiempo agotado" cuando now ya cruzó effectiveCloseAt', () => {
+    it('aparece el banner con la copy "Tus marcas quedaron guardadas"', async () => {
+      // started = 10:00, duration = 7200s (2h), closeAt = 12:00.
+      // clock = 13:00 → tiempo cumplido localmente.
+      fakeClock.setNow(new Date('2026-06-11T13:00:00Z'));
+      const exam = buildExam('exam-1', 'in_progress', {
+        started: new Date('2026-06-11T10:00:00Z'),
+      });
+      fakeGetTodaysExams.willResolve([exam]);
+      await configureTestBed('exam-1');
+
+      const fixture = TestBed.createComponent(SimulacroPage);
+      fixture.detectChanges();
+      await flushPromises();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      const el = fixture.nativeElement as HTMLElement;
+      const banners = el.querySelectorAll('.simulacro-banner');
+      expect(banners.length).toBeGreaterThan(0);
+      const msg = Array.from(banners)
+        .map((b) => b.querySelector('.simulacro-banner__msg')?.textContent ?? '')
+        .join(' ');
+      expect(msg).toContain('Tiempo agotado');
+      expect(msg).toContain('Tus marcas quedaron guardadas');
+      // Countdown oculto: el cierre real lo decide el server, no tiene
+      // sentido mostrar "Cierra a las HH:MM" cuando local time ya pasó.
+      expect(el.querySelector('[role="timer"]')).toBeNull();
+    });
+
+    it('NO redirige al home — el alumno se queda en la cartilla offline-friendly', async () => {
+      fakeClock.setNow(new Date('2026-06-11T13:00:00Z'));
+      const exam = buildExam('exam-1', 'in_progress', {
+        started: new Date('2026-06-11T10:00:00Z'),
+      });
+      fakeGetTodaysExams.willResolve([exam]);
+      await configureTestBed('exam-1');
+
+      const fixture = TestBed.createComponent(SimulacroPage);
+      const router = TestBed.inject(Router);
+      const navigateSpy = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+
+      fixture.detectChanges();
+      await flushPromises();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      // Adelantamos varios segundos del ticker para confirmar que no se
+      // dispara redirect durante la vida de la página.
+      await flushPromises();
+      fixture.detectChanges();
+
+      expect(navigateSpy).not.toHaveBeenCalled();
+      const el = fixture.nativeElement as HTMLElement;
+      expect(el.querySelectorAll('.fila').length).toBeGreaterThan(0);
+    });
+
+    it('el botón Enviar queda DISABLED cuando tiempo cumplido', async () => {
+      fakeClock.setNow(new Date('2026-06-11T13:00:00Z'));
+      const exam = buildExam('exam-1', 'in_progress', {
+        started: new Date('2026-06-11T10:00:00Z'),
+      });
+      fakeGetTodaysExams.willResolve([exam]);
+      await configureTestBed('exam-1');
+
+      const fixture = TestBed.createComponent(SimulacroPage);
+      fixture.detectChanges();
+      await flushPromises();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      const el = fixture.nativeElement as HTMLElement;
+      const enviarBtn = el.querySelector('.btn--primary') as HTMLButtonElement;
+      expect(enviarBtn.disabled).toBe(true);
     });
   });
 });

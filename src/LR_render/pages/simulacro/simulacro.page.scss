@@ -228,7 +228,11 @@
   padding-top: var(--space-xl);
 }
 
-.not-started-banner {
+// Banner amarillo del header del simulacro. Se usa para dos estados
+// no-vigentes: `examenNoIniciado` ("tomando un café") y
+// `examenTiempoCumplido` ("tiempo agotado"). Ambos comparten estilo:
+// fondo warning + texto centrado + entrar/salir vía @if del template.
+.simulacro-banner {
   padding: 0.75rem 0.9rem;
   margin-top: var(--space-md);
   border-radius: var(--radius);

@@ -26,7 +26,6 @@ export type SimulacroErrorState =
   | 'pendiente'
   | 'enviado'
   | 'cerrado'
-  | 'expired-during-session'
   | 'session-expired'
   | 'network'
   | 'invalid-submission-time'
@@ -145,6 +144,22 @@ export class SimulacroPageViewModel {
     const e = this.exam();
     if (e === null) return false;
     return !e.hasStartedBy(this.nowTick());
+  });
+
+  // True cuando el reloj cliente ya cruzó el cierre efectivo del examen.
+  // El cliente NO redirige por esto — el server manda el cierre real
+  // (siguiente polling de /home detecta `status === 'finalized'`). La
+  // función de este signal es solo decorativa: muestra banner "tiempo
+  // agotado" y deshabilita el botón Enviar para evitar envíos local-only
+  // que el back rechazaría. Cuando `effectiveCloseAt` es null (examen
+  // aún no activado), retorna false — no aplica el concepto de "tiempo
+  // agotado" si nunca arrancó.
+  readonly examenTiempoCumplido: Signal<boolean> = computed(() => {
+    const e = this.exam();
+    if (e === null) return false;
+    const closeAt = e.effectiveCloseAt();
+    if (closeAt === null) return false;
+    return this.nowTick().getTime() >= closeAt.getTime();
   });
 
   private countdownTimer: ReturnType<typeof setInterval> | null = null;
@@ -475,13 +490,17 @@ export class SimulacroPageViewModel {
     this.marcaciones.set(fullMap);
   }
 
+  // El ticker solo refresca `nowTick` para que los signals derivados
+  // (countdownRestante, examenTiempoCumplido) recomputen. NO redirige por
+  // reloj local: el cierre real lo confirma el server en el próximo
+  // polling de /home. Si el alumno está offline cuando se cumple el
+  // tiempo, sigue dentro de la cartilla con el banner "tiempo agotado"
+  // y el botón Enviar deshabilitado.
   private startCountdownTicker(): void {
     if (this.countdownTimer !== null) return;
     this.countdownTimer = setInterval(() => {
       if (this.stopped) return;
-      const now = this.clock.now();
-      this.nowTick.set(now);
-      this.maybeRedirectIfExpired(now);
+      this.nowTick.set(this.clock.now());
     }, COUNTDOWN_TICK_MS);
   }
 
@@ -490,35 +509,6 @@ export class SimulacroPageViewModel {
       clearInterval(this.countdownTimer);
       this.countdownTimer = null;
     }
-  }
-
-  // Si mientras la página está montada el tiempo cruza el cierre, redirigimos
-  // a /home. El estado oficial del examen lo derivará learnex en el próximo
-  // GET de /home; nuestra autoridad local es el cierre ya recibido
-  // (anclado al server-time vía Clock).
-  //
-  // NO hacemos polling al backend desde acá: agregaría carga sin valor —
-  // /home ya refresca cada 120s y al volver vemos el estado actualizado.
-  //
-  // Coordinación con el auto-envío: cuando hay un `autoEnvioHandle` vivo o
-  // un envío en vuelo o ya quedó `queued`, NO redirigimos — dejamos que el
-  // callback del auto-envío decida (navega tras éxito, mantiene la página
-  // si quedó en cola). Sin esto, el ticker correría primero y cancelaría
-  // el auto-envío en `stop()` antes de que el timer dispare.
-  private maybeRedirectIfExpired(now: Date): void {
-    const e = this.exam();
-    if (e === null) return;
-    const closeAt = e.effectiveCloseAt();
-    // Examen aún no activado: no hay cierre determinable, nada que expirar.
-    if (closeAt === null) return;
-    if (now.getTime() < closeAt.getTime()) return;
-    if (this.errorState() !== null) return;
-    if (this.autoEnvioHandle !== null) return;
-    if (this.isSubmitting()) return;
-    if (this.submissionState() === 'queued') return;
-    this.errorState.set('expired-during-session');
-    this.stopCountdownTicker();
-    void this.router.navigate(['/home']);
   }
 }
 
