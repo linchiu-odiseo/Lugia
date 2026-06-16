@@ -1,0 +1,36 @@
+<div class="modal-overlay" (click)="dismiss.emit()" aria-hidden="true"></div>
+<div
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="update-modal-title"
+  aria-describedby="update-modal-explain"
+  class="modal"
+>
+  <h2 id="update-modal-title" class="modal__title">Actualizar Lugia</h2>
+  <dl class="modal__versions">
+    <div class="modal__version-row">
+      <dt>Versión actual</dt>
+      <dd>{{ fromVersion }}</dd>
+    </div>
+    <div class="modal__version-row">
+      <dt>Versión nueva</dt>
+      <dd>{{ toVersion }}</dd>
+    </div>
+  </dl>
+  <p id="update-modal-explain" class="modal__explain">
+    La app se va a reiniciar para aplicar la nueva versión. Tus marcaciones están guardadas.
+  </p>
+  <div class="modal__actions">
+    <button type="button" class="modal__btn modal__btn--ghost" (click)="dismiss.emit()">
+      Cancelar
+    </button>
+    <button
+      #primaryButton
+      type="button"
+      class="modal__btn modal__btn--primary"
+      (click)="accept.emit()"
+    >
+      Actualizar
+    </button>
+  </div>
+</div>
