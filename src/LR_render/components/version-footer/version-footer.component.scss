@@ -1,0 +1,12 @@
+.version-footer {
+  // Footer "operativo": visible para que soporte pueda preguntarle al alumno
+  // qué versión tiene, pero tenue para no competir con el contenido principal.
+  font-size: 0.6875rem;
+  line-height: 1;
+  font-weight: 400;
+  text-align: center;
+  color: var(--color-on-surface-variant);
+  opacity: 0.6;
+  padding: var(--space-xs) 0;
+  letter-spacing: 0.02em;
+}
