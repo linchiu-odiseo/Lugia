@@ -1,79 +1,172 @@
 # exam-list Specification
 
 ## Purpose
-Displays today's exam list to the student with four-state model (pending, open, submitted, closed). Supports focus refresh, 120s polling, and pull-to-refresh.
+Displays today's exam list to the student with five-state model (pending, open, submitted, closed). Supports focus refresh, 120s polling, and pull-to-refresh. Resilience: accepts exams with `started: null + in_progress`, alerts in LR.
 
 ## Requirements
 
 ### Requirement: Obtener simulacros del día desde el backend
 
-El sistema SHALL exponer `ObtenerSimulacrosDelDiaUseCase` (L2) que invoca el puerto `SimulacrosApi` (L1) y devuelve una lista de entidades `Simulacro` correspondientes al alumno autenticado, junto con el `serverTime` reportado por el backend. La operación reside en L2 y depende del puerto `SimulacrosApi`.
+El sistema SHALL exponer `GetTodaysExamsUseCase` (L2) que invoca el puerto `ExamsApi` (L1) y devuelve una lista de entidades `Exam` correspondientes al alumno autenticado, junto con el `serverTime` ISO 8601 reportado por el backend. La operación reside en L2 y depende del puerto `ExamsApi`.
 
-#### Scenario: Lista no vacía con simulacros del día
+El adapter SHALL llamar `GET /t/{slug}/student/exam-sessions` construida via `apiPath.studentExamSessions()`. Auth via cookies HttpOnly + `withCredentials: true` — gestionado por `credentials.interceptor`; el adapter no agrega headers de auth. El server ordena por `scheduled DESC`; el cliente NO reordena la lista. La lista MAY ser vacía.
 
-- **WHEN** el alumno está autenticado y se invoca `ObtenerSimulacrosDelDiaUseCase.execute()`
-- **THEN** el resultado contiene una colección de `Simulacro` con al menos `id`, `area`, `name`, `count`, `inicio`, `fin`, `estado`
+La entidad `Exam` (L1) SHALL tener los campos: `id`, `area: string | null`, `course: string | null`, `type: string`, `name: string`, `count: number`, `duration: number` (segundos, ≥ 1), `serverStatus: ExamServerStatus`, `scheduled: Date`, `started: Date | null`, `finished: Date | null`.
+
+`ExamServerStatus` SHALL admitir solo los valores `'scheduled' | 'in_progress' | 'finalized'`. El método `permiteEntrada()` MUST retornar `true` solo cuando el valor es `'in_progress'`. El método `esTerminal()` MUST retornar `true` cuando el valor es `'finalized'`.
+
+Clasificación de errores por `(status, endpoint, body.code)` — NUNCA por `message`:
+- 401 → manejado por `credentials.interceptor` (refresh + redirect login si falla). El adapter NO clasifica.
+- 403 → `ExamsPermissionRevokedError`.
+- 404 con `code: "STUDENT_NOT_LINKED"` → `StudentNotLinkedError`.
+- 404 sin ese code → `NetworkError`.
+- 0 / 5xx → `NetworkError`.
+- 429 → `NetworkError` (manejo de backoff diferido a change futuro).
+
+#### Scenario: Lista no vacía con exámenes del día
+
+- **GIVEN** el alumno está autenticado (cookies válidas)
+- **WHEN** se invoca `GetTodaysExamsUseCase.execute()`
+- **THEN** el resultado contiene una colección de `Exam` con al menos `id`, `name`, `count`, `duration`, `serverStatus`, `scheduled`
 - **AND** el resultado incluye el `serverTime` del backend para anclar countdowns
 
-#### Scenario: Lista vacía si no hay simulacros asignados hoy
+#### Scenario: Lista vacía si no hay exámenes asignados
 
-- **WHEN** el alumno está autenticado y no tiene simulacros asignados para el día
-- **THEN** el resultado es una colección vacía
-- **AND** el `serverTime` igual se reporta
+- **GIVEN** el alumno está autenticado y no tiene exámenes asignados
+- **WHEN** se invoca `GetTodaysExamsUseCase.execute()`
+- **THEN** el resultado contiene `exams: []`
+- **AND** `serverTime` igualmente se reporta
 
-#### Scenario: Error de red durante la consulta
+#### Scenario: Error de red durante la consulta (0 / 5xx)
 
-- **WHEN** se invoca el use case y `SimulacrosApi` reporta error de transporte
-- **THEN** el use case rechaza la promesa con `NetworkError`
+- **GIVEN** el backend no responde o retorna 500
+- **WHEN** se invoca `GetTodaysExamsUseCase.execute()`
+- **THEN** el use case rechaza con `NetworkError`
 
-#### Scenario: Sesión expirada durante la consulta
+#### Scenario: 403 cuando los permisos fueron revocados
 
-- **WHEN** `SimulacrosApi` devuelve 401
-- **THEN** el use case rechaza la promesa con `SessionExpiredError`
-- **AND** la lógica de logout silencioso de Fase 1 procede
+- **GIVEN** el backend retorna HTTP 403
+- **WHEN** se invoca `GetTodaysExamsUseCase.execute()`
+- **THEN** el use case rechaza con `ExamsPermissionRevokedError`
 
-### Requirement: Modelo de 4 estados del simulacro
+#### Scenario: 404 con code STUDENT_NOT_LINKED
 
-La entidad `Simulacro` (L1) SHALL exponer un value-object `EstadoSimulacro` que solo admite los valores `pendiente`, `abierto`, `enviado`, `cerrado`. El estado lo deriva el backend en cada respuesta; el cliente NO lo recomputa por su cuenta.
+- **GIVEN** el backend retorna HTTP 404 con body `{ code: "STUDENT_NOT_LINKED" }`
+- **WHEN** se invoca `GetTodaysExamsUseCase.execute()`
+- **THEN** el use case rechaza con `StudentNotLinkedError`
 
-#### Scenario: Estado pendiente cuando aún no llega la hora
+#### Scenario: 404 sin code conocido
 
-- **WHEN** el backend retorna un simulacro con `estado: "pendiente"`
-- **THEN** la entidad `Simulacro` lo expone como tal
-- **AND** la UI lo muestra como no clickeable con mensaje "Disponible a las HH:MM"
+- **GIVEN** el backend retorna HTTP 404 con body sin `code: "STUDENT_NOT_LINKED"`
+- **WHEN** se invoca `GetTodaysExamsUseCase.execute()`
+- **THEN** el use case rechaza con `NetworkError`
 
-#### Scenario: Estado abierto durante la ventana
+#### Scenario: 429 tratado como NetworkError
 
-- **WHEN** el backend retorna un simulacro con `estado: "abierto"`
-- **THEN** la entidad expone `abierto`
-- **AND** la UI lo muestra como clickeable con countdown server-anchored hasta `fin`
+- **GIVEN** el backend retorna HTTP 429
+- **WHEN** se invoca `GetTodaysExamsUseCase.execute()`
+- **THEN** el use case rechaza con `NetworkError`
 
-#### Scenario: Estado enviado tras envío exitoso
+#### Scenario: started null con serverStatus in_progress (se incluye, alerta en LR)
 
-- **WHEN** el backend retorna un simulacro con `estado: "enviado"` y un `enviadoEn`
-- **THEN** la entidad expone `enviado` con el timestamp
-- **AND** la UI lo muestra como gris con check y la hora del envío
+- **GIVEN** el backend retorna una lista con un examen `serverStatus: "in_progress"` y `started: null` junto a otros exámenes válidos
+- **WHEN** el adapter procesa la respuesta
+- **THEN** el adapter incluye TODOS los exámenes (incluido el de `started: null`) en el resultado, en el orden recibido
+- **AND** el examen problemático se construye como `Exam` con `started: null`
+- **AND** el view-model de `/simulacro/:id` muestra el banner "☕ El examen está tomando un café, ¡espera la señal para empezar!" y deshabilita el botón Enviar mientras `hasStartedBy(now) === false`
+- **AND** el alumno puede marcar; las marcaciones quedan en IDB hasta que el examen entre en vigencia
 
-#### Scenario: Estado cerrado tras fin sin envío
+#### Scenario: Valor de serverStatus fuera del set permitido
 
-- **WHEN** el backend retorna un simulacro con `estado: "cerrado"`
-- **THEN** la entidad expone `cerrado`
-- **AND** la UI lo muestra como gris con advertencia "No enviaste · cerrado"
-- **AND** la UI no permite entrar al simulacro
+- **GIVEN** el backend retorna un valor de `serverStatus` desconocido
+- **WHEN** el adapter intenta construir la entidad `Exam`
+- **THEN** el adapter lanza `InvalidExamError`
 
-#### Scenario: Estado desconocido rechazado en construcción
+### Requirement: Composición de estado-tarjeta en el view-model
 
-- **WHEN** el backend retorna un valor de estado fuera del set permitido
-- **THEN** la construcción de `Simulacro` lanza `InvalidSimulacroError`
+El view-model de `/home` (LR) SHALL componer el estado visual de cada tarjeta de examen a partir de dos dimensiones: `serverStatus` de la entidad `Exam` y el flag local `yaEnvie` derivado del estado ACK de `MarkingsStorage` para ese `examId`. El flag `yaEnvie` NO viene de ningún campo DTO; `finished` es el cierre global de la ventana del examen, no el envío del alumno. Hay exactamente 5 combinaciones válidas:
+
+| serverStatus | yaEnvie | Estado tarjeta | Clickeable |
+|---|---|---|---|
+| `scheduled` | any | `pending` — gris | No |
+| `in_progress` | false | `open` — verde con timer | Sí |
+| `in_progress` | true | `submitted` — check verde | No |
+| `finalized` | true | `submitted` — check verde | No |
+| `finalized` | false | `closed` — rojo | No |
+
+El texto de cierre SHALL calcularse como `exam.scheduled.getTime() + exam.duration * 1000` (factor × 1000 porque `duration` está en segundos). El campo secundario SHALL mostrarse como `area ?? course ?? '—'` (solo en view-model, la entidad acepta ambos como null).
+
+El timer para tarjeta `open` SHALL calcularse como `Math.max(0, exam.duration - (serverTime - exam.started.getTime()) / 1000)` en segundos.
+
+#### Scenario: Tarjeta pending — serverStatus scheduled
+
+- **GIVEN** un `Exam` con `serverStatus: 'scheduled'`
+- **WHEN** el view-model compone el estado de tarjeta
+- **THEN** el card state es `pending` (gris, no clickeable)
+- **AND** no muestra timer ni botón de entrada
+
+#### Scenario: Tarjeta open — in_progress y no enviado localmente
+
+- **GIVEN** un `Exam` con `serverStatus: 'in_progress'` y `yaEnvie: false`
+- **WHEN** el view-model compone el estado de tarjeta
+- **THEN** el card state es `open` (clickeable, muestra timer en segundos)
+
+#### Scenario: Tarjeta submitted — in_progress y enviado localmente
+
+- **GIVEN** un `Exam` con `serverStatus: 'in_progress'` y `yaEnvie: true`
+- **WHEN** el view-model compone el estado de tarjeta
+- **THEN** el card state es `submitted` (check verde, no clickeable)
+
+#### Scenario: Tarjeta submitted — finalized y enviado localmente
+
+- **GIVEN** un `Exam` con `serverStatus: 'finalized'` y `yaEnvie: true`
+- **WHEN** el view-model compone el estado de tarjeta
+- **THEN** el card state es `submitted` (check verde, no clickeable)
+
+#### Scenario: Tarjeta closed — finalized y no enviado localmente
+
+- **GIVEN** un `Exam` con `serverStatus: 'finalized'` y `yaEnvie: false`
+- **WHEN** el view-model compone el estado de tarjeta
+- **THEN** el card state es `closed` (rojo, no clickeable)
+
+#### Scenario: Cálculo correcto del tiempo de cierre en display
+
+- **GIVEN** `exam.scheduled = T` y `exam.duration = 3600` (segundos)
+- **WHEN** el view-model calcula el tiempo de cierre para "Cierra a las HH:MM"
+- **THEN** el timestamp de cierre es `T + 3600 * 1000` ms (NO `T + 3600 * 60000`)
+
+#### Scenario: Cálculo del timer para tarjeta open
+
+- **GIVEN** `exam.started = S`, `exam.duration = 1800`, `serverTime = S + 300000` ms
+- **WHEN** el view-model calcula el timer
+- **THEN** el timer es `Math.max(0, 1800 - 300000 / 1000)` = 1500 segundos
+
+#### Scenario: area null — fallback a course en display
+
+- **GIVEN** un `Exam` con `area: null` y `course: "Matemática"`
+- **WHEN** el view-model genera el texto secundario
+- **THEN** muestra "Matemática"
+
+#### Scenario: area y course null — fallback a guion
+
+- **GIVEN** un `Exam` con `area: null` y `course: null`
+- **WHEN** el view-model genera el texto secundario
+- **THEN** muestra "—"
+
+#### Scenario: UI muestra branch StudentNotLinked
+
+- **GIVEN** `GetTodaysExamsUseCase` rechaza con `StudentNotLinkedError`
+- **WHEN** el view-model procesa el error
+- **THEN** la UI muestra el mensaje "Tu cuenta no tiene un alumno asociado, contacta al tutor"
 
 ### Requirement: Refresh de la lista por focus, polling y pull-to-refresh
 
-La pantalla `/home` (LR_render) SHALL refrescar la lista de simulacros mediante tres mecanismos: evento `visibilitychange` cuando la pestaña vuelve a estar visible, polling automático cada 120 segundos mientras la pestaña esté visible, y gesto de pull-to-refresh manual del alumno.
+La pantalla `/home` (LR_render) SHALL refrescar la lista de exámenes mediante tres mecanismos: evento `visibilitychange` cuando la pestaña vuelve a estar visible, polling automático cada 120 segundos mientras la pestaña esté visible, y gesto de pull-to-refresh manual del alumno. Pull-to-refresh re-invoca el mismo `GET /t/{slug}/student/exam-sessions` sin parámetros adicionales; aplica el mismo manejo de errores.
 
 #### Scenario: Refresh al volver al foco
 
 - **WHEN** la pestaña pasa de oculta a visible (`document.visibilityState === "visible"`)
-- **THEN** la página dispara `ObtenerSimulacrosDelDiaUseCase.execute()` y actualiza el view-model
+- **THEN** la página dispara `GetTodaysExamsUseCase.execute()` y actualiza el view-model
 
 #### Scenario: Polling pausado mientras la pestaña no es visible
 
@@ -84,21 +177,21 @@ La pantalla `/home` (LR_render) SHALL refrescar la lista de simulacros mediante 
 #### Scenario: Pull-to-refresh manual
 
 - **WHEN** el alumno arrastra hacia abajo en `/home` desde la parte superior
-- **THEN** la página dispara `ObtenerSimulacrosDelDiaUseCase.execute()` inmediatamente
+- **THEN** la página dispara `GetTodaysExamsUseCase.execute()` inmediatamente
 - **AND** muestra feedback visual mientras carga
 
-### Requirement: Backend garantiza no-overlap de simulacros
+### Requirement: Backend garantiza no-overlap de exámenes
 
-El puerto `SimulacrosApi` (L1) SHALL asumir que la lista retornada nunca contiene dos simulacros con estado `abierto` simultáneamente para el mismo alumno. El cliente trata cualquier violación como bug de backend pero degrada con elegancia.
+El puerto `ExamsApi` (L1) SHALL asumir que la lista retornada nunca contiene dos exámenes con `serverStatus: 'in_progress'` simultáneamente para el mismo alumno. El cliente trata cualquier violación como bug de backend pero degrada con elegancia.
 
-#### Scenario: Lista válida con un único abierto
+#### Scenario: Lista válida con un único in_progress
 
 - **WHEN** el backend retorna la lista del día
-- **THEN** a lo más un simulacro tiene `estado: "abierto"` en cualquier momento
+- **THEN** a lo más un examen tiene `serverStatus: 'in_progress'` en cualquier momento
 
 #### Scenario: Violación de no-overlap como degradación graceful
 
-- **WHEN** el backend retorna dos simulacros con `estado: "abierto"` simultáneamente (bug)
+- **WHEN** el backend retorna dos exámenes con `serverStatus: 'in_progress'` simultáneamente (bug)
 - **THEN** la PWA registra un warning en consola con los ids involucrados
-- **AND** ambos cards se renderizan como `abierto` (verde clickeable) — el cliente NO recomputa el estado de dominio per Requirement 2
-- **AND** el alumno puede entrar a cualquiera sin error; el primero por orden de lista es el "activo" canónico para fines de logging
+- **AND** ambas tarjetas se renderizan como `open` (verde clickeable) — el cliente NO recomputa el serverStatus
+- **AND** el alumno puede entrar a cualquiera sin error
