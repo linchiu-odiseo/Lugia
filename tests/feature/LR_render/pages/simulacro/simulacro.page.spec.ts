@@ -264,6 +264,9 @@ describe('SimulacroPage', () => {
 
   describe('marcar una bubble', () => {
     it('click en una bubble dispara MarcarRespuestaUseCase con (examId, pregunta, letra)', async () => {
+      // Clock al started del helper: examen vigente para que la grilla
+      // reciba clicks (la guard de vigencia bloquearía si no).
+      fakeClock.setNow(new Date('2026-06-11T10:00:05Z'));
       const exam = buildExam('exam-1', 'in_progress', { count: 3 });
       fakeGetTodaysExams.willResolve([exam]);
       await configureTestBed('exam-1');
@@ -461,6 +464,9 @@ describe('SimulacroPage', () => {
     });
 
     it('click en bubble de fila editing → aplica la marca y la fila vuelve a locked', async () => {
+      // Clock al started del helper: examen vigente para que el long-press
+      // y el cambio de marca apliquen.
+      fakeClock.setNow(new Date('2026-06-11T10:00:05Z'));
       const exam = buildExam('exam-1', 'in_progress', { count: 3 });
       fakeGetTodaysExams.willResolve([exam]);
       fakeMarkings.seedMarcaciones('exam-1', { '2': 'A' });
@@ -729,6 +735,46 @@ describe('SimulacroPage', () => {
       const el = fixture.nativeElement as HTMLElement;
       const enviarBtn = el.querySelector('.btn--primary') as HTMLButtonElement;
       expect(enviarBtn.disabled).toBe(true);
+    });
+
+    it('la grilla recibe clase --disabled cuando el examen no es vigente', async () => {
+      fakeClock.setNow(new Date('2026-06-11T10:00:00Z'));
+      const exam = buildExam('exam-1', 'in_progress', {
+        started: new Date('2026-06-11T11:00:00Z'),
+      });
+      fakeGetTodaysExams.willResolve([exam]);
+      await configureTestBed('exam-1');
+
+      const fixture = TestBed.createComponent(SimulacroPage);
+      fixture.detectChanges();
+      await flushPromises();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      const el = fixture.nativeElement as HTMLElement;
+      const grilla = el.querySelector('.grilla') as HTMLElement;
+      expect(grilla.classList.contains('grilla--disabled')).toBe(true);
+      expect(grilla.getAttribute('aria-disabled')).toBe('true');
+    });
+
+    it('la grilla NO recibe clase --disabled cuando el examen sí es vigente', async () => {
+      fakeClock.setNow(new Date('2026-06-11T11:00:00Z'));
+      const exam = buildExam('exam-1', 'in_progress', {
+        started: new Date('2026-06-11T10:00:00Z'),
+      });
+      fakeGetTodaysExams.willResolve([exam]);
+      await configureTestBed('exam-1');
+
+      const fixture = TestBed.createComponent(SimulacroPage);
+      fixture.detectChanges();
+      await flushPromises();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      const el = fixture.nativeElement as HTMLElement;
+      const grilla = el.querySelector('.grilla') as HTMLElement;
+      expect(grilla.classList.contains('grilla--disabled')).toBe(false);
+      expect(grilla.getAttribute('aria-disabled')).toBeNull();
     });
   });
 });

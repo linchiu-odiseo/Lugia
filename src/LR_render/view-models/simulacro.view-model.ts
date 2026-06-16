@@ -147,6 +147,15 @@ export class SimulacroPageViewModel {
     return !e.hasStartedBy(this.nowTick());
   });
 
+  // True cuando el examen está vigente para marcar/enviar: status
+  // permite entrada y el reloj cliente cae dentro del intervalo
+  // [started, effectiveCloseAt]. Cuando esto es false la grilla queda
+  // visualmente atenuada y los clicks no aplican — las marcas previas
+  // siguen visibles pero no se pueden cambiar ni agregar.
+  readonly vigente: Signal<boolean> = computed(() => {
+    return !this.examenNoIniciado() && !this.examenTiempoCumplido();
+  });
+
   // True cuando el reloj cliente ya cruzó el cierre efectivo del examen.
   // El cliente NO redirige por esto — el server manda el cierre real
   // (siguiente polling de /home detecta `status === 'finalized'`). La
@@ -295,6 +304,11 @@ export class SimulacroPageViewModel {
   // disciplina del template.
   async marcar(pregunta: number, letra: AlternativaValue): Promise<void> {
     if (this.stopped) return;
+    // Bloqueo de marcación cuando el examen no es vigente (no iniciado o
+    // tiempo cumplido). Las marcas previas se mantienen visibles en IDB,
+    // pero ningún click cambia el estado. Espejo de [class.grilla--disabled]
+    // en el template.
+    if (!this.vigente()) return;
     const e = this.exam();
     if (e === null) return;
 

@@ -3,7 +3,9 @@
   min-height: 100dvh;
   background: var(--color-bg);
   color: var(--color-on-surface);
-  padding: var(--space-lg);
+  // El padding-top se mueve al `.header` para que el sticky se pegue al
+  // borde superior real de la viewport sin un gap visible.
+  padding: 0 var(--space-lg) var(--space-lg);
   box-sizing: border-box;
   font-family: var(--font-body);
 }
@@ -11,11 +13,13 @@
 .simulacro {
   max-width: 28rem;
   margin: 0 auto;
-  padding-block: var(--space-lg) var(--space-md);
+  // Sin padding-block-start: el header se encarga del espacio superior y
+  // del sticky. Mantiene el padding inferior original.
+  padding-block: 0 var(--space-md);
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
-  min-height: calc(100dvh - 3rem);
+  min-height: 100dvh;
   box-sizing: border-box;
 }
 
@@ -24,8 +28,14 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-sm);
-  padding-bottom: 0.9rem;
+  padding-block: var(--space-lg) 0.9rem;
   border-bottom: 1px solid var(--color-outline-variant);
+  // Fijo en el top mientras el alumno scrolea la grilla. El background
+  // opaco evita que las filas de abajo se vean por transparencia.
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--color-bg);
 
   &__meta {
     display: flex;
@@ -98,6 +108,16 @@
   // Le damos al scroll de la grilla un poco de respiro extra abajo para que
   // la última pregunta no quede pegada al footer.
   padding-bottom: var(--space-xs);
+
+  // Estado no vigente (banner "café" o "tiempo agotado" arriba): las
+  // burbujas se atenúan visualmente y los clicks no aplican. Las marcas
+  // previas siguen visibles. El guard real vive en el view-model
+  // (`vigente()` en `marcar()`); pointer-events: none es defensa en
+  // profundidad — evita que el alumno espere reacción ante un tap muerto.
+  &--disabled {
+    opacity: 0.55;
+    pointer-events: none;
+  }
 }
 
 .fila {

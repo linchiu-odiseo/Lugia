@@ -468,6 +468,8 @@ describe('SimulacroPageViewModel', () => {
 
   describe('marcar()', () => {
     it('marcar pregunta sin marca previa → invoca use case y signal refleja la letra', async () => {
+      // Clock al momento del started: examen vigente, marcar aplica.
+      fakeClock.setNow(new Date('2026-06-11T10:00:05Z'));
       const exam = buildExam('exam-1', 'in_progress', { count: 5 });
       fakeGetTodaysExams.willResolve([exam]);
       const vm = createVm();
@@ -477,6 +479,38 @@ describe('SimulacroPageViewModel', () => {
 
       expect(fakeMarcar.calls).toEqual([{ examId: 'exam-1', pregunta: 5, alternativa: 'C' }]);
       expect(vm.marcaciones()['5']).toBe('C');
+      vm.stop();
+    });
+
+    it('NO marca cuando el examen no es vigente (no iniciado)', async () => {
+      fakeClock.setNow(new Date('2026-06-11T10:00:00Z'));
+      const exam = buildExam('exam-1', 'in_progress', {
+        started: new Date('2026-06-11T11:00:00Z'),
+      });
+      fakeGetTodaysExams.willResolve([exam]);
+      const vm = createVm();
+      await vm.start('exam-1');
+
+      await vm.marcar(1, 'A');
+
+      expect(fakeMarcar.calls).toHaveLength(0);
+      expect(vm.marcaciones()['1']).toBeNull();
+      vm.stop();
+    });
+
+    it('NO marca cuando el examen no es vigente (tiempo cumplido)', async () => {
+      fakeClock.setNow(new Date('2026-06-11T13:00:00Z'));
+      const exam = buildExam('exam-1', 'in_progress', {
+        started: new Date('2026-06-11T10:00:00Z'),
+      });
+      fakeGetTodaysExams.willResolve([exam]);
+      const vm = createVm();
+      await vm.start('exam-1');
+
+      await vm.marcar(1, 'A');
+
+      expect(fakeMarcar.calls).toHaveLength(0);
+      expect(vm.marcaciones()['1']).toBeNull();
       vm.stop();
     });
   });

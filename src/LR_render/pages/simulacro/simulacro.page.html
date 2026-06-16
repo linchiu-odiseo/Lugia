@@ -28,7 +28,12 @@
       </div>
     }
 
-    <section class="grilla" aria-label="Cartilla de marcaciones">
+    <section
+      class="grilla"
+      [class.grilla--disabled]="!vm.vigente()"
+      [attr.aria-disabled]="!vm.vigente() ? 'true' : null"
+      aria-label="Cartilla de marcaciones"
+    >
       @for (pregunta of vm.preguntas(); track pregunta) {
         <div
           class="fila"
