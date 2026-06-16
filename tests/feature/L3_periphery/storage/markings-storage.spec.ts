@@ -56,6 +56,39 @@ function makeIdentity(email: string): Identity {
   );
 }
 
+// Lee todas las claves del object store para tests que verifican el
+// formato literal de la key (segmento "simulacro" / "queue").
+function readAllKeys(): Promise<string[]> {
+  return new Promise((resolve, reject) => {
+    const openReq = indexedDB.open(DB_NAME);
+    openReq.onupgradeneeded = () => {
+      const db = openReq.result;
+      if (!db.objectStoreNames.contains(STORE)) {
+        db.createObjectStore(STORE);
+      }
+    };
+    openReq.onsuccess = () => {
+      const db = openReq.result;
+      if (!db.objectStoreNames.contains(STORE)) {
+        db.close();
+        resolve([]);
+        return;
+      }
+      const tx = db.transaction(STORE, 'readonly');
+      const req = tx.objectStore(STORE).getAllKeys();
+      req.onsuccess = () => {
+        db.close();
+        resolve((req.result as IDBValidKey[]).map((k) => String(k)));
+      };
+      req.onerror = () => {
+        db.close();
+        reject(req.error);
+      };
+    };
+    openReq.onerror = () => reject(openReq.error);
+  });
+}
+
 // Vacía el único object store entre tests (mismo patrón que el spec viejo).
 function wipeAllKeys(): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -175,7 +208,7 @@ describe('IndexedDbMarkingsStorage', () => {
       identityStorage.setIdentity(makeIdentity('alumno-a@vonex.edu.pe'));
       await adapter.setMarcacion('sim-1', 1, 'A');
       await adapter.enqueueEnvio({
-        simulacroId: 'sim-1',
+        examId: 'sim-1',
         answers: { '1': 'A' },
         clientSubmittedAt: '2026-06-11T12:00:00.000Z',
       });
@@ -193,7 +226,7 @@ describe('IndexedDbMarkingsStorage', () => {
       expect(await adapter.getMarcaciones('sim-1')).toEqual({ '1': 'A' });
       expect(await adapter.getEnviosPendientes()).toEqual([
         {
-          simulacroId: 'sim-1',
+          examId: 'sim-1',
           answers: { '1': 'A' },
           clientSubmittedAt: '2026-06-11T12:00:00.000Z',
         },
@@ -204,7 +237,7 @@ describe('IndexedDbMarkingsStorage', () => {
       await adapter.setMarcacion('sim-1', 1, 'A');
       await adapter.setMarcacion('sim-2', 1, 'B');
       await adapter.enqueueEnvio({
-        simulacroId: 'sim-1',
+        examId: 'sim-1',
         answers: { '1': 'A' },
         clientSubmittedAt: '2026-06-11T12:00:00.000Z',
       });
@@ -220,7 +253,7 @@ describe('IndexedDbMarkingsStorage', () => {
   describe('cola de envíos pendientes', () => {
     it('enqueueEnvio + getEnviosPendientes roundtrip', async () => {
       const envio = {
-        simulacroId: 'sim-1',
+        examId: 'sim-1',
         answers: { '1': 'A' as const, '2': null },
         clientSubmittedAt: '2026-06-11T12:00:00.000Z',
       };
@@ -233,14 +266,14 @@ describe('IndexedDbMarkingsStorage', () => {
       expect(await adapter.getEnviosPendientes()).toEqual([]);
     });
 
-    it('enqueueEnvio del mismo simulacroId sobreescribe el envío previo', async () => {
+    it('enqueueEnvio del mismo examId sobreescribe el envío previo', async () => {
       await adapter.enqueueEnvio({
-        simulacroId: 'sim-1',
+        examId: 'sim-1',
         answers: { '1': 'A' },
         clientSubmittedAt: '2026-06-11T12:00:00.000Z',
       });
       await adapter.enqueueEnvio({
-        simulacroId: 'sim-1',
+        examId: 'sim-1',
         answers: { '1': 'B' },
         clientSubmittedAt: '2026-06-11T12:05:00.000Z',
       });
@@ -249,14 +282,14 @@ describe('IndexedDbMarkingsStorage', () => {
       expect(pending[0].answers).toEqual({ '1': 'B' });
     });
 
-    it('dequeueEnvio elimina sólo el simulacroId indicado', async () => {
+    it('dequeueEnvio elimina sólo el examId indicado', async () => {
       await adapter.enqueueEnvio({
-        simulacroId: 'sim-1',
+        examId: 'sim-1',
         answers: { '1': 'A' },
         clientSubmittedAt: '2026-06-11T12:00:00.000Z',
       });
       await adapter.enqueueEnvio({
-        simulacroId: 'sim-2',
+        examId: 'sim-2',
         answers: { '1': 'B' },
         clientSubmittedAt: '2026-06-11T12:05:00.000Z',
       });
@@ -265,7 +298,60 @@ describe('IndexedDbMarkingsStorage', () => {
 
       const pending = await adapter.getEnviosPendientes();
       expect(pending).toHaveLength(1);
-      expect(pending[0].simulacroId).toBe('sim-2');
+      expect(pending[0].examId).toBe('sim-2');
+    });
+  });
+
+  describe('hasSubmittedAck (seam C2 — siempre false en este change)', () => {
+    // En `fase-3-exam-list-learnex` la implementación retorna SIEMPRE false:
+    // el POST sigue como stub y el server nunca confirma envíos. El seam se
+    // activa en `fase-3-exam-submit-learnex` cuando el ack real llegue al IDB.
+    it('hasSubmittedAck para cualquier examId resuelve a false', async () => {
+      expect(await adapter.hasSubmittedAck('any-id')).toBe(false);
+    });
+
+    it('hasSubmittedAck retorna false incluso si hay marcaciones para ese examId', async () => {
+      await adapter.setMarcacion('sim-con-marcas', 1, 'A');
+      expect(await adapter.hasSubmittedAck('sim-con-marcas')).toBe(false);
+    });
+
+    it('hasSubmittedAck retorna false incluso si hay un envío encolado para ese examId', async () => {
+      await adapter.enqueueEnvio({
+        examId: 'sim-encolado',
+        answers: { '1': 'A' },
+        clientSubmittedAt: '2026-06-11T12:00:00.000Z',
+      });
+      expect(await adapter.hasSubmittedAck('sim-encolado')).toBe(false);
+    });
+  });
+
+  describe('key format en IDB mantiene segmento literal "simulacro"', () => {
+    // El segmento literal "simulacro" en la clave del IDB se mantiene en este
+    // change para evitar una migración de schema. Esto se verifica leyendo
+    // las claves crudas del object store y confirmando que contienen el segmento.
+    it('marcaciones se escriben con clave que contiene ".simulacro." literal', async () => {
+      await adapter.setMarcacion('exam-key-test', 7, 'D');
+
+      // Inspeccionamos el IDB directamente.
+      const keys = await readAllKeys();
+      const matched = keys.filter((k) => k.includes('.simulacro.'));
+      expect(matched.length).toBeGreaterThan(0);
+      // Y el formato completo:
+      // cartilla.<email>.simulacro.<examId>.<pregunta>
+      expect(matched.some((k) => k.endsWith('.simulacro.exam-key-test.7'))).toBe(true);
+    });
+
+    it('cola de envíos se escribe con clave que contiene ".queue." literal (NO ".simulacro.")', async () => {
+      await adapter.enqueueEnvio({
+        examId: 'queue-key-test',
+        answers: { '1': 'A' },
+        clientSubmittedAt: '2026-06-11T12:00:00.000Z',
+      });
+
+      const keys = await readAllKeys();
+      const queueKeys = keys.filter((k) => k.includes('.queue.'));
+      expect(queueKeys.length).toBeGreaterThan(0);
+      expect(queueKeys.some((k) => k.endsWith('.queue.queue-key-test'))).toBe(true);
     });
   });
 
@@ -294,7 +380,7 @@ describe('IndexedDbMarkingsStorage', () => {
         );
         await expect(
           fresh.enqueueEnvio({
-            simulacroId: 'sim-1',
+            examId: 'sim-1',
             answers: {},
             clientSubmittedAt: '2026-06-11T12:00:00.000Z',
           }),
@@ -321,7 +407,7 @@ describe('IndexedDbMarkingsStorage', () => {
       identityStorage.setIdentity(makeIdentity('alumno-a@vonex.edu.pe'));
       await adapter.setMarcacion('sim-1', 1, 'A');
       await adapter.enqueueEnvio({
-        simulacroId: 'sim-1',
+        examId: 'sim-1',
         answers: { '1': 'A' },
         clientSubmittedAt: '2026-06-11T12:00:00.000Z',
       });
@@ -339,7 +425,7 @@ describe('IndexedDbMarkingsStorage', () => {
     it('clear (OutboxStoragePort) sin identity es no-op (no lanza, no borra nada)', async () => {
       identityStorage.setIdentity(makeIdentity('alumno-a@vonex.edu.pe'));
       await adapter.enqueueEnvio({
-        simulacroId: 'sim-1',
+        examId: 'sim-1',
         answers: { '1': 'A' },
         clientSubmittedAt: '2026-06-11T12:00:00.000Z',
       });
@@ -360,12 +446,12 @@ describe('IndexedDbMarkingsStorage', () => {
       await adapter.setMarcacion('sim-1', 1, 'A');
       await adapter.setMarcacion('sim-2', 1, 'B');
       await adapter.enqueueEnvio({
-        simulacroId: 'sim-1',
+        examId: 'sim-1',
         answers: { '1': 'A' },
         clientSubmittedAt: '2026-06-11T12:00:00.000Z',
       });
       await adapter.enqueueEnvio({
-        simulacroId: 'sim-2',
+        examId: 'sim-2',
         answers: { '1': 'B' },
         clientSubmittedAt: '2026-06-11T12:05:00.000Z',
       });
@@ -382,14 +468,14 @@ describe('IndexedDbMarkingsStorage', () => {
     it('clear NO afecta la cola de otro usuario', async () => {
       identityStorage.setIdentity(makeIdentity('alumno-a@vonex.edu.pe'));
       await adapter.enqueueEnvio({
-        simulacroId: 'sim-1',
+        examId: 'sim-1',
         answers: { '1': 'A' },
         clientSubmittedAt: '2026-06-11T12:00:00.000Z',
       });
 
       identityStorage.setIdentity(makeIdentity('alumno-b@vonex.edu.pe'));
       await adapter.enqueueEnvio({
-        simulacroId: 'sim-9',
+        examId: 'sim-9',
         answers: { '1': 'D' },
         clientSubmittedAt: '2026-06-11T13:00:00.000Z',
       });
@@ -424,7 +510,7 @@ describe('IndexedDbMarkingsStorage', () => {
 
     it('cola de envíos pendientes persiste al reabrir el adapter', async () => {
       await adapter.enqueueEnvio({
-        simulacroId: 'sim-1',
+        examId: 'sim-1',
         answers: { '1': 'A' },
         clientSubmittedAt: '2026-06-11T12:00:00.000Z',
       });
@@ -443,7 +529,7 @@ describe('IndexedDbMarkingsStorage', () => {
       const pending = await reopened.getEnviosPendientes();
       expect(pending).toEqual([
         {
-          simulacroId: 'sim-1',
+          examId: 'sim-1',
           answers: { '1': 'A' },
           clientSubmittedAt: '2026-06-11T12:00:00.000Z',
         },

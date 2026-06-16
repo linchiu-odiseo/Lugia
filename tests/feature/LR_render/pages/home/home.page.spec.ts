@@ -6,16 +6,17 @@ import { HomePage } from '../../../../../src/LR_render/pages/home/home.page';
 import { GetIdentityUseCase } from '../../../../../src/L2_application/use-cases/get-identity.use-case';
 import { GetProfileUseCase } from '../../../../../src/L2_application/use-cases/get-profile.use-case';
 import { LogoutUseCase } from '../../../../../src/L2_application/use-cases/logout.use-case';
-import { ObtenerSimulacrosDelDiaUseCase } from '../../../../../src/L2_application/use-cases/obtener-simulacros-del-dia.use-case';
+import { GetTodaysExamsUseCase } from '../../../../../src/L2_application/use-cases/get-todays-exams.use-case';
 import { CLOCK, MARKINGS_STORAGE } from '../../../../../src/app.config';
 import { Identity, Role } from '../../../../../src/L1_domain/entities/identity';
 import { StudentProfile } from '../../../../../src/L1_domain/value-objects/student-profile';
 import { TutorProfile } from '../../../../../src/L1_domain/value-objects/tutor-profile';
-import { Simulacro } from '../../../../../src/L1_domain/entities/simulacro';
-import { EstadoSimulacro } from '../../../../../src/L1_domain/value-objects/estado-simulacro';
+import { Exam } from '../../../../../src/L1_domain/entities/exam';
+import { ExamServerStatus } from '../../../../../src/L1_domain/value-objects/exam-server-status';
 import { ServerTime } from '../../../../../src/L1_domain/value-objects/server-time';
 import { NetworkError } from '../../../../../src/L1_domain/errors/network.error';
 import { OfflineStorageUnavailableError } from '../../../../../src/L1_domain/errors/offline-storage-unavailable.error';
+import { StudentNotLinkedError } from '../../../../../src/L1_domain/errors/student-not-linked.error';
 import { Clock } from '../../../../../src/L1_domain/ports/clock';
 import {
   AlternativaValue,
@@ -88,24 +89,21 @@ class FakeLogoutUseCase {
   }
 }
 
-// Fake del use case L2 con control de outcome. Cuenta calls para verificar
-// indirectamente el efecto de Reintentar / refresh.
-class FakeObtenerSimulacrosDelDiaUseCase {
-  private next: { kind: 'resolve'; list: readonly Simulacro[] } | { kind: 'reject'; error: Error } =
-    {
-      kind: 'resolve',
-      list: [],
-    };
+class FakeGetTodaysExamsUseCase {
+  private next: { kind: 'resolve'; list: readonly Exam[] } | { kind: 'reject'; error: Error } = {
+    kind: 'resolve',
+    list: [],
+  };
   public callCount = 0;
 
-  willResolve(list: readonly Simulacro[]) {
+  willResolve(list: readonly Exam[]) {
     this.next = { kind: 'resolve', list };
   }
   willReject(error: Error) {
     this.next = { kind: 'reject', error };
   }
 
-  async execute(): Promise<readonly Simulacro[]> {
+  async execute(): Promise<readonly Exam[]> {
     this.callCount++;
     if (this.next.kind === 'reject') throw this.next.error;
     return this.next.list;
@@ -143,23 +141,26 @@ class FakeMarkingsStorage implements MarkingsStorage {
     if (this.next.kind === 'reject') throw this.next.error;
     return this.next.list;
   }
+  async hasSubmittedAck(_examId: string): Promise<boolean> {
+    return false;
+  }
   async setMarcacion(
-    _simulacroId: string,
+    _examId: string,
     _pregunta: number,
     _alternativa: AlternativaValue,
   ): Promise<void> {
     throw new Error('not used in HomePage tests');
   }
-  async getMarcaciones(_simulacroId: string): Promise<AnswersMap> {
+  async getMarcaciones(_examId: string): Promise<AnswersMap> {
     throw new Error('not used in HomePage tests');
   }
-  async clearMarcaciones(_simulacroId: string): Promise<void> {
+  async clearMarcaciones(_examId: string): Promise<void> {
     throw new Error('not used in HomePage tests');
   }
   async enqueueEnvio(_envio: EnvioPendiente): Promise<void> {
     throw new Error('not used in HomePage tests');
   }
-  async dequeueEnvio(_simulacroId: string): Promise<void> {
+  async dequeueEnvio(_examId: string): Promise<void> {
     throw new Error('not used in HomePage tests');
   }
   async wipeUserScope(): Promise<void> {
@@ -167,36 +168,38 @@ class FakeMarkingsStorage implements MarkingsStorage {
   }
 }
 
-// Helper: cuelga el thread JS hasta que la microtask queue se vacíe.
-// Necesario porque el constructor de HomePage dispara `void vm.start()`,
-// que awaitea pre-check + fetch — ninguno de los dos awaits está atado
-// al lifecycle de Angular, así que `whenStable()` por sí solo no los espera.
 const flushPromises = async (iterations = 5): Promise<void> => {
   for (let i = 0; i < iterations; i++) {
     await Promise.resolve();
   }
 };
 
-// Helper: construir un simulacro válido para sembrar la lista.
-const buildSimulacro = (
+const buildExam = (
   id: string,
-  estadoValue: 'pendiente' | 'abierto' | 'enviado' | 'cerrado',
-): Simulacro =>
-  new Simulacro({
+  serverStatusValue: 'scheduled' | 'in_progress' | 'finalized',
+): Exam => {
+  const inProgress = serverStatusValue === 'in_progress';
+  const finalized = serverStatusValue === 'finalized';
+  return new Exam({
     id,
     area: 'Matemática',
-    name: `Simulacro ${id}`,
+    course: 'Aritmética',
+    type: 'simulacro',
+    name: `Examen ${id}`,
     count: 20,
-    inicio: new Date('2026-06-11T10:00:00Z'),
-    fin: new Date('2026-06-11T12:00:00Z'),
-    estado: new EstadoSimulacro(estadoValue),
+    duration: 7200,
+    scheduled: new Date('2026-06-11T10:00:00Z'),
+    started: inProgress || finalized ? new Date('2026-06-11T10:00:05Z') : null,
+    finished: finalized ? new Date('2026-06-11T12:00:00Z') : null,
+    serverStatus: new ExamServerStatus(serverStatusValue),
   });
+};
 
 describe('HomePage', () => {
   let fakeGetIdentity: FakeGetIdentityUseCase;
   let fakeGetProfile: FakeGetProfileUseCase;
   let fakeLogout: FakeLogoutUseCase;
-  let fakeObtener: FakeObtenerSimulacrosDelDiaUseCase;
+  let fakeGetTodaysExams: FakeGetTodaysExamsUseCase;
   let fakeClock: FakeClock;
   let fakeMarkings: FakeMarkingsStorage;
 
@@ -204,14 +207,14 @@ describe('HomePage', () => {
     fakeGetIdentity = new FakeGetIdentityUseCase();
     fakeGetProfile = new FakeGetProfileUseCase();
     fakeLogout = new FakeLogoutUseCase();
-    fakeObtener = new FakeObtenerSimulacrosDelDiaUseCase();
+    fakeGetTodaysExams = new FakeGetTodaysExamsUseCase();
     fakeClock = new FakeClock();
     fakeMarkings = new FakeMarkingsStorage();
-    // Default sano: identity válida + profile resuelto + pre-check OK + lista vacía.
+    // Default sano.
     fakeGetIdentity.willReturn(buildIdentity());
     fakeGetProfile.willResolveStudent({ firstName: 'Fulano', lastName: 'Panda' });
     fakeMarkings.willResolveEnviosPendientes([]);
-    fakeObtener.willResolve([]);
+    fakeGetTodaysExams.willResolve([]);
 
     TestBed.resetTestingModule();
     await TestBed.configureTestingModule({
@@ -224,7 +227,7 @@ describe('HomePage', () => {
         { provide: GetIdentityUseCase, useValue: fakeGetIdentity },
         { provide: GetProfileUseCase, useValue: fakeGetProfile },
         { provide: LogoutUseCase, useValue: fakeLogout },
-        { provide: ObtenerSimulacrosDelDiaUseCase, useValue: fakeObtener },
+        { provide: GetTodaysExamsUseCase, useValue: fakeGetTodaysExams },
         { provide: CLOCK, useValue: fakeClock },
         { provide: MARKINGS_STORAGE, useValue: fakeMarkings },
       ],
@@ -258,22 +261,6 @@ describe('HomePage', () => {
     });
   });
 
-  describe('cita ambient', () => {
-    it('renderiza una entrada del set INSPIRATIONAL_QUOTES dentro de <blockquote class="quote">', async () => {
-      const fixture = TestBed.createComponent(HomePage);
-      fixture.detectChanges();
-      await flushPromises();
-      await fixture.whenStable();
-      fixture.detectChanges();
-      const blockquote = (fixture.nativeElement as HTMLElement).querySelector('blockquote.quote');
-      expect(blockquote).not.toBeNull();
-      const { INSPIRATIONAL_QUOTES } =
-        await import('../../../../../src/LR_render/pages/home/inspirational-quotes');
-      const text = blockquote?.textContent?.trim();
-      expect(INSPIRATIONAL_QUOTES).toContain(text);
-    });
-  });
-
   describe('logout', () => {
     it('click en "Cerrar sesión" invoca LogoutUseCase y navega a /login', async () => {
       const fixture = TestBed.createComponent(HomePage);
@@ -292,11 +279,11 @@ describe('HomePage', () => {
     });
   });
 
-  describe('lista de simulacros', () => {
-    it('renderiza al menos una card cuando el use case devuelve simulacros', async () => {
-      fakeObtener.willResolve([
-        buildSimulacro('sim-1', 'abierto'),
-        buildSimulacro('sim-2', 'pendiente'),
+  describe('lista de exámenes', () => {
+    it('renderiza una card por examen cuando el use case devuelve lista', async () => {
+      fakeGetTodaysExams.willResolve([
+        buildExam('exam-1', 'in_progress'),
+        buildExam('exam-2', 'scheduled'),
       ]);
 
       const fixture = TestBed.createComponent(HomePage);
@@ -311,7 +298,7 @@ describe('HomePage', () => {
     });
 
     it('muestra "No tienes simulacros asignados para hoy" cuando la lista está vacía y no hay error', async () => {
-      fakeObtener.willResolve([]);
+      fakeGetTodaysExams.willResolve([]);
 
       const fixture = TestBed.createComponent(HomePage);
       fixture.detectChanges();
@@ -341,9 +328,11 @@ describe('HomePage', () => {
       const el = fixture.nativeElement as HTMLElement;
       expect(el.querySelector('.banner--blocking')).not.toBeNull();
     });
+  });
 
-    it('NO muestra el banner cuando el pre-check resuelve OK', async () => {
-      fakeMarkings.willResolveEnviosPendientes([]);
+  describe('StudentNotLinked banner', () => {
+    it('renderiza el banner con el copy en español verbatim cuando la lista falla con StudentNotLinkedError', async () => {
+      fakeGetTodaysExams.willReject(new StudentNotLinkedError());
 
       const fixture = TestBed.createComponent(HomePage);
       fixture.detectChanges();
@@ -352,13 +341,23 @@ describe('HomePage', () => {
       fixture.detectChanges();
 
       const el = fixture.nativeElement as HTMLElement;
-      expect(el.querySelector('.banner--blocking')).toBeNull();
+      // El template tiene 2 banners --blocking: IDB y studentNotLinked.
+      // Cuando IDB resuelve OK y studentNotLinked es true, solo aparece el de
+      // studentNotLinked con el copy verbatim del template.
+      const banners = el.querySelectorAll('.banner--blocking');
+      const studentBanner = Array.from(banners).find((b) =>
+        (b.textContent ?? '').includes('Tu cuenta no tiene un alumno asociado'),
+      );
+      expect(studentBanner).toBeDefined();
+      expect(studentBanner?.textContent).toContain(
+        'Tu cuenta no tiene un alumno asociado, contacta al tutor.',
+      );
     });
   });
 
   describe('estados de error de servidor', () => {
     it('muestra "No se pudo conectar al servidor" y botón Reintentar cuando serverError es network', async () => {
-      fakeObtener.willReject(new NetworkError());
+      fakeGetTodaysExams.willReject(new NetworkError());
 
       const fixture = TestBed.createComponent(HomePage);
       fixture.detectChanges();
@@ -374,7 +373,7 @@ describe('HomePage', () => {
     });
 
     it('click en Reintentar dispara un nuevo execute del use case', async () => {
-      fakeObtener.willReject(new NetworkError());
+      fakeGetTodaysExams.willReject(new NetworkError());
 
       const fixture = TestBed.createComponent(HomePage);
       fixture.detectChanges();
@@ -382,9 +381,8 @@ describe('HomePage', () => {
       await fixture.whenStable();
       fixture.detectChanges();
 
-      const callsAfterStart = fakeObtener.callCount;
-      // Para el retry mostramos un happy path: si lo reintentan, sale bien.
-      fakeObtener.willResolve([buildSimulacro('sim-1', 'abierto')]);
+      const callsAfterStart = fakeGetTodaysExams.callCount;
+      fakeGetTodaysExams.willResolve([buildExam('exam-1', 'in_progress')]);
 
       const retryBtn = fixture.nativeElement.querySelector('.retry') as HTMLButtonElement;
       retryBtn.click();
@@ -392,12 +390,24 @@ describe('HomePage', () => {
       await fixture.whenStable();
       fixture.detectChanges();
 
-      expect(fakeObtener.callCount).toBe(callsAfterStart + 1);
+      expect(fakeGetTodaysExams.callCount).toBe(callsAfterStart + 1);
     });
   });
 
-  // El pull-to-refresh es gestual: requiere TouchEvents reales sobre un
-  // scroll container con offset. En jsdom su simulación es flaky y testea
-  // más la implementación del gesto que el comportamiento del refresh —
-  // que ya está cubierto vía el botón Reintentar.
+  describe('cita ambient', () => {
+    it('renderiza una entrada del set INSPIRATIONAL_QUOTES dentro de <blockquote class="quote">', async () => {
+      const fixture = TestBed.createComponent(HomePage);
+      fixture.detectChanges();
+      await flushPromises();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      const blockquote = (fixture.nativeElement as HTMLElement).querySelector('blockquote.quote');
+      expect(blockquote).not.toBeNull();
+      const { INSPIRATIONAL_QUOTES } = await import(
+        '../../../../../src/LR_render/pages/home/inspirational-quotes'
+      );
+      const text = blockquote?.textContent?.trim();
+      expect(INSPIRATIONAL_QUOTES).toContain(text);
+    });
+  });
 });

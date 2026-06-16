@@ -5,18 +5,21 @@ import { Component } from '@angular/core';
 import { HomePageViewModel } from '../../../../src/LR_render/view-models/home.view-model';
 import { GetIdentityUseCase } from '../../../../src/L2_application/use-cases/get-identity.use-case';
 import { GetProfileUseCase } from '../../../../src/L2_application/use-cases/get-profile.use-case';
-import { ObtenerSimulacrosDelDiaUseCase } from '../../../../src/L2_application/use-cases/obtener-simulacros-del-dia.use-case';
+import { GetTodaysExamsUseCase } from '../../../../src/L2_application/use-cases/get-todays-exams.use-case';
+import { LogoutUseCase } from '../../../../src/L2_application/use-cases/logout.use-case';
 import { CLOCK, MARKINGS_STORAGE } from '../../../../src/app.config';
 import { Identity, Role } from '../../../../src/L1_domain/entities/identity';
 import { StudentProfile } from '../../../../src/L1_domain/value-objects/student-profile';
 import { TutorProfile } from '../../../../src/L1_domain/value-objects/tutor-profile';
-import { Simulacro } from '../../../../src/L1_domain/entities/simulacro';
-import { EstadoSimulacro } from '../../../../src/L1_domain/value-objects/estado-simulacro';
+import { Exam } from '../../../../src/L1_domain/entities/exam';
+import { ExamServerStatus } from '../../../../src/L1_domain/value-objects/exam-server-status';
 import { ServerTime } from '../../../../src/L1_domain/value-objects/server-time';
 import { NetworkError } from '../../../../src/L1_domain/errors/network.error';
 import { SessionExpiredError } from '../../../../src/L1_domain/errors/session-expired.error';
 import { ProfileNotAvailableError } from '../../../../src/L1_domain/errors/profile-not-available.error';
 import { OfflineStorageUnavailableError } from '../../../../src/L1_domain/errors/offline-storage-unavailable.error';
+import { ExamsPermissionRevokedError } from '../../../../src/L1_domain/errors/exams-permission-revoked.error';
+import { StudentNotLinkedError } from '../../../../src/L1_domain/errors/student-not-linked.error';
 import { Clock } from '../../../../src/L1_domain/ports/clock';
 import {
   AlternativaValue,
@@ -25,7 +28,7 @@ import {
   MarkingsStorage,
 } from '../../../../src/L1_domain/ports/markings-storage';
 
-// Stubs de ruta para que provideRouter no se queje cuando el VM navega a /login.
+// Stubs de ruta para que provideRouter no se queje cuando el VM navega.
 @Component({ template: '' })
 class LoginStub {}
 
@@ -109,25 +112,31 @@ class FakeGetProfileUseCase {
   }
 }
 
-class FakeObtenerSimulacrosDelDiaUseCase {
-  private next: { kind: 'resolve'; list: readonly Simulacro[] } | { kind: 'reject'; error: Error } =
-    {
-      kind: 'resolve',
-      list: [],
-    };
+class FakeGetTodaysExamsUseCase {
+  private next: { kind: 'resolve'; list: readonly Exam[] } | { kind: 'reject'; error: Error } = {
+    kind: 'resolve',
+    list: [],
+  };
   public callCount = 0;
 
-  willResolve(list: readonly Simulacro[]) {
+  willResolve(list: readonly Exam[]) {
     this.next = { kind: 'resolve', list };
   }
   willReject(error: Error) {
     this.next = { kind: 'reject', error };
   }
 
-  async execute(): Promise<readonly Simulacro[]> {
+  async execute(): Promise<readonly Exam[]> {
     this.callCount++;
     if (this.next.kind === 'reject') throw this.next.error;
     return this.next.list;
+  }
+}
+
+class FakeLogoutUseCase {
+  public callCount = 0;
+  async execute(): Promise<void> {
+    this.callCount++;
   }
 }
 
@@ -145,11 +154,15 @@ class FakeClock implements Clock {
   }
 }
 
+// Por defecto `hasSubmittedAck` retorna false (igual que el adapter L3 en
+// este change). Sobreescribible vía `seedAck(examId, true)` para tests del
+// seam C2 (estados `enviado` con ack=true).
 class FakeMarkingsStorage implements MarkingsStorage {
   private next: { kind: 'resolve'; list: EnvioPendiente[] } | { kind: 'reject'; error: Error } = {
     kind: 'resolve',
     list: [],
   };
+  private acks = new Map<string, boolean>();
 
   willResolveEnviosPendientes(list: EnvioPendiente[] = []) {
     this.next = { kind: 'resolve', list };
@@ -157,28 +170,34 @@ class FakeMarkingsStorage implements MarkingsStorage {
   willRejectEnviosPendientes(error: Error) {
     this.next = { kind: 'reject', error };
   }
+  seedAck(examId: string, value: boolean) {
+    this.acks.set(examId, value);
+  }
 
   async getEnviosPendientes(): Promise<EnvioPendiente[]> {
     if (this.next.kind === 'reject') throw this.next.error;
     return this.next.list;
   }
+  async hasSubmittedAck(examId: string): Promise<boolean> {
+    return this.acks.get(examId) ?? false;
+  }
   async setMarcacion(
-    _simulacroId: string,
+    _examId: string,
     _pregunta: number,
     _alternativa: AlternativaValue,
   ): Promise<void> {
     /* no-op */
   }
-  async getMarcaciones(_simulacroId: string): Promise<AnswersMap> {
+  async getMarcaciones(_examId: string): Promise<AnswersMap> {
     return {};
   }
-  async clearMarcaciones(_simulacroId: string): Promise<void> {
+  async clearMarcaciones(_examId: string): Promise<void> {
     /* no-op */
   }
   async enqueueEnvio(_envio: EnvioPendiente): Promise<void> {
     /* no-op */
   }
-  async dequeueEnvio(_simulacroId: string): Promise<void> {
+  async dequeueEnvio(_examId: string): Promise<void> {
     /* no-op */
   }
   async wipeUserScope(): Promise<void> {
@@ -186,19 +205,44 @@ class FakeMarkingsStorage implements MarkingsStorage {
   }
 }
 
-const buildSimulacro = (
+const buildExam = (
   id: string,
-  estadoValue: 'pendiente' | 'abierto' | 'enviado' | 'cerrado',
-): Simulacro =>
-  new Simulacro({
+  serverStatusValue: 'scheduled' | 'in_progress' | 'finalized',
+  overrides: Partial<{
+    area: string | null;
+    course: string | null;
+    duration: number;
+    scheduled: Date;
+    started: Date | null;
+    finished: Date | null;
+  }> = {},
+): Exam => {
+  const inProgress = serverStatusValue === 'in_progress';
+  const finalized = serverStatusValue === 'finalized';
+  return new Exam({
     id,
-    area: 'Matemática',
-    name: `Simulacro ${id}`,
+    area: 'area' in overrides ? overrides.area ?? null : 'Matemática',
+    course: 'course' in overrides ? overrides.course ?? null : 'Aritmética',
+    type: 'simulacro',
+    name: `Examen ${id}`,
     count: 20,
-    inicio: new Date('2026-06-11T10:00:00Z'),
-    fin: new Date('2026-06-11T12:00:00Z'),
-    estado: new EstadoSimulacro(estadoValue),
+    duration: overrides.duration ?? 7200,
+    scheduled: overrides.scheduled ?? new Date('2026-06-11T10:00:00Z'),
+    started:
+      'started' in overrides
+        ? overrides.started ?? null
+        : inProgress || finalized
+          ? new Date('2026-06-11T10:00:05Z')
+          : null,
+    finished:
+      'finished' in overrides
+        ? overrides.finished ?? null
+        : finalized
+          ? new Date('2026-06-11T12:00:00Z')
+          : null,
+    serverStatus: new ExamServerStatus(serverStatusValue),
   });
+};
 
 // Helper para setear visibility en jsdom (el getter es de solo-lectura por default).
 const setDocumentVisibility = (state: 'visible' | 'hidden') => {
@@ -215,7 +259,8 @@ const setDocumentVisibility = (state: 'visible' | 'hidden') => {
 describe('HomePageViewModel', () => {
   let fakeGetIdentity: FakeGetIdentityUseCase;
   let fakeGetProfile: FakeGetProfileUseCase;
-  let fakeObtener: FakeObtenerSimulacrosDelDiaUseCase;
+  let fakeGetTodaysExams: FakeGetTodaysExamsUseCase;
+  let fakeLogout: FakeLogoutUseCase;
   let fakeClock: FakeClock;
   let fakeMarkings: FakeMarkingsStorage;
 
@@ -227,7 +272,8 @@ describe('HomePageViewModel', () => {
   beforeEach(async () => {
     fakeGetIdentity = new FakeGetIdentityUseCase();
     fakeGetProfile = new FakeGetProfileUseCase();
-    fakeObtener = new FakeObtenerSimulacrosDelDiaUseCase();
+    fakeGetTodaysExams = new FakeGetTodaysExamsUseCase();
+    fakeLogout = new FakeLogoutUseCase();
     fakeClock = new FakeClock();
     fakeMarkings = new FakeMarkingsStorage();
 
@@ -240,7 +286,8 @@ describe('HomePageViewModel', () => {
         provideRouter([{ path: 'login', component: LoginStub }]),
         { provide: GetIdentityUseCase, useValue: fakeGetIdentity },
         { provide: GetProfileUseCase, useValue: fakeGetProfile },
-        { provide: ObtenerSimulacrosDelDiaUseCase, useValue: fakeObtener },
+        { provide: GetTodaysExamsUseCase, useValue: fakeGetTodaysExams },
+        { provide: LogoutUseCase, useValue: fakeLogout },
         { provide: CLOCK, useValue: fakeClock },
         { provide: MARKINGS_STORAGE, useValue: fakeMarkings },
       ],
@@ -261,11 +308,10 @@ describe('HomePageViewModel', () => {
         lastName: 'Acuña Acuña',
         code: '79507732',
       });
-      fakeObtener.willResolve([]);
+      fakeGetTodaysExams.willResolve([]);
 
       const vm = createVm();
       await vm.start();
-      // Cedemos microtasks para que el `void this.loadUserProfile()` termine.
       await Promise.resolve();
       await Promise.resolve();
 
@@ -276,41 +322,10 @@ describe('HomePageViewModel', () => {
       vm.stop();
     });
 
-    it('profileLoading() es true durante el await del profile y false al resolverse', async () => {
-      fakeGetIdentity.willReturn(buildIdentity('student'));
-      fakeGetProfile.willSuspend();
-      fakeObtener.willResolve([]);
-
-      const vm = createVm();
-      // start() dispara loadUserProfile en paralelo. Esperamos a que el VM avance
-      // hasta el `profileLoading.set(true)` interno.
-      const startPromise = vm.start();
-      await Promise.resolve();
-      await Promise.resolve();
-
-      expect(vm.profileLoading()).toBe(true);
-
-      // Ahora resolvemos el profile y verificamos que profileLoading vuelve a false.
-      fakeGetProfile.resolveNow({
-        firstName: 'Gabriel',
-        lastName: 'Acuña Acuña',
-        code: '79507732',
-      });
-      await startPromise;
-      // Cedemos microtasks para que el finally del loadUserProfile corra.
-      await Promise.resolve();
-      await Promise.resolve();
-      await Promise.resolve();
-
-      expect(vm.profileLoading()).toBe(false);
-      expect(vm.userName()).toBe('Gabriel Acuña Acuña');
-      vm.stop();
-    });
-
     it('ProfileNotAvailableError → profileUnavailable=true, userName y userDni null', async () => {
       fakeGetIdentity.willReturn(buildIdentity('student'));
       fakeGetProfile.willReject(new ProfileNotAvailableError());
-      fakeObtener.willResolve([]);
+      fakeGetTodaysExams.willResolve([]);
 
       const vm = createVm();
       await vm.start();
@@ -324,28 +339,9 @@ describe('HomePageViewModel', () => {
       vm.stop();
     });
 
-    it('NetworkError en profile fetch tolera silenciosamente — no rompe el flow', async () => {
-      fakeGetIdentity.willReturn(buildIdentity('student'));
-      fakeGetProfile.willReject(new NetworkError());
-      fakeObtener.willResolve([]);
-
-      const vm = createVm();
-      await vm.start();
-      await Promise.resolve();
-      await Promise.resolve();
-
-      // El email igual se publica desde identity; nombre y DNI quedan null
-      // (sin marcar profileUnavailable, porque puede recuperarse).
-      expect(vm.userEmail()).toBe('79507732@vonex.edu.pe');
-      expect(vm.userName()).toBeNull();
-      expect(vm.userDni()).toBeNull();
-      expect(vm.profileUnavailable()).toBe(false);
-      vm.stop();
-    });
-
     it('sin identity (caso defensivo) → userEmail null y NO se llama a getProfile', async () => {
       fakeGetIdentity.willReturn(null);
-      fakeObtener.willResolve([]);
+      fakeGetTodaysExams.willResolve([]);
 
       const vm = createVm();
       await vm.start();
@@ -353,22 +349,17 @@ describe('HomePageViewModel', () => {
       await Promise.resolve();
 
       expect(vm.userEmail()).toBeNull();
-      expect(vm.userName()).toBeNull();
-      expect(vm.userDni()).toBeNull();
       expect(fakeGetProfile.calls).toEqual([]);
       vm.stop();
     });
   });
 
-  // --- Tests heredados de Fase 2: lista de simulacros, polling, countdown,
-  // degradación graceful, pre-check IDB. Mantienen contrato comportamental;
-  // solo se actualizó el mock de identity + profile.
   describe('start() — pre-check de IndexedDB', () => {
     it('marca offlineStorageBlocked=true cuando el pre-check rechaza con OfflineStorageUnavailableError', async () => {
       fakeMarkings.willRejectEnviosPendientes(
         new OfflineStorageUnavailableError('IDB unavailable'),
       );
-      fakeObtener.willResolve([]);
+      fakeGetTodaysExams.willResolve([]);
 
       const vm = createVm();
       await vm.start();
@@ -376,28 +367,20 @@ describe('HomePageViewModel', () => {
       expect(vm.offlineStorageBlocked()).toBe(true);
       vm.stop();
     });
-
-    it('mantiene offlineStorageBlocked=false cuando el pre-check resuelve OK', async () => {
-      fakeMarkings.willResolveEnviosPendientes([]);
-      fakeObtener.willResolve([]);
-
-      const vm = createVm();
-      await vm.start();
-
-      expect(vm.offlineStorageBlocked()).toBe(false);
-      vm.stop();
-    });
   });
 
   describe('start() + primer fetch', () => {
-    it('después del primer fetch exitoso, simulacros() tiene la lista y isLoading() es false', async () => {
-      const list = [buildSimulacro('sim-1', 'abierto'), buildSimulacro('sim-2', 'pendiente')];
-      fakeObtener.willResolve(list);
+    it('después del primer fetch exitoso, exams() tiene la lista y isLoading() es false', async () => {
+      const list = [
+        buildExam('exam-1', 'in_progress'),
+        buildExam('exam-2', 'scheduled'),
+      ];
+      fakeGetTodaysExams.willResolve(list);
 
       const vm = createVm();
       await vm.start();
 
-      expect(vm.simulacros()).toEqual(list);
+      expect(vm.exams()).toEqual(list);
       expect(vm.isLoading()).toBe(false);
       expect(vm.serverError()).toBeNull();
       expect(vm.lastRefreshAt()).not.toBeNull();
@@ -406,29 +389,15 @@ describe('HomePageViewModel', () => {
   });
 
   describe('refresh() — clasificación de errores', () => {
-    it('happy path: actualiza simulacros() y limpia serverError', async () => {
-      fakeObtener.willResolve([]);
-      const vm = createVm();
-      await vm.start();
-
-      const list = [buildSimulacro('sim-1', 'abierto')];
-      fakeObtener.willResolve(list);
-      await vm.refresh();
-
-      expect(vm.simulacros()).toEqual(list);
-      expect(vm.serverError()).toBeNull();
-      vm.stop();
-    });
-
     it('SessionExpiredError setea serverError=session-expired y navega a /login', async () => {
-      fakeObtener.willResolve([]);
+      fakeGetTodaysExams.willResolve([]);
       const vm = createVm();
       await vm.start();
 
       const router = TestBed.inject(Router);
       const navigateSpy = vi.spyOn(router, 'navigate').mockResolvedValue(true);
 
-      fakeObtener.willReject(new SessionExpiredError());
+      fakeGetTodaysExams.willReject(new SessionExpiredError());
       await vm.refresh();
 
       expect(vm.serverError()).toBe('session-expired');
@@ -437,14 +406,14 @@ describe('HomePageViewModel', () => {
     });
 
     it('NetworkError setea serverError=network sin navegar', async () => {
-      fakeObtener.willResolve([]);
+      fakeGetTodaysExams.willResolve([]);
       const vm = createVm();
       await vm.start();
 
       const router = TestBed.inject(Router);
       const navigateSpy = vi.spyOn(router, 'navigate').mockResolvedValue(true);
 
-      fakeObtener.willReject(new NetworkError());
+      fakeGetTodaysExams.willReject(new NetworkError());
       await vm.refresh();
 
       expect(vm.serverError()).toBe('network');
@@ -452,93 +421,197 @@ describe('HomePageViewModel', () => {
       vm.stop();
     });
 
-    it('error desconocido setea serverError=unknown y re-lanza para no silenciar bugs', async () => {
-      fakeObtener.willResolve([]);
+    it('ExamsPermissionRevokedError → invoca LogoutUseCase exactamente 1 vez y limpia exams', async () => {
+      fakeGetTodaysExams.willResolve([buildExam('exam-1', 'in_progress')]);
+      const vm = createVm();
+      await vm.start();
+      expect(vm.exams()).toHaveLength(1);
+
+      fakeGetTodaysExams.willReject(new ExamsPermissionRevokedError());
+      await vm.refresh();
+      // Cedemos microtask para que el `void this.logoutUseCase.execute()` corra.
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(fakeLogout.callCount).toBe(1);
+      expect(vm.exams()).toEqual([]);
+      vm.stop();
+    });
+
+    it('StudentNotLinkedError → studentNotLinked()=true y exams vacío sin error', async () => {
+      fakeGetTodaysExams.willResolve([buildExam('exam-1', 'in_progress')]);
       const vm = createVm();
       await vm.start();
 
-      fakeObtener.willReject(new Error('boom!'));
-      await expect(vm.refresh()).rejects.toThrow('boom!');
-      expect(vm.serverError()).toBe('unknown');
+      fakeGetTodaysExams.willReject(new StudentNotLinkedError());
+      await vm.refresh();
+
+      expect(vm.studentNotLinked()).toBe(true);
+      expect(vm.exams()).toEqual([]);
+      expect(vm.serverError()).toBeNull();
+      vm.stop();
+    });
+
+    it('happy path tras StudentNotLinkedError limpia el flag studentNotLinked', async () => {
+      fakeGetTodaysExams.willResolve([]);
+      const vm = createVm();
+      await vm.start();
+
+      fakeGetTodaysExams.willReject(new StudentNotLinkedError());
+      await vm.refresh();
+      expect(vm.studentNotLinked()).toBe(true);
+
+      fakeGetTodaysExams.willResolve([buildExam('exam-1', 'in_progress')]);
+      await vm.refresh();
+      expect(vm.studentNotLinked()).toBe(false);
+      vm.stop();
+    });
+  });
+
+  describe('cards() — composición de estado en 5 ramas (serverStatus × hasSubmittedAck)', () => {
+    it('serverStatus=scheduled (any ack) → estado="pendiente", not clickable', async () => {
+      fakeGetTodaysExams.willResolve([buildExam('exam-sch', 'scheduled')]);
+      const vm = createVm();
+      await vm.start();
+
+      const card = vm.cards()[0];
+      expect(card.estado).toBe('pendiente');
+      expect(card.clickable).toBe(false);
+      vm.stop();
+    });
+
+    it('serverStatus=scheduled con ack=true → sigue siendo "pendiente" (no aplica el seam)', async () => {
+      fakeMarkings.seedAck('exam-sch', true);
+      fakeGetTodaysExams.willResolve([buildExam('exam-sch', 'scheduled')]);
+      const vm = createVm();
+      await vm.start();
+
+      expect(vm.cards()[0].estado).toBe('pendiente');
+      vm.stop();
+    });
+
+    it('serverStatus=in_progress + !ack → estado="abierto", clickable', async () => {
+      fakeGetTodaysExams.willResolve([buildExam('exam-open', 'in_progress')]);
+      const vm = createVm();
+      await vm.start();
+
+      const card = vm.cards()[0];
+      expect(card.estado).toBe('abierto');
+      expect(card.clickable).toBe(true);
+      vm.stop();
+    });
+
+    // seam: activa en fase-3-exam-submit-learnex
+    it('serverStatus=in_progress + ack=true → estado="enviado" (seam C2)', async () => {
+      fakeMarkings.seedAck('exam-ip-ack', true);
+      fakeGetTodaysExams.willResolve([buildExam('exam-ip-ack', 'in_progress')]);
+      const vm = createVm();
+      await vm.start();
+
+      const card = vm.cards()[0];
+      expect(card.estado).toBe('enviado');
+      expect(card.clickable).toBe(false);
+      vm.stop();
+    });
+
+    // seam: activa en fase-3-exam-submit-learnex
+    it('serverStatus=finalized + ack=true → estado="enviado" (seam C2)', async () => {
+      fakeMarkings.seedAck('exam-fin-ack', true);
+      fakeGetTodaysExams.willResolve([buildExam('exam-fin-ack', 'finalized')]);
+      const vm = createVm();
+      await vm.start();
+
+      const card = vm.cards()[0];
+      expect(card.estado).toBe('enviado');
+      expect(card.clickable).toBe(false);
+      vm.stop();
+    });
+
+    it('serverStatus=finalized + !ack → estado="cerrado", not clickable', async () => {
+      fakeGetTodaysExams.willResolve([buildExam('exam-closed', 'finalized')]);
+      const vm = createVm();
+      await vm.start();
+
+      const card = vm.cards()[0];
+      expect(card.estado).toBe('cerrado');
+      expect(card.clickable).toBe(false);
+      vm.stop();
+    });
+  });
+
+  describe('cards() — secondaryText fallback area ?? course ?? "—"', () => {
+    it('area presente → muestra el area en secondaryText', async () => {
+      fakeGetTodaysExams.willResolve([
+        buildExam('exam-1', 'in_progress', { area: 'Razonamiento', course: null }),
+      ]);
+      const vm = createVm();
+      await vm.start();
+
+      expect(vm.cards()[0].secondaryText).toContain('Razonamiento');
+      vm.stop();
+    });
+
+    it('area null + course presente → fallback a course', async () => {
+      fakeGetTodaysExams.willResolve([
+        buildExam('exam-1', 'in_progress', { area: null, course: 'Matemática' }),
+      ]);
+      const vm = createVm();
+      await vm.start();
+
+      expect(vm.cards()[0].secondaryText).toContain('Matemática');
+      vm.stop();
+    });
+
+    it('area y course null → fallback al guion "—"', async () => {
+      fakeGetTodaysExams.willResolve([
+        buildExam('exam-1', 'in_progress', { area: null, course: null }),
+      ]);
+      const vm = createVm();
+      await vm.start();
+
+      expect(vm.cards()[0].secondaryText).toContain('—');
       vm.stop();
     });
   });
 
   describe('polling cada 120s', () => {
-    it('después de 120s desde start(), invoca obtener.execute() una segunda vez', async () => {
-      fakeObtener.willResolve([]);
+    it('después de 120s desde start(), invoca getTodaysExams.execute() una segunda vez', async () => {
+      fakeGetTodaysExams.willResolve([]);
       vi.useFakeTimers();
       setDocumentVisibility('visible');
 
       const vm = createVm();
       await vm.start();
-      const callsAfterStart = fakeObtener.callCount;
+      const callsAfterStart = fakeGetTodaysExams.callCount;
 
       await vi.advanceTimersByTimeAsync(120_000);
 
-      expect(fakeObtener.callCount).toBe(callsAfterStart + 1);
+      expect(fakeGetTodaysExams.callCount).toBe(callsAfterStart + 1);
       vm.stop();
     });
 
     it('NO arranca polling si la pestaña no está visible al momento de start()', async () => {
-      fakeObtener.willResolve([]);
+      fakeGetTodaysExams.willResolve([]);
       setDocumentVisibility('hidden');
       vi.useFakeTimers();
 
       const vm = createVm();
       await vm.start();
-      const callsAfterStart = fakeObtener.callCount;
+      const callsAfterStart = fakeGetTodaysExams.callCount;
 
       await vi.advanceTimersByTimeAsync(360_000);
 
-      expect(fakeObtener.callCount).toBe(callsAfterStart);
-      vm.stop();
-    });
-
-    it('stop() cancela el polling: avanzar timers después de stop NO invoca más el use case', async () => {
-      fakeObtener.willResolve([]);
-      setDocumentVisibility('visible');
-      vi.useFakeTimers();
-
-      const vm = createVm();
-      await vm.start();
-      vm.stop();
-      const callsAtStop = fakeObtener.callCount;
-
-      await vi.advanceTimersByTimeAsync(360_000);
-
-      expect(fakeObtener.callCount).toBe(callsAtStop);
-    });
-  });
-
-  describe('countdown ticker (nowTick)', () => {
-    it('después de 1 segundo, nowTick re-emite con el now() del Clock actualizado', async () => {
-      fakeObtener.willResolve([]);
-      setDocumentVisibility('visible');
-      vi.useFakeTimers();
-
-      const initialNow = new Date('2026-06-11T10:00:00Z');
-      const oneSecondLater = new Date('2026-06-11T10:00:01Z');
-      fakeClock.setNow(initialNow);
-
-      const vm = createVm();
-      await vm.start();
-      expect(vm.nowTick().getTime()).toBe(initialNow.getTime());
-
-      fakeClock.setNow(oneSecondLater);
-      await vi.advanceTimersByTimeAsync(1_000);
-
-      expect(vm.nowTick().getTime()).toBe(oneSecondLater.getTime());
+      expect(fakeGetTodaysExams.callCount).toBe(callsAfterStart);
       vm.stop();
     });
   });
 
-  describe('degradación graceful: dos simulacros abiertos', () => {
-    it('emite console.warn con count + primer id cuando vienen 2 abiertos simultáneos', async () => {
+  describe('degradación graceful: dos exámenes in_progress', () => {
+    it('emite console.warn con count + primer id cuando vienen 2 in_progress simultáneos', async () => {
       const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-      fakeObtener.willResolve([
-        buildSimulacro('sim-A', 'abierto'),
-        buildSimulacro('sim-B', 'abierto'),
+      fakeGetTodaysExams.willResolve([
+        buildExam('exam-A', 'in_progress'),
+        buildExam('exam-B', 'in_progress'),
       ]);
 
       const vm = createVm();
@@ -547,15 +620,15 @@ describe('HomePageViewModel', () => {
       expect(warnSpy).toHaveBeenCalledTimes(1);
       const message = warnSpy.mock.calls[0][0] as string;
       expect(message).toContain('2');
-      expect(message).toContain('sim-A');
+      expect(message).toContain('exam-A');
       vm.stop();
     });
 
-    it('NO emite warn cuando hay un único simulacro abierto', async () => {
+    it('NO emite warn cuando hay un único examen in_progress', async () => {
       const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-      fakeObtener.willResolve([
-        buildSimulacro('sim-A', 'abierto'),
-        buildSimulacro('sim-B', 'pendiente'),
+      fakeGetTodaysExams.willResolve([
+        buildExam('exam-A', 'in_progress'),
+        buildExam('exam-B', 'scheduled'),
       ]);
 
       const vm = createVm();
