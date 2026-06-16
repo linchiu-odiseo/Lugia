@@ -7,23 +7,24 @@ import { SimulacroCerradoError } from '../../../src/L1_domain/errors/simulacro-c
 import { SimulacroNoAsignadoError } from '../../../src/L1_domain/errors/simulacro-no-asignado.error';
 import { InvalidSubmissionTimeError } from '../../../src/L1_domain/errors/invalid-submission-time.error';
 import { InvalidPayloadError } from '../../../src/L1_domain/errors/invalid-payload.error';
-import { FakeClock, FakeSimulacrosApi, InMemoryMarkingsStorage } from './fakes';
+import { SubmissionNotAvailableError } from '../../../src/L1_domain/errors/submission-not-available.error';
+import { FakeClock, FakeExamsApi, InMemoryMarkingsStorage } from './fakes';
 
-// Cubre `EnviarSimulacroUseCase` (L2) según
-// `openspec/changes/cartilla-fase-2/specs/exam-submission/spec.md`
-// Req 1 (envío con clientSubmittedAt), Req 2 (queue offline), Req 4 (clock).
+// Cubre `EnviarSimulacroUseCase` (L2): envío con `clientSubmittedAt`, queue
+// offline (NetworkError) y propagación de errores no-recuperables — incluido
+// `SubmissionNotAvailableError` que NUNCA se debe encolar (POST stub del
+// change `fase-3-exam-list-learnex`).
 describe('EnviarSimulacroUseCase', () => {
-  let api: FakeSimulacrosApi;
+  let api: FakeExamsApi;
   let storage: InMemoryMarkingsStorage;
   let clock: FakeClock;
   let useCase: EnviarSimulacroUseCase;
 
   // ServerTime anclado para que clock.now() sea predecible en el test.
-  // 8:47:05 server-anchored simula el escenario del spec sec.4.
   const SERVER_NOW_ISO = '2026-06-11T08:47:05.000Z';
 
   beforeEach(() => {
-    api = new FakeSimulacrosApi();
+    api = new FakeExamsApi();
     storage = new InMemoryMarkingsStorage();
     clock = new FakeClock();
     clock.setServerTime(new ServerTime(SERVER_NOW_ISO));
@@ -32,52 +33,52 @@ describe('EnviarSimulacroUseCase', () => {
 
   describe('happy path', () => {
     it('POST incluye answers leídos del storage y clientSubmittedAt = clock.now().toISOString()', async () => {
-      storage.seedMarcacion('sim-1', 1, 'A');
-      storage.seedMarcacion('sim-1', 2, 'C');
+      storage.seedMarcacion('exam-1', 1, 'A');
+      storage.seedMarcacion('exam-1', 2, 'C');
       api.willResolveEnviar({
         status: 'enviado',
         clientSubmittedAt: SERVER_NOW_ISO,
         serverReceivedAt: '2026-06-11T08:47:06.000Z',
       });
 
-      const result = await useCase.execute({ simulacroId: 'sim-1' });
+      const result = await useCase.execute({ examId: 'exam-1' });
 
       const calls = api.getEnviarCalls();
       expect(calls).toHaveLength(1);
-      expect(calls[0].simulacroId).toBe('sim-1');
+      expect(calls[0].examId).toBe('exam-1');
       expect(calls[0].answers).toEqual({ '1': 'A', '2': 'C' });
       expect(calls[0].clientSubmittedAt).toBe(SERVER_NOW_ISO);
       expect(result.status).toBe('enviado');
       expect(result.clientSubmittedAt).toBe(SERVER_NOW_ISO);
     });
 
-    it('tras éxito, las marcaciones del simulacro se borran del storage', async () => {
-      storage.seedMarcacion('sim-1', 1, 'A');
-      storage.seedMarcacion('sim-1', 2, 'C');
+    it('tras éxito, las marcaciones del examen se borran del storage', async () => {
+      storage.seedMarcacion('exam-1', 1, 'A');
+      storage.seedMarcacion('exam-1', 2, 'C');
       api.willResolveEnviar({
         status: 'enviado',
         clientSubmittedAt: SERVER_NOW_ISO,
         serverReceivedAt: '2026-06-11T08:47:06.000Z',
       });
 
-      await useCase.execute({ simulacroId: 'sim-1' });
+      await useCase.execute({ examId: 'exam-1' });
 
-      expect(await storage.getMarcaciones('sim-1')).toEqual({});
+      expect(await storage.getMarcaciones('exam-1')).toEqual({});
       expect(storage.getOpsLog()).toContain('markings.clearMarcaciones');
     });
 
-    it('marcaciones de OTRO simulacro NO se borran tras éxito en sim-1', async () => {
-      storage.seedMarcacion('sim-1', 1, 'A');
-      storage.seedMarcacion('sim-2', 1, 'B');
+    it('marcaciones de OTRO examen NO se borran tras éxito en exam-1', async () => {
+      storage.seedMarcacion('exam-1', 1, 'A');
+      storage.seedMarcacion('exam-2', 1, 'B');
       api.willResolveEnviar({
         status: 'enviado',
         clientSubmittedAt: SERVER_NOW_ISO,
         serverReceivedAt: '2026-06-11T08:47:06.000Z',
       });
 
-      await useCase.execute({ simulacroId: 'sim-1' });
+      await useCase.execute({ examId: 'exam-1' });
 
-      expect(await storage.getMarcaciones('sim-2')).toEqual({ '1': 'B' });
+      expect(await storage.getMarcaciones('exam-2')).toEqual({ '1': 'B' });
     });
 
     it('empty answers (storage vacío) → POST con answers={} igual, success', async () => {
@@ -87,7 +88,7 @@ describe('EnviarSimulacroUseCase', () => {
         serverReceivedAt: '2026-06-11T08:47:06.000Z',
       });
 
-      const result = await useCase.execute({ simulacroId: 'sim-1' });
+      const result = await useCase.execute({ examId: 'exam-1' });
 
       expect(api.getEnviarCalls()).toHaveLength(1);
       expect(api.getEnviarCalls()[0].answers).toEqual({});
@@ -106,13 +107,13 @@ describe('EnviarSimulacroUseCase', () => {
       });
 
       const result = await useCase.execute({
-        simulacroId: 'sim-1',
+        examId: 'exam-1',
         clientSubmittedAtOverride: fin,
       });
 
       const calls = api.getEnviarCalls();
       expect(calls).toHaveLength(1);
-      // Crítico: clientSubmittedAt == fin del simulacro, NO clock.now()
+      // Crítico: clientSubmittedAt == fin del examen, NO clock.now()
       // (que estaría en SERVER_NOW_ISO 8:47:05).
       expect(calls[0].clientSubmittedAt).toBe(FIN_ISO);
       expect(calls[0].clientSubmittedAt).not.toBe(SERVER_NOW_ISO);
@@ -122,11 +123,11 @@ describe('EnviarSimulacroUseCase', () => {
 
   describe('NetworkError → encolado', () => {
     it('encola con el clientSubmittedAt original capturado al intento', async () => {
-      storage.seedMarcacion('sim-1', 1, 'A');
-      storage.seedMarcacion('sim-1', 2, 'B');
+      storage.seedMarcacion('exam-1', 1, 'A');
+      storage.seedMarcacion('exam-1', 2, 'B');
       api.willRejectEnviar(new NetworkError());
 
-      const result = await useCase.execute({ simulacroId: 'sim-1' });
+      const result = await useCase.execute({ examId: 'exam-1' });
 
       expect(result.status).toBe('queued');
       expect(result.clientSubmittedAt).toBe(SERVER_NOW_ISO);
@@ -134,7 +135,7 @@ describe('EnviarSimulacroUseCase', () => {
       const pendientes = await storage.getEnviosPendientes();
       expect(pendientes).toHaveLength(1);
       expect(pendientes[0]).toEqual({
-        simulacroId: 'sim-1',
+        examId: 'exam-1',
         answers: { '1': 'A', '2': 'B' },
         clientSubmittedAt: SERVER_NOW_ISO,
       });
@@ -142,22 +143,22 @@ describe('EnviarSimulacroUseCase', () => {
     });
 
     it('NO borra las marcaciones del storage cuando queda en cola', async () => {
-      storage.seedMarcacion('sim-1', 1, 'A');
+      storage.seedMarcacion('exam-1', 1, 'A');
       api.willRejectEnviar(new NetworkError());
 
-      await useCase.execute({ simulacroId: 'sim-1' });
+      await useCase.execute({ examId: 'exam-1' });
 
-      expect(await storage.getMarcaciones('sim-1')).toEqual({ '1': 'A' });
+      expect(await storage.getMarcaciones('exam-1')).toEqual({ '1': 'A' });
       expect(storage.getOpsLog()).not.toContain('markings.clearMarcaciones');
     });
 
     it('con override, encola preservando el override como clientSubmittedAt', async () => {
       const FIN_ISO = '2026-06-11T09:00:00.000Z';
-      storage.seedMarcacion('sim-1', 1, 'A');
+      storage.seedMarcacion('exam-1', 1, 'A');
       api.willRejectEnviar(new NetworkError());
 
       const result = await useCase.execute({
-        simulacroId: 'sim-1',
+        examId: 'exam-1',
         clientSubmittedAtOverride: new Date(FIN_ISO),
       });
 
@@ -165,6 +166,29 @@ describe('EnviarSimulacroUseCase', () => {
       expect(result.clientSubmittedAt).toBe(FIN_ISO);
       const pendientes = await storage.getEnviosPendientes();
       expect(pendientes[0].clientSubmittedAt).toBe(FIN_ISO);
+    });
+  });
+
+  describe('SubmissionNotAvailableError (POST stub) propaga sin tocar storage', () => {
+    // Test CRÍTICO del seam de Change 1: el POST stub L3 lanza
+    // SubmissionNotAvailableError, que NO extiende NetworkError. El use case
+    // debe propagar tal cual SIN encolar — un error en la herencia haría que
+    // el outbox crezca con envíos imposibles de despachar.
+    it('propaga SubmissionNotAvailableError tal cual y NO encola en outbox', async () => {
+      storage.seedMarcacion('exam-1', 1, 'A');
+      storage.seedMarcacion('exam-1', 2, 'B');
+      api.willRejectEnviar(new SubmissionNotAvailableError());
+
+      await expect(useCase.execute({ examId: 'exam-1' })).rejects.toBeInstanceOf(
+        SubmissionNotAvailableError,
+      );
+
+      // Outbox vacío: la guarda del catch funcionó.
+      expect(await storage.getEnviosPendientes()).toEqual([]);
+      expect(storage.getOpsLog()).not.toContain('markings.enqueueEnvio');
+      // Y tampoco borró marcaciones (no hubo éxito).
+      expect(await storage.getMarcaciones('exam-1')).toEqual({ '1': 'A', '2': 'B' });
+      expect(storage.getOpsLog()).not.toContain('markings.clearMarcaciones');
     });
   });
 
@@ -178,14 +202,14 @@ describe('EnviarSimulacroUseCase', () => {
     ];
 
     it.each(ESCENARIOS)('propaga %s sin tocar storage', async (_name, build) => {
-      storage.seedMarcacion('sim-1', 1, 'A');
+      storage.seedMarcacion('exam-1', 1, 'A');
       const error = build();
       api.willRejectEnviar(error);
 
-      await expect(useCase.execute({ simulacroId: 'sim-1' })).rejects.toBe(error);
+      await expect(useCase.execute({ examId: 'exam-1' })).rejects.toBe(error);
 
       // Marcaciones intactas.
-      expect(await storage.getMarcaciones('sim-1')).toEqual({ '1': 'A' });
+      expect(await storage.getMarcaciones('exam-1')).toEqual({ '1': 'A' });
       // No se encoló.
       expect(await storage.getEnviosPendientes()).toEqual([]);
       // No se hizo clear ni enqueue (solo getMarcaciones está permitido en el path).

@@ -56,6 +56,9 @@ class FakeMarkingsStorage implements MarkingsStorage {
   async dequeueEnvio(): Promise<void> {
     return Promise.resolve();
   }
+  async hasSubmittedAck(): Promise<boolean> {
+    return false;
+  }
   async wipeUserScope(): Promise<void> {
     this.opsLog?.push('markings.wipeUserScope');
     this.wipeCalls++;

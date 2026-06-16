@@ -5,12 +5,12 @@ import { SimulacroCerradoError } from '../../../src/L1_domain/errors/simulacro-c
 import { SimulacroNoAsignadoError } from '../../../src/L1_domain/errors/simulacro-no-asignado.error';
 import { InvalidSubmissionTimeError } from '../../../src/L1_domain/errors/invalid-submission-time.error';
 import { InvalidPayloadError } from '../../../src/L1_domain/errors/invalid-payload.error';
-import { FakeSimulacrosApi, InMemoryMarkingsStorage } from './fakes';
+import { FakeExamsApi, InMemoryMarkingsStorage } from './fakes';
 
 // Cubre `RetomarEnviosPendientesUseCase` (L2) según spec sec.9 Req 2:
 // retry automático de envíos encolados cuando vuelve la red.
 describe('RetomarEnviosPendientesUseCase', () => {
-  let api: FakeSimulacrosApi;
+  let api: FakeExamsApi;
   let storage: InMemoryMarkingsStorage;
   let useCase: RetomarEnviosPendientesUseCase;
   let warnSpy: ReturnType<typeof vi.spyOn>;
@@ -23,7 +23,7 @@ describe('RetomarEnviosPendientesUseCase', () => {
   });
 
   beforeEach(() => {
-    api = new FakeSimulacrosApi();
+    api = new FakeExamsApi();
     storage = new InMemoryMarkingsStorage();
     useCase = new RetomarEnviosPendientesUseCase(api, storage);
     warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
@@ -47,7 +47,7 @@ describe('RetomarEnviosPendientesUseCase', () => {
     it('despacha con el envío exacto (preservando clientSubmittedAt original)', async () => {
       storage.seedMarcacion('sim-1', 1, 'A');
       storage.seedEnvio({
-        simulacroId: 'sim-1',
+        examId: 'sim-1',
         answers: { '1': 'A' },
         clientSubmittedAt: '2026-06-11T08:55:00.000Z',
       });
@@ -58,7 +58,7 @@ describe('RetomarEnviosPendientesUseCase', () => {
       const calls = api.getEnviarCalls();
       expect(calls).toHaveLength(1);
       expect(calls[0]).toEqual({
-        simulacroId: 'sim-1',
+        examId: 'sim-1',
         answers: { '1': 'A' },
         clientSubmittedAt: '2026-06-11T08:55:00.000Z',
       });
@@ -67,7 +67,7 @@ describe('RetomarEnviosPendientesUseCase', () => {
     it('dequeue + clearMarcaciones tras éxito', async () => {
       storage.seedMarcacion('sim-1', 1, 'A');
       storage.seedEnvio({
-        simulacroId: 'sim-1',
+        examId: 'sim-1',
         answers: { '1': 'A' },
         clientSubmittedAt: '2026-06-11T08:55:00.000Z',
       });
@@ -86,17 +86,17 @@ describe('RetomarEnviosPendientesUseCase', () => {
     it('procesa los 3 en orden, dequeue + clearMarcaciones por cada uno', async () => {
       const ts = (suffix: string) => `2026-06-11T08:${suffix}.000Z`;
       storage.seedEnvio({
-        simulacroId: 'sim-1',
+        examId: 'sim-1',
         answers: { '1': 'A' },
         clientSubmittedAt: ts('50:00'),
       });
       storage.seedEnvio({
-        simulacroId: 'sim-2',
+        examId: 'sim-2',
         answers: { '1': 'B' },
         clientSubmittedAt: ts('52:00'),
       });
       storage.seedEnvio({
-        simulacroId: 'sim-3',
+        examId: 'sim-3',
         answers: { '1': 'C' },
         clientSubmittedAt: ts('54:00'),
       });
@@ -120,7 +120,7 @@ describe('RetomarEnviosPendientesUseCase', () => {
     it('deja en cola (NO dequeue ni clearMarcaciones) para retry futuro', async () => {
       storage.seedMarcacion('sim-1', 1, 'A');
       storage.seedEnvio({
-        simulacroId: 'sim-1',
+        examId: 'sim-1',
         answers: { '1': 'A' },
         clientSubmittedAt: '2026-06-11T08:55:00.000Z',
       });
@@ -150,7 +150,7 @@ describe('RetomarEnviosPendientesUseCase', () => {
       async (_name, build) => {
         storage.seedMarcacion('sim-1', 1, 'A');
         storage.seedEnvio({
-          simulacroId: 'sim-1',
+          examId: 'sim-1',
           answers: { '1': 'A' },
           clientSubmittedAt: '2026-06-11T08:55:00.000Z',
         });
@@ -172,12 +172,12 @@ describe('RetomarEnviosPendientesUseCase', () => {
       storage.seedMarcacion('sim-1', 1, 'A');
       storage.seedMarcacion('sim-2', 1, 'B');
       storage.seedEnvio({
-        simulacroId: 'sim-1',
+        examId: 'sim-1',
         answers: { '1': 'A' },
         clientSubmittedAt: '2026-06-11T08:55:00.000Z',
       });
       storage.seedEnvio({
-        simulacroId: 'sim-2',
+        examId: 'sim-2',
         answers: { '1': 'B' },
         clientSubmittedAt: '2026-06-11T08:56:00.000Z',
       });
@@ -191,7 +191,7 @@ describe('RetomarEnviosPendientesUseCase', () => {
       // sim-1 sigue en cola; sim-2 se procesó.
       const pendientes = await storage.getEnviosPendientes();
       expect(pendientes).toHaveLength(1);
-      expect(pendientes[0].simulacroId).toBe('sim-1');
+      expect(pendientes[0].examId).toBe('sim-1');
       expect(await storage.getMarcaciones('sim-1')).toEqual({ '1': 'A' });
       expect(await storage.getMarcaciones('sim-2')).toEqual({});
     });
