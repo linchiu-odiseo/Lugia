@@ -301,7 +301,6 @@ export class HomePageViewModel {
 
     return {
       id: exam.id,
-      area: exam.course ?? exam.area ?? '—',
       name: exam.name,
       count: exam.count,
       estado,
@@ -321,6 +320,12 @@ export class HomePageViewModel {
   //   in_progress       | true            | enviado    (seam C2)
   //   finalized         | true            | enviado    (seam C2)
   //   finalized         | false           | cerrado
+  //
+  // `serverStatus` es la PUERTA (entrar o no). Un `in_progress` cuyo
+  // `started` aún está en el futuro sigue siendo `abierto` — el alumno
+  // entra y `simulacro.view-model` muestra alerta "Examen no iniciado"
+  // hasta que el reloj cruce `started`. La vigencia real (started/finished)
+  // no se mezcla con la puerta.
   private composeEstado(exam: Exam, hasSubmittedAck: boolean): CardEstado {
     switch (exam.serverStatus.value) {
       case 'scheduled':
@@ -345,16 +350,17 @@ export class HomePageViewModel {
         // para el alumno hasta que arranque la sesión.
         return '';
       case 'abierto': {
-        const closeAt = closeAtMs(exam);
-        const closeDate = new Date(closeAt);
-        // Si `started` cae en el futuro (reloj cliente atrasado o bug de
-        // backend), `closeAt - now` infla el restante por encima de
-        // `duration`. Clampeamos al máximo legítimo usando `anchor` como
-        // referencia mínima: nunca decimos "65 min restantes" cuando la
-        // duración real es 5 min.
+        const closeDate = exam.effectiveCloseAt();
+        // Si `started` cae en el futuro (reloj cliente atrasado o `started`
+        // configurado a futuro), `closeAt - now` infla el restante por
+        // encima de la duración real. Usamos `started` como referencia
+        // mínima del countdown: nunca decimos "65 min restantes" para un
+        // examen de 5 min cuya ventana aún no abrió. La alerta visual de
+        // "no iniciado" se muestra adentro de simulacro.page; acá solo nos
+        // aseguramos de que el contador no engañe.
         const anchor = exam.started ?? exam.scheduled;
         const referenceNow = Math.max(now.getTime(), anchor.getTime());
-        const restante = msToMinutesCeiling(closeAt - referenceNow);
+        const restante = msToMinutesCeiling(closeDate.getTime() - referenceNow);
         if (restante <= 0) {
           return `Cierra a las ${formatHHMM(closeDate)} · cerrando…`;
         }
@@ -363,8 +369,7 @@ export class HomePageViewModel {
       case 'enviado': {
         // Hora de cierre como mejor aproximación visible del momento de envío.
         // El DTO de learnex aún no expone `enviadoEn`; cuando lo haga, cambiar.
-        const closeDate = new Date(closeAtMs(exam));
-        return `Enviado a las ${formatHHMM(closeDate)}`;
+        return `Enviado a las ${formatHHMM(exam.effectiveCloseAt())}`;
       }
       case 'cerrado':
         return 'No enviaste · cerrado';
@@ -381,7 +386,6 @@ export type CardTone = 'verde' | 'gris';
 
 export interface SimulacroCard {
   id: string;
-  area: string;
   name: string;
   count: number;
   estado: CardEstado;
@@ -389,13 +393,6 @@ export interface SimulacroCard {
   tone: CardTone;
   primaryText: string;
   secondaryText: string;
-}
-
-// Cierre de la ventana del examen en epoch ms. Ancla: `started` si ya empezó,
-// `scheduled` si no. Factor ×1000 porque `duration` viene en SEGUNDOS.
-function closeAtMs(exam: Exam): number {
-  const anchor = exam.started ?? exam.scheduled;
-  return anchor.getTime() + exam.duration * 1000;
 }
 
 function formatHHMM(d: Date): string {
