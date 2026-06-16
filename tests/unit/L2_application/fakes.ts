@@ -15,23 +15,28 @@ import { Clock } from '../../../src/L1_domain/ports/clock';
 import {
   EnvioRequest,
   EnvioResult,
-  SimulacrosApi,
-  SimulacrosListResult,
-} from '../../../src/L1_domain/ports/simulacros-api';
+  ExamsApi,
+  ExamsListResult,
+} from '../../../src/L1_domain/ports/exams-api';
 import { ServerTime } from '../../../src/L1_domain/value-objects/server-time';
 
 // Doble manual de `MarkingsStorage` para tests de L2.
-// Mantiene marcaciones en un Map keyed por `simulacroId|pregunta` y la cola
-// de envíos en otro Map keyed por `simulacroId`. NO necesita simular scope
+// Mantiene marcaciones en un Map keyed por `examId|pregunta` y la cola
+// de envíos en otro Map keyed por `examId`. NO necesita simular scope
 // por usuario — eso es responsabilidad del adapter L3; este fake opera
 // como si estuviera en el scope del usuario actual.
 //
 // Adicionalmente registra el ORDEN de invocaciones de ops mutativas
 // para que los tests puedan verificar secuencias (ej: wipe antes que clear
 // de sesión). `getOpsLog()` y `getWipeCalls()` exponen ese registro.
+//
+// `hasSubmittedAck()` retorna false por defecto — refleja la implementación
+// real del adapter L3 en `fase-3-exam-list-learnex`. Los tests que necesiten
+// verificar el seam de Change 2 pueden setear `seedAck()` por examId.
 export class InMemoryMarkingsStorage implements MarkingsStorage {
   private marcaciones = new Map<string, AlternativaValue>();
   private queue = new Map<string, EnvioPendiente>();
+  private acks = new Map<string, boolean>();
   private wipeShouldFail = false;
   private wipeCalls = 0;
   private opsLog: string[] = [];
@@ -57,12 +62,17 @@ export class InMemoryMarkingsStorage implements MarkingsStorage {
   }
 
   // Helpers para sembrar estado en tests.
-  seedMarcacion(simulacroId: string, pregunta: number, alternativa: AlternativaValue): void {
-    this.marcaciones.set(`${simulacroId}|${pregunta}`, alternativa);
+  seedMarcacion(examId: string, pregunta: number, alternativa: AlternativaValue): void {
+    this.marcaciones.set(`${examId}|${pregunta}`, alternativa);
   }
 
   seedEnvio(envio: EnvioPendiente): void {
-    this.queue.set(envio.simulacroId, envio);
+    this.queue.set(envio.examId, envio);
+  }
+
+  // Override del ack stub para tests del seam C2 (view-model home).
+  seedAck(examId: string, value: boolean): void {
+    this.acks.set(examId, value);
   }
 
   hasAnyState(): boolean {
@@ -72,16 +82,16 @@ export class InMemoryMarkingsStorage implements MarkingsStorage {
   // --- Puerto MarkingsStorage ---
 
   async setMarcacion(
-    simulacroId: string,
+    examId: string,
     pregunta: number,
     alternativa: AlternativaValue,
   ): Promise<void> {
     this.opsLog.push('markings.setMarcacion');
-    this.marcaciones.set(`${simulacroId}|${pregunta}`, alternativa);
+    this.marcaciones.set(`${examId}|${pregunta}`, alternativa);
   }
 
-  async getMarcaciones(simulacroId: string): Promise<AnswersMap> {
-    const prefix = `${simulacroId}|`;
+  async getMarcaciones(examId: string): Promise<AnswersMap> {
+    const prefix = `${examId}|`;
     const out: AnswersMap = {};
     for (const [key, val] of this.marcaciones.entries()) {
       if (key.startsWith(prefix)) {
@@ -91,9 +101,9 @@ export class InMemoryMarkingsStorage implements MarkingsStorage {
     return out;
   }
 
-  async clearMarcaciones(simulacroId: string): Promise<void> {
+  async clearMarcaciones(examId: string): Promise<void> {
     this.opsLog.push('markings.clearMarcaciones');
-    const prefix = `${simulacroId}|`;
+    const prefix = `${examId}|`;
     for (const key of [...this.marcaciones.keys()]) {
       if (key.startsWith(prefix)) this.marcaciones.delete(key);
     }
@@ -101,16 +111,22 @@ export class InMemoryMarkingsStorage implements MarkingsStorage {
 
   async enqueueEnvio(envio: EnvioPendiente): Promise<void> {
     this.opsLog.push('markings.enqueueEnvio');
-    this.queue.set(envio.simulacroId, envio);
+    this.queue.set(envio.examId, envio);
   }
 
   async getEnviosPendientes(): Promise<EnvioPendiente[]> {
     return [...this.queue.values()];
   }
 
-  async dequeueEnvio(simulacroId: string): Promise<void> {
+  async dequeueEnvio(examId: string): Promise<void> {
     this.opsLog.push('markings.dequeueEnvio');
-    this.queue.delete(simulacroId);
+    this.queue.delete(examId);
+  }
+
+  // Por defecto false (mismo contrato que el adapter L3 en Change 1).
+  // Sobreescribible vía `seedAck()` para tests del seam.
+  async hasSubmittedAck(examId: string): Promise<boolean> {
+    return this.acks.get(examId) ?? false;
   }
 
   async wipeUserScope(): Promise<void> {
@@ -124,8 +140,8 @@ export class InMemoryMarkingsStorage implements MarkingsStorage {
   }
 }
 
-// Doble manual del puerto `SimulacrosApi`. Permite preconfigurar el próximo
-// resultado/rejection de `obtenerDelDia()` y `enviar()`, y registra todas
+// Doble manual del puerto `ExamsApi`. Permite preconfigurar el próximo
+// resultado/rejection de `getTodaysExams()` y `enviar()`, y registra todas
 // las llamadas a `enviar()` (con su payload exacto) para que los tests
 // puedan verificar que se preservó `clientSubmittedAt` original entre
 // intento, encolado y retry.
@@ -134,9 +150,9 @@ export class InMemoryMarkingsStorage implements MarkingsStorage {
 //   - "scalar": el mismo resultado/error se devuelve para cada llamada
 //   - "sequence": uno por llamada en orden, útil para tests del retomar
 //     use case con mezcla de éxito + NetworkError.
-export class FakeSimulacrosApi implements SimulacrosApi {
+export class FakeExamsApi implements ExamsApi {
   private nextObtener:
-    | { kind: 'resolve'; result: SimulacrosListResult }
+    | { kind: 'resolve'; result: ExamsListResult }
     | { kind: 'reject'; error: Error }
     | null = null;
   private obtenerCalls = 0;
@@ -151,11 +167,11 @@ export class FakeSimulacrosApi implements SimulacrosApi {
   )[] = [];
   private enviarCalls: EnvioRequest[] = [];
 
-  willResolveObtenerDelDia(result: SimulacrosListResult): void {
+  willResolveGetTodaysExams(result: ExamsListResult): void {
     this.nextObtener = { kind: 'resolve', result };
   }
 
-  willRejectObtenerDelDia(error: Error): void {
+  willRejectGetTodaysExams(error: Error): void {
     this.nextObtener = { kind: 'reject', error };
   }
 
@@ -183,11 +199,11 @@ export class FakeSimulacrosApi implements SimulacrosApi {
     return this.enviarCalls;
   }
 
-  async obtenerDelDia(): Promise<SimulacrosListResult> {
+  async getTodaysExams(): Promise<ExamsListResult> {
     this.obtenerCalls++;
     if (!this.nextObtener) {
       throw new Error(
-        'FakeSimulacrosApi: configurar willResolveObtenerDelDia o willRejectObtenerDelDia antes de llamar obtenerDelDia()',
+        'FakeExamsApi: configurar willResolveGetTodaysExams o willRejectGetTodaysExams antes de llamar getTodaysExams()',
       );
     }
     if (this.nextObtener.kind === 'reject') throw this.nextObtener.error;
@@ -199,7 +215,7 @@ export class FakeSimulacrosApi implements SimulacrosApi {
     if (this.enviarSequence.length > 0) {
       const next = this.enviarSequence.shift();
       if (!next) {
-        throw new Error('FakeSimulacrosApi: enviarSequence agotada.');
+        throw new Error('FakeExamsApi: enviarSequence agotada.');
       }
       if (next.kind === 'reject') throw next.error;
       return next.result;
@@ -209,7 +225,7 @@ export class FakeSimulacrosApi implements SimulacrosApi {
       return this.enviarScalar.result;
     }
     throw new Error(
-      'FakeSimulacrosApi: configurar willResolveEnviar / willRejectEnviar / willEnviarInSequence antes de llamar enviar()',
+      'FakeExamsApi: configurar willResolveEnviar / willRejectEnviar / willEnviarInSequence antes de llamar enviar()',
     );
   }
 }

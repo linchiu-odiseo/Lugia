@@ -6,6 +6,10 @@ import { RefreshFailedError } from '../../../../src/L1_domain/errors/refresh-fai
 import { RateLimitError } from '../../../../src/L1_domain/errors/rate-limit.error';
 import { ProfileNotAvailableError } from '../../../../src/L1_domain/errors/profile-not-available.error';
 import { UnsupportedRoleError } from '../../../../src/L1_domain/errors/unsupported-role.error';
+import { ExamsPermissionRevokedError } from '../../../../src/L1_domain/errors/exams-permission-revoked.error';
+import { StudentNotLinkedError } from '../../../../src/L1_domain/errors/student-not-linked.error';
+import { SubmissionNotAvailableError } from '../../../../src/L1_domain/errors/submission-not-available.error';
+import { InvalidExamError } from '../../../../src/L1_domain/errors/invalid-exam.error';
 
 describe('Errores de dominio', () => {
   describe('InvalidCredentialsError', () => {
@@ -123,6 +127,61 @@ describe('Errores de dominio', () => {
     });
   });
 
+  describe('ExamsPermissionRevokedError', () => {
+    it('es instanceof Error y ExamsPermissionRevokedError', () => {
+      const err = new ExamsPermissionRevokedError();
+      expect(err).toBeInstanceOf(Error);
+      expect(err).toBeInstanceOf(ExamsPermissionRevokedError);
+    });
+
+    it('tiene name correcto', () => {
+      expect(new ExamsPermissionRevokedError().name).toBe('ExamsPermissionRevokedError');
+    });
+  });
+
+  describe('StudentNotLinkedError', () => {
+    it('es instanceof Error y StudentNotLinkedError', () => {
+      const err = new StudentNotLinkedError();
+      expect(err).toBeInstanceOf(Error);
+      expect(err).toBeInstanceOf(StudentNotLinkedError);
+    });
+
+    it('tiene name correcto', () => {
+      expect(new StudentNotLinkedError().name).toBe('StudentNotLinkedError');
+    });
+  });
+
+  describe('SubmissionNotAvailableError', () => {
+    it('es instanceof Error y SubmissionNotAvailableError', () => {
+      const err = new SubmissionNotAvailableError();
+      expect(err).toBeInstanceOf(Error);
+      expect(err).toBeInstanceOf(SubmissionNotAvailableError);
+    });
+
+    it('tiene name correcto', () => {
+      expect(new SubmissionNotAvailableError().name).toBe('SubmissionNotAvailableError');
+    });
+
+    // CRÍTICO: si esta jerarquía cambiara, EnviarSimulacroUseCase agarraría
+    // el error en su catch de NetworkError y lo encolaría indefinidamente.
+    // Este test es el guardián de ese invariante.
+    it('NO es instanceof NetworkError (jerarquía protegida)', () => {
+      expect(new SubmissionNotAvailableError() instanceof NetworkError).toBe(false);
+    });
+  });
+
+  describe('InvalidExamError', () => {
+    it('es instanceof Error y InvalidExamError', () => {
+      const err = new InvalidExamError('algo');
+      expect(err).toBeInstanceOf(Error);
+      expect(err).toBeInstanceOf(InvalidExamError);
+    });
+
+    it('tiene name correcto', () => {
+      expect(new InvalidExamError('algo').name).toBe('InvalidExamError');
+    });
+  });
+
   describe('discriminación entre errores', () => {
     it('un InvalidCredentialsError NO es instanceof NetworkError ni InvalidIdentityError', () => {
       const err = new InvalidCredentialsError();
@@ -132,6 +191,14 @@ describe('Errores de dominio', () => {
 
     it('un RefreshFailedError NO es instanceof InvalidCredentialsError', () => {
       expect(new RefreshFailedError()).not.toBeInstanceOf(InvalidCredentialsError);
+    });
+
+    it('ExamsPermissionRevokedError NO es instanceof NetworkError', () => {
+      expect(new ExamsPermissionRevokedError()).not.toBeInstanceOf(NetworkError);
+    });
+
+    it('StudentNotLinkedError NO es instanceof NetworkError', () => {
+      expect(new StudentNotLinkedError()).not.toBeInstanceOf(NetworkError);
     });
   });
 });
