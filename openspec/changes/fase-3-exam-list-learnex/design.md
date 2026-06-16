@@ -127,3 +127,80 @@ Orden de renames y commits (mapeado al delivery-plan del proposal):
 ## Open questions
 
 Ninguna — las tres del spec phase quedan resueltas en D3, D4, D5.
+
+## Riesgos abiertos para changes futuros
+
+Identificados al cerrar el change tras uso real contra learnex. Ninguno bloquea esta entrega
+(la cartilla de listado funciona), pero todos son escenarios reales de producción que el
+próximo change de robustez debería abordar. Se documentan acá para que `sdd-explore` los
+levante al arrancar `fase-3-exam-robustness-learnex` (o similar).
+
+### R1 — Cierre del examen mid-sesión no se detecta en `/simulacro/:id`
+
+- **Síntoma**: el tutor cierra el examen manualmente mientras el alumno está marcando.
+  El alumno NO se entera — sigue marcando hasta que aprieta Enviar (o vuelve al home y
+  ve la card en `cerrado`).
+- **Causa**: `SimulacroPageViewModel.start()` (`src/LR_render/view-models/simulacro.view-model.ts`)
+  carga el `Exam` UNA vez del listado y no refresca. El ticker solo recalcula countdowns
+  locales; no consulta al server.
+- **Dirección sugerida**: agregar polling en la página de marcado (ej. 30–60s) que
+  vuelva a invocar `GetTodaysExamsUseCase` y reconcilie el `Exam` actual. Si el polling
+  detecta `status: 'finalized'`, redirigir al home con razón `cerrado`. Considerar SSE
+  como alternativa si learnex lo soporta.
+
+### R2 — Cambio de `started` mid-sesión no se refleja
+
+- **Síntoma**: el tutor reinicia el examen (cambia `started` a un valor nuevo).
+  La página de marcado sigue con el `started` viejo, countdown miente.
+- **Causa**: misma que R1 — sin refresh durante la sesión.
+- **Dirección sugerida**: el mismo polling de R1 cubre este caso. Si `exam.started`
+  cambió respecto al cargado, recargar marcaciones desde IDB (las anteriores siguen
+  válidas) y reiniciar el ticker contra el nuevo anchor.
+
+### R3 — Múltiples pestañas / dispositivos simultáneos
+
+- **Síntoma**: el alumno abre la PWA en 2 pestañas (o en celular + tablet). Cada
+  instancia tiene su propio ticker y su propio `ProgramarAutoEnvioUseCase`. Al cumplirse
+  `closeAt` → 2 disparos del auto-envío.
+- **Causa**: cada instancia inicializa sus servicios providedIn root sin coordinación
+  entre tabs. IDB sí se comparte (mismo origen), pero los timers en memoria no.
+- **Riesgo real**: en Change 2 (POST real) habría 2 envíos al server. learnex idempotencia
+  con 409 mitiga, pero genera ruido en logs y carga inútil.
+- **Dirección sugerida**: usar `BroadcastChannel` o `localStorage` events para que la
+  primera pestaña que dispare el auto-envío marque un flag en IDB; las demás chequean
+  el flag antes de disparar. Alternativa: detectar `document.visibilityState === 'hidden'`
+  para que solo la pestaña visible programe auto-envío.
+
+### R4 — Service Worker cache vieja después de deploy
+
+- **Síntoma**: deployamos un fix de marcación (ej. `vigente` guard). El alumno tiene
+  la PWA abierta con la versión vieja sin el guard. Puede marcar sobre un examen cerrado.
+- **Causa**: el SW (`ngsw-worker.js`) sirve assets cacheados hasta que detecta nueva
+  versión y se actualiza. En `app.config.ts:77-80` está configurado con
+  `registerWhenStable:30000` — el primer chequeo es tras 30s de idle. Window de skew
+  variable según patrón de uso.
+- **Dirección sugerida**: implementar prompt "Hay una versión nueva, recargá" cuando el
+  SW detecte update (`SwUpdate.versionUpdates` Observable de Angular). Si el alumno está
+  en pleno examen, ofrecer al final de la sesión, no en medio. Considerar también
+  `skipWaiting` para emergencias críticas con flag de feature.
+
+### Riesgos secundarios (menor prioridad)
+
+- **`OfflineStorageUnavailableError` durante marcado** (mid-examen): el precheck del home
+  ya lo detecta al cargar, pero IDB puede fallar después (Safari privado, cuota llena).
+  Hoy el error propaga sin manejo en `MarcarRespuestaUseCase`. **Sugerencia**: agregar
+  banner naranja "Storage local no disponible, las marcas no se guardarán" + opción de
+  reintentar.
+- **Server envía `count: 0` o `duration: 0`**: el constructor de `Exam` lanza
+  `InvalidExamError` y toda la lista falla porque el adapter no skipea items inválidos.
+  **Sugerencia**: filtrar items con `count >= 1 && duration >= 1` en el adapter con
+  `console.warn`, similar al patrón del skip silencioso que estuvimos discutiendo.
+- **Reloj cliente significativamente desfasado**: `ServerAnchoredClock` corrige al recibir
+  `serverTime`, pero entre GETs puede divergir varios segundos. No es vector de cheating
+  (server valida `clientFinishedAt` en POST), pero sí afecta countdowns visuales.
+  **Sugerencia**: aceptar; documentar como límite conocido.
+- **Ramas dead-code `enviado` (hasSubmittedAck=true)**: en Change 1 nunca se ejecutan
+  en runtime, solo en tests con mocks. Al aterrizar Change 2 podría haber bugs latentes.
+  **Sugerencia**: en `fase-3-exam-submit-learnex`, antes de habilitar el POST real,
+  forzar `hasSubmittedAck=true` en un examen de prueba y verificar manualmente los
+  estados visuales.
