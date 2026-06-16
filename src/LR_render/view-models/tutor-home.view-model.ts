@@ -40,11 +40,6 @@ export class TutorHomePageViewModel {
     return `Tenés ${this.classroomCount()} aulas · ${this.studentTotal()} alumnos`;
   });
 
-  // errorMessage queda reservado para fallas no degradables (ej: refresh
-  // manual con NetworkError visible). En el stub inicial no se usa porque
-  // los errores benignos degradan silenciosamente.
-  readonly errorMessage = signal<string | null>(null);
-
   private started = false;
 
   async start(): Promise<void> {

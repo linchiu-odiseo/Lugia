@@ -77,9 +77,7 @@ export class HttpAuthRepository implements AuthRepository {
   async login(credentials: { email: string; password: string }): Promise<Identity> {
     try {
       const dto = await firstValueFrom(
-        this.http.post<LoginResponseDto>(apiPath.login(), credentials, {
-          withCredentials: true,
-        }),
+        this.http.post<LoginResponseDto>(apiPath.login(), credentials),
       );
       return this.mapIdentity(dto);
     } catch (err) {
@@ -92,9 +90,7 @@ export class HttpAuthRepository implements AuthRepository {
 
   async me(): Promise<Identity> {
     try {
-      const dto = await firstValueFrom(
-        this.http.get<LoginResponseDto>(apiPath.me(), { withCredentials: true }),
-      );
+      const dto = await firstValueFrom(this.http.get<LoginResponseDto>(apiPath.me()));
       return this.mapIdentity(dto);
     } catch (err) {
       if (err instanceof UnsupportedRoleError) throw err;
@@ -105,7 +101,7 @@ export class HttpAuthRepository implements AuthRepository {
   async refresh(): Promise<Identity> {
     try {
       const dto = await firstValueFrom(
-        this.http.post<LoginResponseDto>(apiPath.refresh(), {}, { withCredentials: true }),
+        this.http.post<LoginResponseDto>(apiPath.refresh(), {}),
       );
       return this.mapIdentity(dto);
     } catch (err) {
@@ -117,23 +113,19 @@ export class HttpAuthRepository implements AuthRepository {
   async logout(): Promise<void> {
     // Best-effort: errores de red o 5xx no se clasifican — el LogoutUseCase
     // ya envuelve la llamada en try/catch y continúa con la limpieza local.
-    await firstValueFrom(this.http.post(apiPath.logout(), {}, { withCredentials: true }));
+    await firstValueFrom(this.http.post(apiPath.logout(), {}));
   }
 
   async getProfile(role: Role): Promise<StudentProfile | TutorProfile> {
     try {
       if (role === 'student') {
         const dto = await firstValueFrom(
-          this.http.get<StudentProfileDto>(apiPath.profile('student'), {
-            withCredentials: true,
-          }),
+          this.http.get<StudentProfileDto>(apiPath.profile('student')),
         );
         return this.mapStudentProfile(dto);
       }
       const dto = await firstValueFrom(
-        this.http.get<TutorProfileDto>(apiPath.profile('tutor'), {
-          withCredentials: true,
-        }),
+        this.http.get<TutorProfileDto>(apiPath.profile('tutor')),
       );
       return this.mapTutorProfile(dto);
     } catch (err) {

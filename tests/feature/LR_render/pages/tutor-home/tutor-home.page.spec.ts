@@ -22,7 +22,6 @@ class FakeTutorHomePageViewModel {
   readonly studentTotal: WritableSignal<number> = signal(0);
   readonly profileLoading: WritableSignal<boolean> = signal(false);
   readonly profileUnavailable: WritableSignal<boolean> = signal(false);
-  readonly errorMessage: WritableSignal<string | null> = signal(null);
 
   // Computed que el template consume — replican la lógica del VM real.
   readonly hasClassrooms = computed(() => this.classroomCount() > 0);

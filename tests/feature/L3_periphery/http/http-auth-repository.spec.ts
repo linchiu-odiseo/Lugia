@@ -119,7 +119,6 @@ describe('HttpAuthRepository', () => {
       const req = httpMock.expectOne(LOGIN_URL);
       expect(req.request.method).toBe('POST');
       expect(req.request.body).toEqual(credentials);
-      expect(req.request.withCredentials).toBe(true);
       req.flush(STUDENT_LOGIN_RESPONSE);
 
       const identity = await pending;
@@ -255,7 +254,6 @@ describe('HttpAuthRepository', () => {
       const pending = repo.me();
       const req = httpMock.expectOne(ME_URL);
       expect(req.request.method).toBe('GET');
-      expect(req.request.withCredentials).toBe(true);
       req.flush(STUDENT_LOGIN_RESPONSE);
 
       const identity = await pending;
@@ -283,7 +281,6 @@ describe('HttpAuthRepository', () => {
       const pending = repo.refresh();
       const req = httpMock.expectOne(REFRESH_URL);
       expect(req.request.method).toBe('POST');
-      expect(req.request.withCredentials).toBe(true);
       req.flush(STUDENT_LOGIN_RESPONSE);
 
       const identity = await pending;
@@ -324,7 +321,6 @@ describe('HttpAuthRepository', () => {
       const pending = repo.logout();
       const req = httpMock.expectOne(LOGOUT_URL);
       expect(req.request.method).toBe('POST');
-      expect(req.request.withCredentials).toBe(true);
       req.flush(null, { status: 204, statusText: 'No Content' });
       await expect(pending).resolves.toBeUndefined();
     });
@@ -342,7 +338,6 @@ describe('HttpAuthRepository', () => {
       const pending = repo.getProfile('student');
       const req = httpMock.expectOne(STUDENT_PROFILE_URL);
       expect(req.request.method).toBe('GET');
-      expect(req.request.withCredentials).toBe(true);
       req.flush(STUDENT_PROFILE_RESPONSE);
 
       const profile = await pending;
