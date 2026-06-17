@@ -157,9 +157,13 @@ export const appConfig: ApplicationConfig = {
     },
     {
       provide: EnviarSimulacroUseCase,
-      useFactory: (api: ExamsApi, markings: MarkingsStorage, clock: Clock) =>
-        new EnviarSimulacroUseCase(api, markings, clock),
-      deps: [EXAMS_API, MARKINGS_STORAGE, CLOCK],
+      useFactory: (
+        api: ExamsApi,
+        markings: MarkingsStorage,
+        clock: Clock,
+        identity: IdentityStorage,
+      ) => new EnviarSimulacroUseCase(api, markings, clock, identity),
+      deps: [EXAMS_API, MARKINGS_STORAGE, CLOCK, IDENTITY_STORAGE],
     },
     {
       provide: RetomarEnviosPendientesUseCase,

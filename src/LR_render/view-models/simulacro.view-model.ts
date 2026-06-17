@@ -11,13 +11,13 @@ import { CLOCK, MARKINGS_STORAGE } from '../../app.config';
 import { Exam } from '../../L1_domain/entities/exam';
 import { Alternativa } from '../../L1_domain/value-objects/alternativa';
 import { AlternativaValue, AnswersMap } from '../../L1_domain/ports/markings-storage';
+import { SubmissionAck } from '../../L1_domain/value-objects/submission-ack';
 import { NetworkError } from '../../L1_domain/errors/network.error';
 import { SessionExpiredError } from '../../L1_domain/errors/session-expired.error';
 import { SimulacroCerradoError } from '../../L1_domain/errors/simulacro-cerrado.error';
 import { SimulacroNoAsignadoError } from '../../L1_domain/errors/simulacro-no-asignado.error';
 import { InvalidSubmissionTimeError } from '../../L1_domain/errors/invalid-submission-time.error';
 import { InvalidPayloadError } from '../../L1_domain/errors/invalid-payload.error';
-import { SubmissionNotAvailableError } from '../../L1_domain/errors/submission-not-available.error';
 
 // Razón de redirect al /home, lo usa el view-model para no renderizar UI de
 // error en la página. Si en el futuro queremos un toast global, el `flash`
@@ -91,6 +91,10 @@ export class SimulacroPageViewModel {
   readonly nowTick = signal<Date>(this.clock.now());
   readonly isSubmitting = signal(false);
   readonly submissionState = signal<SubmissionState>('idle');
+  // Comprobante criptográfico del último envío exitoso. Cuando es no-null,
+  // el page renderiza `<app-submission-receipt-modal>` y NO navega: el alumno
+  // ve el recibo. `onReceiptClose()` lo limpia y dispara el redirect a /home.
+  readonly lastAck = signal<SubmissionAck | null>(null);
 
   // Número de la pregunta cuya fila está actualmente en modo `editing`, o
   // null si ninguna lo está. Solo puede haber una a la vez — entrar a
@@ -366,7 +370,15 @@ export class SimulacroPageViewModel {
       const result = await this.enviarSimulacro.execute({ examId: e.id });
       if (result.status === 'enviado') {
         this.submissionState.set('sent');
-        void this.router.navigate(['/home']);
+        if (result.ack !== null) {
+          // Muestra el modal de comprobante; la navegación a /home queda
+          // diferida hasta que el alumno toque "Volver al inicio".
+          this.lastAck.set(result.ack);
+        } else {
+          // Defensa: el use case promete ack en path síncrono enviado, pero
+          // si por alguna razón llega null no nos quedamos congelados.
+          void this.router.navigate(['/home']);
+        }
       } else {
         this.submissionState.set('queued');
       }
@@ -375,6 +387,14 @@ export class SimulacroPageViewModel {
     } finally {
       this.isSubmitting.set(false);
     }
+  }
+
+  // Dismiss del modal de comprobante. Limpia el ack del view-model y navega
+  // a /home — el flujo "envío exitoso" se completa visualmente cuando el
+  // alumno ve la card "Enviado · HH:MM · Pendiente de calificación".
+  onReceiptClose(): void {
+    this.lastAck.set(null);
+    void this.router.navigate(['/home']);
   }
 
   // Programa el auto-envío en el momento de cierre del examen. Los callbacks
@@ -399,7 +419,11 @@ export class SimulacroPageViewModel {
         if (this.stopped) return;
         if (result.status === 'enviado') {
           this.submissionState.set('sent');
-          void this.router.navigate(['/home']);
+          if (result.ack !== null) {
+            this.lastAck.set(result.ack);
+          } else {
+            void this.router.navigate(['/home']);
+          }
         } else {
           this.submissionState.set('queued');
         }
@@ -451,22 +475,8 @@ export class SimulacroPageViewModel {
   // Mapea errores del envío a errorState + redirect. NetworkError no debería
   // llegar acá: EnviarSimulacroUseCase lo captura y devuelve `status: queued`.
   // Aun así lo dejamos por defensa: si llegara, lo tratamos como red caída.
-  //
-  // SubmissionNotAvailableError es transitorio del change `fase-3-exam-list-learnex`:
-  // el POST es stub y siempre rechaza. Si llega acá (auto-envío disparado
-  // tras un cierre que ya pasó, por ejemplo), NO redirigimos — el alumno
-  // se queda en la cartilla y el banner "tiempo agotado" comunica el
-  // estado. Cuando el POST real aterrice en `fase-3-exam-submit-learnex`,
-  // este caso desaparece de runtime.
   private handleSubmissionError(err: unknown): void {
     this.submissionState.set('error');
-    if (err instanceof SubmissionNotAvailableError) {
-      // Stub del change actual: no hay nada útil que hacer; dejamos al
-      // alumno en la página y volvemos al estado idle para que pueda
-      // intentar de nuevo cuando el POST real esté disponible.
-      this.submissionState.set('idle');
-      return;
-    }
     if (err instanceof SimulacroCerradoError) {
       this.errorState.set('cerrado');
       void this.router.navigate(['/home']);

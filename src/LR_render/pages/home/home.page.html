@@ -102,7 +102,15 @@
               <span class="card__primary-text">{{ card.primaryText }}</span>
             </div>
             <h3 class="card__name">{{ card.name }}</h3>
-            <p class="card__secondary">{{ card.secondaryText }}</p>
+            <p class="card__secondary">
+              @if (card.estado === 'enviado') {
+                <span
+                  class="material-symbols-outlined card__secondary-icon"
+                  aria-hidden="true"
+                >hourglass_top</span>
+              }
+              {{ card.secondaryText }}
+            </p>
             @if (card.clickable) {
               <span class="material-symbols-outlined card__chevron" aria-hidden="true">
                 chevron_right

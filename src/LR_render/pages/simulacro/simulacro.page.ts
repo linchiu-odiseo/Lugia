@@ -2,6 +2,7 @@ import { Component, DestroyRef, inject } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AlternativaValue } from '../../../L1_domain/ports/markings-storage';
 import { SimulacroPageViewModel } from '../../view-models/simulacro.view-model';
+import { SubmissionReceiptModalComponent } from '../../components/submission-receipt-modal/submission-receipt-modal.component';
 
 const ALTERNATIVAS: readonly AlternativaValue[] = ['A', 'B', 'C', 'D', 'E'];
 
@@ -19,6 +20,7 @@ const LONG_PRESS_MOVE_THRESHOLD_PX = 10;
   selector: 'app-simulacro-page',
   templateUrl: './simulacro.page.html',
   styleUrl: './simulacro.page.scss',
+  imports: [SubmissionReceiptModalComponent],
   providers: [SimulacroPageViewModel],
 })
 export class SimulacroPage {

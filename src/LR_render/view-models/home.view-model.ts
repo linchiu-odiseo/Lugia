@@ -7,6 +7,7 @@ import { LogoutUseCase } from '../../L2_application/use-cases/logout.use-case';
 import { CLOCK, MARKINGS_STORAGE } from '../../app.config';
 import { Exam } from '../../L1_domain/entities/exam';
 import { StudentProfile } from '../../L1_domain/value-objects/student-profile';
+import { SubmissionAck } from '../../L1_domain/value-objects/submission-ack';
 import { NetworkError } from '../../L1_domain/errors/network.error';
 import { SessionExpiredError } from '../../L1_domain/errors/session-expired.error';
 import { ProfileNotAvailableError } from '../../L1_domain/errors/profile-not-available.error';
@@ -18,7 +19,7 @@ import { randomQuote } from '../pages/home/inspirational-quotes';
 export type ServerErrorKind = 'network' | 'session-expired' | 'unknown';
 
 // Estado visual de cada card en /home. Compuesto en el view-model a partir
-// de `exam.serverStatus` + `MarkingsStorage.hasSubmittedAck(exam.id)`. Las
+// de `exam.serverStatus` + `MarkingsStorage.getSubmissionAck(exam.id)`. Las
 // claves se mantienen en español porque el template las usa como sufijo de
 // clase CSS (`card--abierto`, `card--cerrado`, etc.).
 export type CardEstado = 'pendiente' | 'abierto' | 'enviado' | 'cerrado';
@@ -44,10 +45,12 @@ export class HomePageViewModel {
   private readonly router = inject(Router);
 
   readonly exams = signal<readonly Exam[]>([]);
-  // Map examId → hasSubmittedAck. Se completa en cada refresh consultando el
-  // puerto MarkingsStorage. En `fase-3-exam-list-learnex` el adapter retorna
-  // siempre false; se reactiva en `fase-3-exam-submit-learnex`.
-  private readonly ackByExamId = signal<ReadonlyMap<string, boolean>>(new Map());
+  // Map examId → SubmissionAck (null cuando no hay envío persistido). Se
+  // completa en cada refresh consultando `getSubmissionAck` del puerto
+  // MarkingsStorage. La presencia del ack es la señal de "yo envié este
+  // examen" y alimenta el card-state `enviado` independientemente del
+  // serverStatus.
+  private readonly ackByExamId = signal<ReadonlyMap<string, SubmissionAck | null>>(new Map());
   readonly isLoading = signal(false);
   readonly serverError = signal<ServerErrorKind | null>(null);
   readonly offlineStorageBlocked = signal(false);
@@ -81,7 +84,7 @@ export class HomePageViewModel {
   readonly cards = computed(() => {
     const acks = this.ackByExamId();
     const now = this.nowTick();
-    return this.exams().map((exam) => this.buildCard(exam, acks.get(exam.id) === true, now));
+    return this.exams().map((exam) => this.buildCard(exam, acks.get(exam.id) ?? null, now));
   });
 
   private pollTimer: ReturnType<typeof setInterval> | null = null;
@@ -214,18 +217,19 @@ export class HomePageViewModel {
     }
   }
 
-  // Consulta `hasSubmittedAck` por cada examen y arma el mapa que alimenta la
-  // composición de estado de card. En `fase-3-exam-list-learnex` el adapter
-  // retorna siempre false (seam: activa en fase-3-exam-submit-learnex).
+  // Consulta `getSubmissionAck` por cada examen y arma el mapa que alimenta
+  // la composición de estado de card. El ack persistido (sha256 + submittedAt)
+  // alimenta tanto `composeEstado` ('enviado' cuando hay ack) como
+  // `primaryText` ("Enviado · HH:MM" con la hora real del server).
   private async refreshAcks(list: readonly Exam[]): Promise<void> {
-    const next = new Map<string, boolean>();
+    const next = new Map<string, SubmissionAck | null>();
     for (const exam of list) {
       try {
-        next.set(exam.id, await this.markings.hasSubmittedAck(exam.id));
+        next.set(exam.id, await this.markings.getSubmissionAck(exam.id));
       } catch {
-        // Si el storage falla por examen puntual, asumimos false: el ack
+        // Si el storage falla por examen puntual, asumimos null: el ack
         // local nunca debe bloquear la visibilidad de la lista.
-        next.set(exam.id, false);
+        next.set(exam.id, null);
       }
     }
     this.ackByExamId.set(next);
@@ -294,8 +298,8 @@ export class HomePageViewModel {
     this.visibilityListener = null;
   }
 
-  private buildCard(exam: Exam, hasSubmittedAck: boolean, now: Date): SimulacroCard {
-    const estado = this.composeEstado(exam, hasSubmittedAck);
+  private buildCard(exam: Exam, ack: SubmissionAck | null, now: Date): SimulacroCard {
+    const estado = this.composeEstado(exam, ack);
     const clickable = estado === 'abierto';
     const tone: CardTone = clickable ? 'verde' : 'gris';
 
@@ -306,42 +310,44 @@ export class HomePageViewModel {
       estado,
       clickable,
       tone,
-      primaryText: this.primaryText(exam, estado, now),
-      secondaryText: this.secondaryText(exam),
+      primaryText: this.primaryText(exam, estado, ack, now),
+      secondaryText: this.secondaryText(exam, estado),
     };
   }
 
-  // Matriz de composición de estado (5 ramas; 2 quedan inertes hasta que el
-  // adapter de MarkingsStorage devuelva acks reales):
+  // Matriz de composición de estado:
   //
-  //   serverStatus      | hasSubmittedAck | estado
-  //   scheduled         | (any)           | pendiente
-  //   in_progress       | false           | abierto
-  //   in_progress       | true            | enviado    (seam C2)
-  //   finalized         | true            | enviado    (seam C2)
-  //   finalized         | false           | cerrado
+  //   serverStatus      | ack !== null | estado
+  //   scheduled         | (any)        | pendiente
+  //   in_progress       | false        | abierto
+  //   in_progress       | true         | enviado
+  //   finalized         | true         | enviado
+  //   finalized         | false        | cerrado
   //
   // `serverStatus` es la PUERTA (entrar o no). Un `in_progress` cuyo
   // `started` aún está en el futuro sigue siendo `abierto` — el alumno
   // entra y `simulacro.view-model` muestra alerta "Examen no iniciado"
   // hasta que el reloj cruce `started`. La vigencia real (started/finished)
   // no se mezcla con la puerta.
-  private composeEstado(exam: Exam, hasSubmittedAck: boolean): CardEstado {
+  private composeEstado(exam: Exam, ack: SubmissionAck | null): CardEstado {
     switch (exam.serverStatus.value) {
       case 'scheduled':
         return 'pendiente';
       case 'in_progress':
-        // seam: activa en fase-3-exam-submit-learnex
-        if (hasSubmittedAck) return 'enviado';
+        if (ack !== null) return 'enviado';
         return 'abierto';
       case 'finalized':
-        // seam: activa en fase-3-exam-submit-learnex
-        if (hasSubmittedAck) return 'enviado';
+        if (ack !== null) return 'enviado';
         return 'cerrado';
     }
   }
 
-  private primaryText(exam: Exam, estado: CardEstado, now: Date): string {
+  private primaryText(
+    exam: Exam,
+    estado: CardEstado,
+    ack: SubmissionAck | null,
+    now: Date,
+  ): string {
     switch (estado) {
       case 'pendiente':
         // serverStatus === 'scheduled' implica `started === null`: el tutor
@@ -371,18 +377,20 @@ export class HomePageViewModel {
         return `Cierra a las ${formatHHMM(closeDate)} · ${restante} min restantes`;
       }
       case 'enviado': {
-        // Hora de cierre como mejor aproximación visible del momento de envío.
-        // El DTO de learnex aún no expone `enviadoEn`; cuando lo haga, cambiar.
-        const closeDate = exam.effectiveCloseAt();
-        if (closeDate === null) return 'Enviado';
-        return `Enviado a las ${formatHHMM(closeDate)}`;
+        // Hora real del envío según el server (anclada al SHA256 del ack),
+        // no aproximación por `effectiveCloseAt`. Si por defensa el ack
+        // viene null acá (no debería: `enviado` exige ack !== null), caemos
+        // a "Enviado" sin hora.
+        if (ack === null) return 'Enviado';
+        return `Enviado · ${formatHHMM(ack.submittedAt)}`;
       }
       case 'cerrado':
         return 'No enviaste · cerrado';
     }
   }
 
-  private secondaryText(exam: Exam): string {
+  private secondaryText(exam: Exam, estado: CardEstado): string {
+    if (estado === 'enviado') return 'Pendiente de calificación';
     const label = exam.course ?? exam.area ?? '—';
     return `${label} · ${exam.count} preguntas`;
   }

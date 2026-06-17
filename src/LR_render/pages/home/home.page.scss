@@ -333,6 +333,15 @@
     color: var(--color-on-surface-variant);
   }
 
+  // Ícono inline "hourglass_top" junto a "Pendiente de calificación".
+  // Tamaño chico (14 px) para no robar la atención del nombre del simulacro
+  // y alineado vertical sutil con el texto.
+  &__secondary-icon {
+    font-size: 0.875rem;
+    vertical-align: -2px;
+    margin-right: 0.125rem;
+  }
+
   &__chevron {
     position: absolute;
     right: 0.75rem;

@@ -77,7 +77,9 @@
         <span class="queued-banner__icon" aria-hidden="true">●</span>
         <div class="queued-banner__copy">
           <p class="queued-banner__title">Pendiente de envío</p>
-          <p class="queued-banner__detail">Tu envío se procesará cuando vuelva la red.</p>
+          <p class="queued-banner__detail">
+            Sin conexión. Tus respuestas se enviarán automáticamente cuando vuelva la red.
+          </p>
         </div>
       </div>
     }
@@ -93,13 +95,15 @@
           vm.isSubmitting() ||
           vm.submissionState() === 'queued' ||
           vm.examenNoIniciado() ||
-          vm.examenTiempoCumplido()
+          vm.examenTiempoCumplido() ||
+          vm.lastAck() !== null
         "
         [attr.aria-disabled]="
           vm.isSubmitting() ||
           vm.submissionState() === 'queued' ||
           vm.examenNoIniciado() ||
-          vm.examenTiempoCumplido()
+          vm.examenTiempoCumplido() ||
+          vm.lastAck() !== null
         "
         (click)="onEnviarClick()"
       >
@@ -114,3 +118,7 @@
     <p class="loading">Cargando simulacro…</p>
   }
 </main>
+
+@if (vm.lastAck(); as ack) {
+  <app-submission-receipt-modal [ack]="ack" (closed)="vm.onReceiptClose()" />
+}
