@@ -19,6 +19,7 @@ import { CLOCK, MARKINGS_STORAGE } from '../../../../src/app.config';
 import { Exam } from '../../../../src/L1_domain/entities/exam';
 import { ExamServerStatus } from '../../../../src/L1_domain/value-objects/exam-server-status';
 import { ServerTime } from '../../../../src/L1_domain/value-objects/server-time';
+import { SubmissionAck } from '../../../../src/L1_domain/value-objects/submission-ack';
 import { Alternativa } from '../../../../src/L1_domain/value-objects/alternativa';
 import { NetworkError } from '../../../../src/L1_domain/errors/network.error';
 import { SessionExpiredError } from '../../../../src/L1_domain/errors/session-expired.error';
@@ -133,8 +134,11 @@ class FakeMarkingsStorage implements MarkingsStorage {
     return { ...(this.store.get(examId) ?? {}) };
   }
 
-  async hasSubmittedAck(_examId: string): Promise<boolean> {
-    return false;
+  async getSubmissionAck(_examId: string): Promise<SubmissionAck | null> {
+    return null;
+  }
+  async setSubmissionAck(_examId: string, _ack: SubmissionAck): Promise<void> {
+    /* no-op */
   }
 
   async clearMarcaciones(_examId: string): Promise<void> {
@@ -515,6 +519,13 @@ describe('SimulacroPageViewModel', () => {
     });
   });
 
+  // Hash sha256 hex válido (64 chars) para construir SubmissionAck en tests.
+  const VALID_HASH = 'a3f5c8d1b2e4f6a8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2';
+  const buildAck = (
+    id = 'ack-1',
+    submittedIso = '2026-06-11T10:30:00.000Z',
+  ): SubmissionAck => new SubmissionAck(id, VALID_HASH, new Date(submittedIso));
+
   describe('submit() — guard por serverStatus.permiteEntrada()', () => {
     it('submit es no-op si exam no está en in_progress (defensa adicional)', async () => {
       // Caso anómalo: imaginá que el ticker se cruza con un finalize. Tras un
@@ -528,7 +539,7 @@ describe('SimulacroPageViewModel', () => {
 
       fakeEnviar.willResolve({
         status: 'enviado',
-        clientSubmittedAt: '2026-06-11T10:30:00.000Z',
+        ack: buildAck(),
       });
 
       // El primer submit pasa el guard normalmente.
@@ -537,15 +548,16 @@ describe('SimulacroPageViewModel', () => {
       vm.stop();
     });
 
-    it('éxito → submissionState=sent y navigate /home', async () => {
+    // Scenario "Submit exitoso muestra modal y no navega" del spec exam-marking.
+    // El éxito setea `lastAck` con el ack devuelto y NO navega inmediatamente —
+    // la navegación queda diferida hasta `onReceiptClose()`.
+    it('éxito → submissionState=sent, lastAck seteado, NO navega', async () => {
       const exam = buildExam('exam-1', 'in_progress');
       fakeGetTodaysExams.willResolve([exam]);
       const vm = createVm();
       await vm.start('exam-1');
-      fakeEnviar.willResolve({
-        status: 'enviado',
-        clientSubmittedAt: '2026-06-11T10:30:00.000Z',
-      });
+      const ack = buildAck();
+      fakeEnviar.willResolve({ status: 'enviado', ack });
       const router = TestBed.inject(Router);
       const navigateSpy = vi.spyOn(router, 'navigate').mockResolvedValue(true);
 
@@ -553,49 +565,27 @@ describe('SimulacroPageViewModel', () => {
 
       expect(fakeEnviar.calls).toEqual([{ examId: 'exam-1' }]);
       expect(vm.submissionState()).toBe('sent');
-      expect(navigateSpy).toHaveBeenCalledWith(['/home']);
+      expect(vm.lastAck()).toBe(ack);
+      // Crítico: el modal aparece, NO se navega todavía.
+      expect(navigateSpy).not.toHaveBeenCalledWith(['/home']);
       vm.stop();
     });
 
-    it('queued (sin red) → submissionState=queued y NO navega', async () => {
+    // Scenario "Submit queued NO muestra modal" del spec exam-marking.
+    it('queued (sin red) → submissionState=queued, lastAck=null, NO navega', async () => {
       const exam = buildExam('exam-1', 'in_progress');
       fakeGetTodaysExams.willResolve([exam]);
       const vm = createVm();
       await vm.start('exam-1');
-      fakeEnviar.willResolve({
-        status: 'queued',
-        clientSubmittedAt: '2026-06-11T10:30:00.000Z',
-      });
+      fakeEnviar.willResolve({ status: 'queued', ack: null });
       const router = TestBed.inject(Router);
       const navigateSpy = vi.spyOn(router, 'navigate').mockResolvedValue(true);
 
       await vm.submit();
 
       expect(vm.submissionState()).toBe('queued');
+      expect(vm.lastAck()).toBeNull();
       expect(navigateSpy).not.toHaveBeenCalled();
-      vm.stop();
-    });
-
-    it('SubmissionNotAvailableError (POST stub) → no redirige, vuelve a idle', async () => {
-      const { SubmissionNotAvailableError } = await import(
-        '../../../../src/L1_domain/errors/submission-not-available.error'
-      );
-      const exam = buildExam('exam-1', 'in_progress');
-      fakeGetTodaysExams.willResolve([exam]);
-      const vm = createVm();
-      await vm.start('exam-1');
-      fakeEnviar.willReject(new SubmissionNotAvailableError());
-      const router = TestBed.inject(Router);
-      const navigateSpy = vi.spyOn(router, 'navigate').mockResolvedValue(true);
-
-      await vm.submit();
-
-      // El alumno queda en la cartilla — no redirige.
-      expect(navigateSpy).not.toHaveBeenCalled();
-      // No marca errorState visible: el banner correspondiente comunica el estado.
-      expect(vm.errorState()).toBeNull();
-      // Vuelve a idle para permitir reintento manual cuando el POST real exista.
-      expect(vm.submissionState()).toBe('idle');
       vm.stop();
     });
 
@@ -707,10 +697,7 @@ describe('SimulacroPageViewModel', () => {
 
       expect(fakeEnviar.calls).toHaveLength(1);
 
-      ctrl.resolve({
-        status: 'enviado',
-        clientSubmittedAt: '2026-06-11T10:30:00.000Z',
-      });
+      ctrl.resolve({ status: 'enviado', ack: buildAck() });
       await first;
       await second;
 
@@ -727,10 +714,7 @@ describe('SimulacroPageViewModel', () => {
       expect(fakeProgramar.calls).toHaveLength(1);
       expect(fakeProgramar.cancelCalls).toBe(0);
 
-      fakeEnviar.willResolve({
-        status: 'enviado',
-        clientSubmittedAt: '2026-06-11T10:30:00.000Z',
-      });
+      fakeEnviar.willResolve({ status: 'enviado', ack: buildAck() });
       await vm.submit();
 
       expect(fakeProgramar.cancelCalls).toBe(1);
@@ -738,8 +722,32 @@ describe('SimulacroPageViewModel', () => {
     });
   });
 
+  // Scenario "Modal dismiss navega a /home" del spec exam-marking.
+  describe('onReceiptClose() — dismiss del modal de comprobante', () => {
+    it('limpia lastAck y navega a /home', async () => {
+      const exam = buildExam('exam-1', 'in_progress');
+      fakeGetTodaysExams.willResolve([exam]);
+      const vm = createVm();
+      await vm.start('exam-1');
+      const ack = buildAck();
+      fakeEnviar.willResolve({ status: 'enviado', ack });
+
+      await vm.submit();
+      expect(vm.lastAck()).toBe(ack);
+
+      const router = TestBed.inject(Router);
+      const navigateSpy = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+
+      vm.onReceiptClose();
+
+      expect(vm.lastAck()).toBeNull();
+      expect(navigateSpy).toHaveBeenCalledWith(['/home']);
+      vm.stop();
+    });
+  });
+
   describe('auto-envío disparado por el timer', () => {
-    it('onResult con status enviado → submissionState=sent y navigate /home', async () => {
+    it('onResult con status enviado + ack → submissionState=sent, lastAck seteado, NO navega', async () => {
       const exam = buildExam('exam-1', 'in_progress');
       fakeGetTodaysExams.willResolve([exam]);
       const vm = createVm();
@@ -749,17 +757,17 @@ describe('SimulacroPageViewModel', () => {
       const router = TestBed.inject(Router);
       const navigateSpy = vi.spyOn(router, 'navigate').mockResolvedValue(true);
 
-      fakeProgramar.fireOnResult({
-        status: 'enviado',
-        clientSubmittedAt: '2026-06-11T12:00:00.000Z',
-      });
+      const ack = buildAck('ack-auto', '2026-06-11T12:00:00.000Z');
+      fakeProgramar.fireOnResult({ status: 'enviado', ack });
 
       expect(vm.submissionState()).toBe('sent');
-      expect(navigateSpy).toHaveBeenCalledWith(['/home']);
+      expect(vm.lastAck()).toBe(ack);
+      // El modal aparece tras auto-envío también; sin navegar hasta dismiss.
+      expect(navigateSpy).not.toHaveBeenCalledWith(['/home']);
       vm.stop();
     });
 
-    it('onResult con status queued → submissionState=queued y NO navega', async () => {
+    it('onResult con status queued → submissionState=queued, lastAck null, NO navega', async () => {
       const exam = buildExam('exam-1', 'in_progress');
       fakeGetTodaysExams.willResolve([exam]);
       const vm = createVm();
@@ -768,12 +776,10 @@ describe('SimulacroPageViewModel', () => {
       const router = TestBed.inject(Router);
       const navigateSpy = vi.spyOn(router, 'navigate').mockResolvedValue(true);
 
-      fakeProgramar.fireOnResult({
-        status: 'queued',
-        clientSubmittedAt: '2026-06-11T12:00:00.000Z',
-      });
+      fakeProgramar.fireOnResult({ status: 'queued', ack: null });
 
       expect(vm.submissionState()).toBe('queued');
+      expect(vm.lastAck()).toBeNull();
       expect(navigateSpy).not.toHaveBeenCalled();
       vm.stop();
     });

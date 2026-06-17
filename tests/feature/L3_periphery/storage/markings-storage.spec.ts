@@ -8,6 +8,12 @@
 // - `wipeUserScope()` sin identity = no-op (no lanza).
 // - `clear()` (OutboxStoragePort) sin identity = no-op.
 //
+// En `fase-3-exam-submit-learnex` el puerto MarkingsStorage:
+// - reemplaza `hasSubmittedAck → getSubmissionAck` (retorna VO en vez de boolean)
+// - agrega `setSubmissionAck` para persistir el comprobante criptográfico
+// - extiende `wipeUserScope` para borrar también acks
+// - `EnvioPendiente` incluye `code` (DNI) para reconstruir el body en retry
+//
 // `fake-indexeddb/auto` reemplaza `globalThis.indexedDB` al importarse.
 
 import 'fake-indexeddb/auto';
@@ -17,10 +23,15 @@ import { IndexedDbMarkingsStorage } from '../../../../src/L3_periphery/storage/i
 import { IDENTITY_STORAGE } from '../../../../src/L3_periphery/tokens';
 import { IdentityStorage } from '../../../../src/L1_domain/ports/identity-storage';
 import { Identity } from '../../../../src/L1_domain/entities/identity';
+import { SubmissionAck } from '../../../../src/L1_domain/value-objects/submission-ack';
 import { OfflineStorageUnavailableError } from '../../../../src/L1_domain/errors/offline-storage-unavailable.error';
 
 const DB_NAME = 'lugia-cartilla';
 const STORE = 'data';
+
+// Hash sha256 válido para construir SubmissionAck en tests.
+const VALID_HASH = 'a3f5c8d1b2e4f6a8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2';
+const ALT_HASH = 'b4f6c7d8e9f0a1b2a3f5c8d1b2e4f6a8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4';
 
 // Doble manual del port `IdentityStorage`. Permite alternar la identity
 // "activa" entre tests sin tocar IndexedDB ni localStorage real.
@@ -57,7 +68,7 @@ function makeIdentity(email: string): Identity {
 }
 
 // Lee todas las claves del object store para tests que verifican el
-// formato literal de la key (segmento "simulacro" / "queue").
+// formato literal de la key (segmento "simulacro" / "queue" / "ack").
 function readAllKeys(): Promise<string[]> {
   return new Promise((resolve, reject) => {
     const openReq = indexedDB.open(DB_NAME);
@@ -204,94 +215,115 @@ describe('IndexedDbMarkingsStorage', () => {
       expect(mapA).toEqual({ '1': 'A', '2': 'B' });
     });
 
-    it('wipeUserScope de B no afecta los datos de A', async () => {
+    it('wipeUserScope de B no afecta los datos de A (incluyendo acks)', async () => {
       identityStorage.setIdentity(makeIdentity('alumno-a@vonex.edu.pe'));
       await adapter.setMarcacion('sim-1', 1, 'A');
       await adapter.enqueueEnvio({
         examId: 'sim-1',
+        code: '79507732',
         answers: { '1': 'A' },
-        clientSubmittedAt: '2026-06-11T12:00:00.000Z',
+        clientFinishedAt: '2026-06-11T12:00:00.000Z',
       });
+      const ackA = new SubmissionAck('ack-A', VALID_HASH, new Date('2026-06-11T12:05:00.000Z'));
+      await adapter.setSubmissionAck('sim-1', ackA);
 
       identityStorage.setIdentity(makeIdentity('alumno-b@vonex.edu.pe'));
       await adapter.setMarcacion('sim-9', 1, 'D');
+      const ackB = new SubmissionAck('ack-B', ALT_HASH, new Date('2026-06-11T13:00:00.000Z'));
+      await adapter.setSubmissionAck('sim-9', ackB);
       await adapter.wipeUserScope();
 
       // B quedó vacío.
       expect(await adapter.getMarcaciones('sim-9')).toEqual({});
       expect(await adapter.getEnviosPendientes()).toEqual([]);
+      expect(await adapter.getSubmissionAck('sim-9')).toBeNull();
 
-      // A intacto.
+      // A intacto (marcaciones, queue y ack).
       identityStorage.setIdentity(makeIdentity('alumno-a@vonex.edu.pe'));
       expect(await adapter.getMarcaciones('sim-1')).toEqual({ '1': 'A' });
       expect(await adapter.getEnviosPendientes()).toEqual([
         {
           examId: 'sim-1',
+          code: '79507732',
           answers: { '1': 'A' },
-          clientSubmittedAt: '2026-06-11T12:00:00.000Z',
+          clientFinishedAt: '2026-06-11T12:00:00.000Z',
         },
       ]);
+      const persistedAckA = await adapter.getSubmissionAck('sim-1');
+      expect(persistedAckA?.id).toBe('ack-A');
+      expect(persistedAckA?.submissionHash).toBe(VALID_HASH);
     });
 
-    it('wipeUserScope borra marcaciones Y cola del usuario actual', async () => {
+    it('wipeUserScope borra marcaciones, cola Y acks del usuario actual', async () => {
       await adapter.setMarcacion('sim-1', 1, 'A');
       await adapter.setMarcacion('sim-2', 1, 'B');
       await adapter.enqueueEnvio({
         examId: 'sim-1',
+        code: '79507732',
         answers: { '1': 'A' },
-        clientSubmittedAt: '2026-06-11T12:00:00.000Z',
+        clientFinishedAt: '2026-06-11T12:00:00.000Z',
       });
+      const ack = new SubmissionAck('ack-1', VALID_HASH, new Date('2026-06-11T12:05:00.000Z'));
+      await adapter.setSubmissionAck('sim-1', ack);
 
       await adapter.wipeUserScope();
 
       expect(await adapter.getMarcaciones('sim-1')).toEqual({});
       expect(await adapter.getMarcaciones('sim-2')).toEqual({});
       expect(await adapter.getEnviosPendientes()).toEqual([]);
+      expect(await adapter.getSubmissionAck('sim-1')).toBeNull();
     });
   });
 
-  describe('cola de envíos pendientes', () => {
-    it('enqueueEnvio + getEnviosPendientes roundtrip', async () => {
+  describe('cola de envíos pendientes (preserva `code` round-trip)', () => {
+    it('enqueueEnvio + getEnviosPendientes roundtrip preserva code', async () => {
       const envio = {
         examId: 'sim-1',
+        code: '30303011',
         answers: { '1': 'A' as const, '2': null },
-        clientSubmittedAt: '2026-06-11T12:00:00.000Z',
+        clientFinishedAt: '2026-06-11T12:00:00.000Z',
       };
       await adapter.enqueueEnvio(envio);
       const pending = await adapter.getEnviosPendientes();
       expect(pending).toEqual([envio]);
+      expect(pending[0].code).toBe('30303011');
     });
 
     it('getEnviosPendientes devuelve [] cuando la cola está vacía', async () => {
       expect(await adapter.getEnviosPendientes()).toEqual([]);
     });
 
-    it('enqueueEnvio del mismo examId sobreescribe el envío previo', async () => {
+    it('enqueueEnvio del mismo examId sobreescribe el envío previo (incluyendo code)', async () => {
       await adapter.enqueueEnvio({
         examId: 'sim-1',
+        code: 'old-code',
         answers: { '1': 'A' },
-        clientSubmittedAt: '2026-06-11T12:00:00.000Z',
+        clientFinishedAt: '2026-06-11T12:00:00.000Z',
       });
       await adapter.enqueueEnvio({
         examId: 'sim-1',
+        code: 'new-code',
         answers: { '1': 'B' },
-        clientSubmittedAt: '2026-06-11T12:05:00.000Z',
+        clientFinishedAt: '2026-06-11T12:05:00.000Z',
       });
       const pending = await adapter.getEnviosPendientes();
       expect(pending).toHaveLength(1);
       expect(pending[0].answers).toEqual({ '1': 'B' });
+      expect(pending[0].code).toBe('new-code');
     });
 
     it('dequeueEnvio elimina sólo el examId indicado', async () => {
       await adapter.enqueueEnvio({
         examId: 'sim-1',
+        code: '30303011',
         answers: { '1': 'A' },
-        clientSubmittedAt: '2026-06-11T12:00:00.000Z',
+        clientFinishedAt: '2026-06-11T12:00:00.000Z',
       });
       await adapter.enqueueEnvio({
         examId: 'sim-2',
+        code: '30303011',
         answers: { '1': 'B' },
-        clientSubmittedAt: '2026-06-11T12:05:00.000Z',
+        clientFinishedAt: '2026-06-11T12:05:00.000Z',
       });
 
       await adapter.dequeueEnvio('sim-1');
@@ -302,56 +334,104 @@ describe('IndexedDbMarkingsStorage', () => {
     });
   });
 
-  describe('hasSubmittedAck (seam C2 — siempre false en este change)', () => {
-    // En `fase-3-exam-list-learnex` la implementación retorna SIEMPRE false:
-    // el POST sigue como stub y el server nunca confirma envíos. El seam se
-    // activa en `fase-3-exam-submit-learnex` cuando el ack real llegue al IDB.
-    it('hasSubmittedAck para cualquier examId resuelve a false', async () => {
-      expect(await adapter.hasSubmittedAck('any-id')).toBe(false);
+  describe('SubmissionAck — setSubmissionAck / getSubmissionAck round-trip', () => {
+    it('setSubmissionAck persiste el ack y getSubmissionAck reconstruye el VO con shape original', async () => {
+      const submittedAt = new Date('2026-06-17T15:29:54.531Z');
+      const ack = new SubmissionAck('ack-uuid-1', VALID_HASH, submittedAt);
+
+      await adapter.setSubmissionAck('exam-42', ack);
+      const retrieved = await adapter.getSubmissionAck('exam-42');
+
+      expect(retrieved).toBeInstanceOf(SubmissionAck);
+      expect(retrieved?.id).toBe('ack-uuid-1');
+      expect(retrieved?.submissionHash).toBe(VALID_HASH);
+      // Equality por getTime — el VO reconstruye Date desde ISO string en IDB.
+      expect(retrieved?.submittedAt.getTime()).toBe(submittedAt.getTime());
     });
 
-    it('hasSubmittedAck retorna false incluso si hay marcaciones para ese examId', async () => {
-      await adapter.setMarcacion('sim-con-marcas', 1, 'A');
-      expect(await adapter.hasSubmittedAck('sim-con-marcas')).toBe(false);
+    it('getSubmissionAck retorna null para examId sin ack persistido', async () => {
+      expect(await adapter.getSubmissionAck('exam-no-existe')).toBeNull();
     });
 
-    it('hasSubmittedAck retorna false incluso si hay un envío encolado para ese examId', async () => {
-      await adapter.enqueueEnvio({
-        examId: 'sim-encolado',
-        answers: { '1': 'A' },
-        clientSubmittedAt: '2026-06-11T12:00:00.000Z',
+    it('setSubmissionAck sobreescribe el ack anterior para el mismo examId', async () => {
+      const ack1 = new SubmissionAck('ack-1', VALID_HASH, new Date('2026-06-17T10:00:00.000Z'));
+      const ack2 = new SubmissionAck('ack-2', ALT_HASH, new Date('2026-06-17T11:00:00.000Z'));
+
+      await adapter.setSubmissionAck('exam-42', ack1);
+      await adapter.setSubmissionAck('exam-42', ack2);
+
+      const retrieved = await adapter.getSubmissionAck('exam-42');
+      expect(retrieved?.id).toBe('ack-2');
+      expect(retrieved?.submissionHash).toBe(ALT_HASH);
+    });
+
+    it('persiste ack independiente de marcaciones (cada uno tiene su clave)', async () => {
+      await adapter.setMarcacion('exam-42', 1, 'A');
+      const ack = new SubmissionAck('ack-1', VALID_HASH, new Date('2026-06-17T10:00:00.000Z'));
+      await adapter.setSubmissionAck('exam-42', ack);
+
+      // Borrar marcaciones NO borra el ack.
+      await adapter.clearMarcaciones('exam-42');
+      expect(await adapter.getMarcaciones('exam-42')).toEqual({});
+      expect(await adapter.getSubmissionAck('exam-42')).not.toBeNull();
+    });
+
+    it('ack persiste al reabrir el adapter (mismo DB)', async () => {
+      const ack = new SubmissionAck('ack-1', VALID_HASH, new Date('2026-06-17T10:00:00.000Z'));
+      await adapter.setSubmissionAck('exam-42', ack);
+
+      TestBed.resetTestingModule();
+      const reopenedIdentity = new StubIdentityStorage();
+      reopenedIdentity.setIdentity(makeIdentity('alumno-a@vonex.edu.pe'));
+      TestBed.configureTestingModule({
+        providers: [
+          IndexedDbMarkingsStorage,
+          { provide: IDENTITY_STORAGE, useValue: reopenedIdentity },
+        ],
       });
-      expect(await adapter.hasSubmittedAck('sim-encolado')).toBe(false);
+      const reopened = TestBed.inject(IndexedDbMarkingsStorage);
+
+      const retrieved = await reopened.getSubmissionAck('exam-42');
+      expect(retrieved?.id).toBe('ack-1');
+      expect(retrieved?.submissionHash).toBe(VALID_HASH);
     });
   });
 
-  describe('key format en IDB mantiene segmento literal "simulacro"', () => {
-    // El segmento literal "simulacro" en la clave del IDB se mantiene en este
-    // change para evitar una migración de schema. Esto se verifica leyendo
-    // las claves crudas del object store y confirmando que contienen el segmento.
+  describe('key format en IDB sigue el patrón `cartilla.<email>.{simulacro|queue|ack}.<examId>`', () => {
     it('marcaciones se escriben con clave que contiene ".simulacro." literal', async () => {
       await adapter.setMarcacion('exam-key-test', 7, 'D');
 
-      // Inspeccionamos el IDB directamente.
       const keys = await readAllKeys();
       const matched = keys.filter((k) => k.includes('.simulacro.'));
       expect(matched.length).toBeGreaterThan(0);
-      // Y el formato completo:
-      // cartilla.<email>.simulacro.<examId>.<pregunta>
       expect(matched.some((k) => k.endsWith('.simulacro.exam-key-test.7'))).toBe(true);
     });
 
-    it('cola de envíos se escribe con clave que contiene ".queue." literal (NO ".simulacro.")', async () => {
+    it('cola de envíos se escribe con clave que contiene ".queue." literal', async () => {
       await adapter.enqueueEnvio({
         examId: 'queue-key-test',
+        code: '30303011',
         answers: { '1': 'A' },
-        clientSubmittedAt: '2026-06-11T12:00:00.000Z',
+        clientFinishedAt: '2026-06-11T12:00:00.000Z',
       });
 
       const keys = await readAllKeys();
       const queueKeys = keys.filter((k) => k.includes('.queue.'));
       expect(queueKeys.length).toBeGreaterThan(0);
       expect(queueKeys.some((k) => k.endsWith('.queue.queue-key-test'))).toBe(true);
+    });
+
+    it('acks se escriben con clave `cartilla.<email>.ack.<examId>`', async () => {
+      const ack = new SubmissionAck('ack-1', VALID_HASH, new Date('2026-06-17T10:00:00.000Z'));
+      await adapter.setSubmissionAck('ack-key-test', ack);
+
+      const keys = await readAllKeys();
+      const ackKeys = keys.filter((k) => k.includes('.ack.'));
+      expect(ackKeys.length).toBeGreaterThan(0);
+      // El patrón exacto requerido por el spec offline-storage.
+      expect(
+        ackKeys.some((k) => k === 'cartilla.alumno-a@vonex.edu.pe.ack.ack-key-test'),
+      ).toBe(true);
     });
   });
 
@@ -381,8 +461,9 @@ describe('IndexedDbMarkingsStorage', () => {
         await expect(
           fresh.enqueueEnvio({
             examId: 'sim-1',
+            code: '30303011',
             answers: {},
-            clientSubmittedAt: '2026-06-11T12:00:00.000Z',
+            clientFinishedAt: '2026-06-11T12:00:00.000Z',
           }),
         ).rejects.toBeInstanceOf(OfflineStorageUnavailableError);
         await expect(fresh.wipeUserScope()).rejects.toBeInstanceOf(OfflineStorageUnavailableError);
@@ -400,16 +481,30 @@ describe('IndexedDbMarkingsStorage', () => {
       );
     });
 
-    // Scenario explícito del spec session-storage:
-    // "Wipe user scope sin identity es no-op".
+    it('setSubmissionAck sin identity rechaza con OfflineStorageUnavailableError', async () => {
+      identityStorage.setIdentity(null);
+      const ack = new SubmissionAck('ack-1', VALID_HASH, new Date());
+      await expect(adapter.setSubmissionAck('sim-1', ack)).rejects.toBeInstanceOf(
+        OfflineStorageUnavailableError,
+      );
+    });
+
+    it('getSubmissionAck sin identity rechaza con OfflineStorageUnavailableError', async () => {
+      identityStorage.setIdentity(null);
+      await expect(adapter.getSubmissionAck('sim-1')).rejects.toBeInstanceOf(
+        OfflineStorageUnavailableError,
+      );
+    });
+
     it('wipeUserScope sin identity es no-op (no lanza, no borra nada)', async () => {
       // Primero dejamos datos de A.
       identityStorage.setIdentity(makeIdentity('alumno-a@vonex.edu.pe'));
       await adapter.setMarcacion('sim-1', 1, 'A');
       await adapter.enqueueEnvio({
         examId: 'sim-1',
+        code: '79507732',
         answers: { '1': 'A' },
-        clientSubmittedAt: '2026-06-11T12:00:00.000Z',
+        clientFinishedAt: '2026-06-11T12:00:00.000Z',
       });
 
       // Ahora sin identity → wipe no debe lanzar ni borrar.
@@ -426,8 +521,9 @@ describe('IndexedDbMarkingsStorage', () => {
       identityStorage.setIdentity(makeIdentity('alumno-a@vonex.edu.pe'));
       await adapter.enqueueEnvio({
         examId: 'sim-1',
+        code: '79507732',
         answers: { '1': 'A' },
-        clientSubmittedAt: '2026-06-11T12:00:00.000Z',
+        clientFinishedAt: '2026-06-11T12:00:00.000Z',
       });
 
       identityStorage.setIdentity(null);
@@ -439,22 +535,24 @@ describe('IndexedDbMarkingsStorage', () => {
   });
 
   describe('clear (OutboxStoragePort) — comportamiento con identity', () => {
-    // El nuevo método `clear()` exigido por `OutboxStoragePort` borra
-    // SOLO la cola (`cartilla.<email>.queue.*`), preserva marcaciones.
-    it('borra sólo cartilla.<email>.queue.* y preserva las marcaciones', async () => {
+    it('borra sólo cartilla.<email>.queue.* y preserva marcaciones y acks', async () => {
       identityStorage.setIdentity(makeIdentity('alumno-a@vonex.edu.pe'));
       await adapter.setMarcacion('sim-1', 1, 'A');
       await adapter.setMarcacion('sim-2', 1, 'B');
       await adapter.enqueueEnvio({
         examId: 'sim-1',
+        code: '79507732',
         answers: { '1': 'A' },
-        clientSubmittedAt: '2026-06-11T12:00:00.000Z',
+        clientFinishedAt: '2026-06-11T12:00:00.000Z',
       });
       await adapter.enqueueEnvio({
         examId: 'sim-2',
+        code: '79507732',
         answers: { '1': 'B' },
-        clientSubmittedAt: '2026-06-11T12:05:00.000Z',
+        clientFinishedAt: '2026-06-11T12:05:00.000Z',
       });
+      const ack = new SubmissionAck('ack-1', VALID_HASH, new Date('2026-06-11T12:10:00.000Z'));
+      await adapter.setSubmissionAck('sim-1', ack);
 
       await adapter.clear();
 
@@ -463,21 +561,25 @@ describe('IndexedDbMarkingsStorage', () => {
       // …pero las marcaciones siguen ahí (las borra wipeUserScope, no clear).
       expect(await adapter.getMarcaciones('sim-1')).toEqual({ '1': 'A' });
       expect(await adapter.getMarcaciones('sim-2')).toEqual({ '1': 'B' });
+      // El ack tampoco se borra con clear() — solo wipeUserScope hace eso.
+      expect(await adapter.getSubmissionAck('sim-1')).not.toBeNull();
     });
 
     it('clear NO afecta la cola de otro usuario', async () => {
       identityStorage.setIdentity(makeIdentity('alumno-a@vonex.edu.pe'));
       await adapter.enqueueEnvio({
         examId: 'sim-1',
+        code: '79507732',
         answers: { '1': 'A' },
-        clientSubmittedAt: '2026-06-11T12:00:00.000Z',
+        clientFinishedAt: '2026-06-11T12:00:00.000Z',
       });
 
       identityStorage.setIdentity(makeIdentity('alumno-b@vonex.edu.pe'));
       await adapter.enqueueEnvio({
         examId: 'sim-9',
+        code: '79507732',
         answers: { '1': 'D' },
-        clientSubmittedAt: '2026-06-11T13:00:00.000Z',
+        clientFinishedAt: '2026-06-11T13:00:00.000Z',
       });
       await adapter.clear();
 
@@ -508,11 +610,12 @@ describe('IndexedDbMarkingsStorage', () => {
       expect(await reopened.getMarcaciones('sim-1')).toEqual({ '1': 'A', '2': 'B' });
     });
 
-    it('cola de envíos pendientes persiste al reabrir el adapter', async () => {
+    it('cola de envíos pendientes persiste al reabrir el adapter (incluyendo code)', async () => {
       await adapter.enqueueEnvio({
         examId: 'sim-1',
+        code: '30303011',
         answers: { '1': 'A' },
-        clientSubmittedAt: '2026-06-11T12:00:00.000Z',
+        clientFinishedAt: '2026-06-11T12:00:00.000Z',
       });
 
       TestBed.resetTestingModule();
@@ -530,8 +633,9 @@ describe('IndexedDbMarkingsStorage', () => {
       expect(pending).toEqual([
         {
           examId: 'sim-1',
+          code: '30303011',
           answers: { '1': 'A' },
-          clientSubmittedAt: '2026-06-11T12:00:00.000Z',
+          clientFinishedAt: '2026-06-11T12:00:00.000Z',
         },
       ]);
     });

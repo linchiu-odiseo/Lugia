@@ -14,6 +14,7 @@ import { TutorProfile } from '../../../../src/L1_domain/value-objects/tutor-prof
 import { Exam } from '../../../../src/L1_domain/entities/exam';
 import { ExamServerStatus } from '../../../../src/L1_domain/value-objects/exam-server-status';
 import { ServerTime } from '../../../../src/L1_domain/value-objects/server-time';
+import { SubmissionAck } from '../../../../src/L1_domain/value-objects/submission-ack';
 import { NetworkError } from '../../../../src/L1_domain/errors/network.error';
 import { SessionExpiredError } from '../../../../src/L1_domain/errors/session-expired.error';
 import { ProfileNotAvailableError } from '../../../../src/L1_domain/errors/profile-not-available.error';
@@ -154,15 +155,15 @@ class FakeClock implements Clock {
   }
 }
 
-// Por defecto `hasSubmittedAck` retorna false (igual que el adapter L3 en
-// este change). Sobreescribible vía `seedAck(examId, true)` para tests del
-// seam C2 (estados `enviado` con ack=true).
+// Por defecto `getSubmissionAck` retorna null (sin ack persistido).
+// Sobreescribible vía `seedAck(examId, ack)` con un SubmissionAck real para
+// tests que activan el card-state `enviado`.
 class FakeMarkingsStorage implements MarkingsStorage {
   private next: { kind: 'resolve'; list: EnvioPendiente[] } | { kind: 'reject'; error: Error } = {
     kind: 'resolve',
     list: [],
   };
-  private acks = new Map<string, boolean>();
+  private acks = new Map<string, SubmissionAck>();
 
   willResolveEnviosPendientes(list: EnvioPendiente[] = []) {
     this.next = { kind: 'resolve', list };
@@ -170,16 +171,19 @@ class FakeMarkingsStorage implements MarkingsStorage {
   willRejectEnviosPendientes(error: Error) {
     this.next = { kind: 'reject', error };
   }
-  seedAck(examId: string, value: boolean) {
-    this.acks.set(examId, value);
+  seedAck(examId: string, ack: SubmissionAck) {
+    this.acks.set(examId, ack);
   }
 
   async getEnviosPendientes(): Promise<EnvioPendiente[]> {
     if (this.next.kind === 'reject') throw this.next.error;
     return this.next.list;
   }
-  async hasSubmittedAck(examId: string): Promise<boolean> {
-    return this.acks.get(examId) ?? false;
+  async getSubmissionAck(examId: string): Promise<SubmissionAck | null> {
+    return this.acks.get(examId) ?? null;
+  }
+  async setSubmissionAck(examId: string, ack: SubmissionAck): Promise<void> {
+    this.acks.set(examId, ack);
   }
   async setMarcacion(
     _examId: string,
@@ -204,6 +208,14 @@ class FakeMarkingsStorage implements MarkingsStorage {
     /* no-op */
   }
 }
+
+// Hash sha256 hex válido (64 chars) para construir SubmissionAck en tests.
+const VALID_HASH = 'a3f5c8d1b2e4f6a8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2';
+
+const buildAck = (
+  id = 'ack-1',
+  submittedIso = '2026-06-11T11:30:00.000Z',
+): SubmissionAck => new SubmissionAck(id, VALID_HASH, new Date(submittedIso));
 
 const buildExam = (
   id: string,
@@ -468,8 +480,8 @@ describe('HomePageViewModel', () => {
     });
   });
 
-  describe('cards() — composición de estado en 5 ramas (serverStatus × hasSubmittedAck)', () => {
-    it('serverStatus=scheduled (any ack) → estado="pendiente", not clickable', async () => {
+  describe('cards() — composición de estado por (serverStatus, ack)', () => {
+    it('serverStatus=scheduled (sin ack) → estado="pendiente", not clickable', async () => {
       fakeGetTodaysExams.willResolve([buildExam('exam-sch', 'scheduled')]);
       const vm = createVm();
       await vm.start();
@@ -480,17 +492,7 @@ describe('HomePageViewModel', () => {
       vm.stop();
     });
 
-    it('serverStatus=scheduled con ack=true → sigue siendo "pendiente" (no aplica el seam)', async () => {
-      fakeMarkings.seedAck('exam-sch', true);
-      fakeGetTodaysExams.willResolve([buildExam('exam-sch', 'scheduled')]);
-      const vm = createVm();
-      await vm.start();
-
-      expect(vm.cards()[0].estado).toBe('pendiente');
-      vm.stop();
-    });
-
-    it('serverStatus=in_progress + !ack → estado="abierto", clickable', async () => {
+    it('serverStatus=in_progress + ack=null → estado="abierto", clickable', async () => {
       fakeGetTodaysExams.willResolve([buildExam('exam-open', 'in_progress')]);
       const vm = createVm();
       await vm.start();
@@ -501,9 +503,9 @@ describe('HomePageViewModel', () => {
       vm.stop();
     });
 
-    // seam: activa en fase-3-exam-submit-learnex
-    it('serverStatus=in_progress + ack=true → estado="enviado" (seam C2)', async () => {
-      fakeMarkings.seedAck('exam-ip-ack', true);
+    // Scenario "in_progress con ack → enviado" del spec exam-marking.
+    it('serverStatus=in_progress + ack persistido → estado="enviado", primaryText con HH:MM del ack.submittedAt', async () => {
+      fakeMarkings.seedAck('exam-ip-ack', buildAck('ack-1', '2026-06-11T11:30:00.000Z'));
       fakeGetTodaysExams.willResolve([buildExam('exam-ip-ack', 'in_progress')]);
       const vm = createVm();
       await vm.start();
@@ -511,12 +513,17 @@ describe('HomePageViewModel', () => {
       const card = vm.cards()[0];
       expect(card.estado).toBe('enviado');
       expect(card.clickable).toBe(false);
+      // primaryText usa ack.submittedAt — NO exam.effectiveCloseAt.
+      const submittedAt = new Date('2026-06-11T11:30:00.000Z');
+      const hh = String(submittedAt.getHours()).padStart(2, '0');
+      const mm = String(submittedAt.getMinutes()).padStart(2, '0');
+      expect(card.primaryText).toBe(`Enviado · ${hh}:${mm}`);
       vm.stop();
     });
 
-    // seam: activa en fase-3-exam-submit-learnex
-    it('serverStatus=finalized + ack=true → estado="enviado" (seam C2)', async () => {
-      fakeMarkings.seedAck('exam-fin-ack', true);
+    // Scenario "finalized con ack → enviado" del spec exam-marking.
+    it('serverStatus=finalized + ack persistido → estado="enviado"', async () => {
+      fakeMarkings.seedAck('exam-fin-ack', buildAck('ack-2'));
       fakeGetTodaysExams.willResolve([buildExam('exam-fin-ack', 'finalized')]);
       const vm = createVm();
       await vm.start();
@@ -527,7 +534,7 @@ describe('HomePageViewModel', () => {
       vm.stop();
     });
 
-    it('serverStatus=finalized + !ack → estado="cerrado", not clickable', async () => {
+    it('serverStatus=finalized + ack=null → estado="cerrado", not clickable', async () => {
       fakeGetTodaysExams.willResolve([buildExam('exam-closed', 'finalized')]);
       const vm = createVm();
       await vm.start();
@@ -535,6 +542,17 @@ describe('HomePageViewModel', () => {
       const card = vm.cards()[0];
       expect(card.estado).toBe('cerrado');
       expect(card.clickable).toBe(false);
+      vm.stop();
+    });
+
+    // Scenario "secondaryText en estado enviado" del spec exam-marking.
+    it('estado=enviado → secondaryText = "Pendiente de calificación" (reemplaza fallback area/course)', async () => {
+      fakeMarkings.seedAck('exam-ip-ack', buildAck('ack-1'));
+      fakeGetTodaysExams.willResolve([buildExam('exam-ip-ack', 'in_progress')]);
+      const vm = createVm();
+      await vm.start();
+
+      expect(vm.cards()[0].secondaryText).toBe('Pendiente de calificación');
       vm.stop();
     });
   });

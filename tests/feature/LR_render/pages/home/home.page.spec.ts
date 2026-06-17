@@ -144,8 +144,11 @@ class FakeMarkingsStorage implements MarkingsStorage {
     if (this.next.kind === 'reject') throw this.next.error;
     return this.next.list;
   }
-  async hasSubmittedAck(_examId: string): Promise<boolean> {
-    return false;
+  async getSubmissionAck(_examId: string): Promise<null> {
+    return null;
+  }
+  async setSubmissionAck(_examId: string, _ack: unknown): Promise<void> {
+    /* no-op */
   }
   async setMarcacion(
     _examId: string,

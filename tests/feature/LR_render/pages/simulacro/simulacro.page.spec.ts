@@ -17,6 +17,7 @@ import { CLOCK, MARKINGS_STORAGE } from '../../../../../src/app.config';
 import { Exam } from '../../../../../src/L1_domain/entities/exam';
 import { ExamServerStatus } from '../../../../../src/L1_domain/value-objects/exam-server-status';
 import { ServerTime } from '../../../../../src/L1_domain/value-objects/server-time';
+import { SubmissionAck } from '../../../../../src/L1_domain/value-objects/submission-ack';
 import { Alternativa } from '../../../../../src/L1_domain/value-objects/alternativa';
 import { Clock } from '../../../../../src/L1_domain/ports/clock';
 import {
@@ -82,8 +83,12 @@ class FakeClock implements Clock {
 }
 
 class FakeEnviarSimulacroUseCase {
-  async execute(): Promise<{ status: 'enviado'; clientSubmittedAt: string }> {
-    return { status: 'enviado', clientSubmittedAt: new Date().toISOString() };
+  async execute(): Promise<{ status: 'enviado'; ack: SubmissionAck }> {
+    const VALID_HASH = 'a3f5c8d1b2e4f6a8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2';
+    return {
+      status: 'enviado',
+      ack: new SubmissionAck('ack-page-1', VALID_HASH, new Date()),
+    };
   }
 }
 
@@ -95,6 +100,7 @@ class FakeProgramarAutoEnvioUseCase {
 
 class FakeMarkingsStorage implements MarkingsStorage {
   private store = new Map<string, AnswersMap>();
+  private acks = new Map<string, SubmissionAck>();
 
   seedMarcaciones(examId: string, answers: AnswersMap): void {
     this.store.set(examId, { ...answers });
@@ -112,8 +118,11 @@ class FakeMarkingsStorage implements MarkingsStorage {
   async getMarcaciones(examId: string): Promise<AnswersMap> {
     return { ...(this.store.get(examId) ?? {}) };
   }
-  async hasSubmittedAck(_examId: string): Promise<boolean> {
-    return false;
+  async getSubmissionAck(examId: string): Promise<SubmissionAck | null> {
+    return this.acks.get(examId) ?? null;
+  }
+  async setSubmissionAck(examId: string, ack: SubmissionAck): Promise<void> {
+    this.acks.set(examId, ack);
   }
   async clearMarcaciones(_examId: string): Promise<void> {
     /* no-op */
