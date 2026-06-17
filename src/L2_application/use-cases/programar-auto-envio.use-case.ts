@@ -4,7 +4,7 @@ import { EnviarSimulacroOutput, EnviarSimulacroUseCase } from './enviar-simulacr
 
 // Jitter máximo en ms a sumar/restar del `setTimeout` para evitar
 // thundering herd cuando 20k alumnos auto-envían al mismo segundo.
-// El `clientSubmittedAt` que se envía al backend SIEMPRE es exactamente
+// El `clientFinishedAt` que se envía al backend SIEMPRE es exactamente
 // `exam.effectiveCloseAt()`, NO el momento en que el timer dispara — así
 // dos disparos a 9:00:02 vs 9:00:00 quedan ambos registrados como envío
 // a las 9:00:00.
@@ -58,7 +58,7 @@ export class ProgramarAutoEnvioUseCase {
       try {
         const result = await this.enviar.execute({
           examId: input.exam.id,
-          clientSubmittedAtOverride: finDate,
+          clientFinishedAtOverride: finDate,
         });
         input.onResult?.(result);
       } catch (err) {

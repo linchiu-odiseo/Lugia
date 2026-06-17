@@ -1,13 +1,17 @@
 import { MarkingsStorage } from '../../L1_domain/ports/markings-storage';
 import { ExamsApi } from '../../L1_domain/ports/exams-api';
 import { NetworkError } from '../../L1_domain/errors/network.error';
+import { responsesFromAnswers } from './enviar-simulacro.use-case';
 
-// Lee la cola de envíos pendientes y despacha cada uno con su
-// `clientSubmittedAt` original (capturado en el primer intento). Reglas:
-// - 200/409 → dequeue + clearMarcaciones.
-// - NetworkError → deja en cola para próximo trigger (no avanza).
-// - Cualquier otro error de dominio (4xx) → dequeue + clearMarcaciones
-//   y log a consola: el envío no es recuperable, no retreamos indefinido.
+// Lee la cola de envíos pendientes y despacha cada uno con su payload
+// original (`code`, `answers`, `clientFinishedAt`) capturado en el primer
+// intento. Reglas:
+// - 201 → persiste el `ack` devuelto por el server (esto permite que
+//   `/home` muestre la card "Enviado · Pendiente de calificación" tras
+//   reabrir la app), luego dequeue + clearMarcaciones.
+// - `NetworkError` → deja en cola para próximo trigger (no avanza).
+// - Cualquier otro error de dominio (4xx) → dequeue + clearMarcaciones y
+//   log a consola: el envío no es recuperable, no retreamos indefinido.
 //
 // El dispatcher L3 invoca este use case al arrancar la app y cuando
 // `Connectivity` cambia a online.
@@ -21,7 +25,13 @@ export class RetomarEnviosPendientesUseCase {
     const pendientes = await this.storage.getEnviosPendientes();
     for (const envio of pendientes) {
       try {
-        await this.api.enviar(envio);
+        const result = await this.api.enviar({
+          examId: envio.examId,
+          code: envio.code,
+          responses: responsesFromAnswers(envio.answers),
+          clientFinishedAt: envio.clientFinishedAt,
+        });
+        await this.storage.setSubmissionAck(envio.examId, result.ack);
         await this.storage.dequeueEnvio(envio.examId);
         await this.storage.clearMarcaciones(envio.examId);
       } catch (err) {
