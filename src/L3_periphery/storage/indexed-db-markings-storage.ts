@@ -6,6 +6,7 @@ import {
   MarkingsStorage,
 } from '../../L1_domain/ports/markings-storage';
 import { OutboxStoragePort } from '../../L1_domain/ports/outbox-storage.port';
+import { SubmissionAck } from '../../L1_domain/value-objects/submission-ack';
 import { OfflineStorageUnavailableError } from '../../L1_domain/errors/offline-storage-unavailable.error';
 import { IDENTITY_STORAGE } from '../tokens';
 
@@ -14,9 +15,10 @@ const DB_VERSION = 1;
 const STORE = 'data';
 
 // Patrón de keys planas en un único object store. La key encapsula el
-// scope por usuario (`userEmail`) y la entidad (marcacion vs queue).
+// scope por usuario (`userEmail`) y la entidad (marcacion vs queue vs ack).
 //   marcacion: cartilla.<email>.simulacro.<examId>.<pregunta>
 //   queue:     cartilla.<email>.queue.<examId>
+//   ack:       cartilla.<email>.ack.<examId>
 // El prefijo `cartilla.<email>.` permite que `wipeUserScope()` use un
 // rango de IDBKeyRange.bound(...) sin tocar datos de otros usuarios.
 //
@@ -83,12 +85,30 @@ export class IndexedDbMarkingsStorage implements MarkingsStorage, OutboxStorageP
     await this.delete(db, queueKey(email, examId));
   }
 
-  // Seam D4: en `fase-3-exam-list-learnex` el POST sigue como stub y el
-  // server nunca confirma envíos, así que este método siempre devuelve
-  // false. En `fase-3-exam-submit-learnex` se reactiva con la consulta
-  // real al IDB (presencia de marker confirmado por server).
-  async hasSubmittedAck(_examId: string): Promise<boolean> {
-    return false;
+  // Persistencia del comprobante criptográfico devuelto por el server.
+  // Serializamos `submittedAt` como ISO string para que IDB structured-clone
+  // no nos guarde un Date "vivo" (más fácil de inspeccionar y migrar).
+  async setSubmissionAck(examId: string, ack: SubmissionAck): Promise<void> {
+    const email = await this.requireUserEmail();
+    const db = await this.db();
+    await this.put(db, ackKey(email, examId), {
+      id: ack.id,
+      submissionHash: ack.submissionHash,
+      submittedAt: ack.submittedAt.toISOString(),
+    });
+  }
+
+  // Reconstruye el VO desde el shape serializado. Si la entrada no existe
+  // → null (el caller usa esto para decidir si la card de /home muestra
+  // "enviado"). El constructor del VO re-valida shape — defensivo contra
+  // datos IDB corruptos de versiones previas.
+  async getSubmissionAck(examId: string): Promise<SubmissionAck | null> {
+    const email = await this.requireUserEmail();
+    const db = await this.db();
+    const raw = await this.get(db, ackKey(email, examId));
+    if (raw === undefined) return null;
+    const stored = raw as { id: string; submissionHash: string; submittedAt: string };
+    return new SubmissionAck(stored.id, stored.submissionHash, new Date(stored.submittedAt));
   }
 
   // Sin identity → no-op (caso normal durante logout cuando el storage ya
@@ -169,6 +189,24 @@ export class IndexedDbMarkingsStorage implements MarkingsStorage, OutboxStorageP
     return runTx(db, 'readwrite', (store) => store.delete(key));
   }
 
+  // Lee una key puntual. Resuelve con `undefined` si no existe. Errores de
+  // IDB se mapean a OfflineStorageUnavailableError, consistente con el
+  // resto del adapter.
+  private get(db: IDBDatabase, key: string): Promise<unknown> {
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE, 'readonly');
+      const store = tx.objectStore(STORE);
+      const req = store.get(key);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () =>
+        reject(
+          new OfflineStorageUnavailableError(
+            `Fallo al leer key: ${req.error?.message ?? 'error desconocido'}.`,
+          ),
+        );
+    });
+  }
+
   private async getRange(
     db: IDBDatabase,
     prefix: string,
@@ -211,6 +249,10 @@ function marcacionKey(email: string, examId: string, pregunta: number): string {
 
 function queueKey(email: string, examId: string): string {
   return `${KEY_ROOT}.${email}.queue.${examId}`;
+}
+
+function ackKey(email: string, examId: string): string {
+  return `${KEY_ROOT}.${email}.ack.${examId}`;
 }
 
 // Rango "key starts with prefix" — IndexedDB ordena keys lexicográficamente,

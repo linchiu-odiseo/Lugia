@@ -5,13 +5,15 @@ import { environment } from '../../environments/environment';
 // pasa por este helper. Cambiar `TENANT_SLUG` en `.env` cambia todas las
 // URLs sin tocar código fuente.
 //
-// Las rutas siguen el contrato de learnex (.authentic/pwa-auth-contract.md):
+// Las rutas siguen el contrato de learnex (.authentic/pwa-auth-contract.md
+// y .authentic/contrato-pwa-submit.md):
 //   POST /t/{slug}/auth/login
 //   POST /t/{slug}/auth/refresh
 //   POST /t/{slug}/auth/logout
 //   GET  /t/{slug}/auth/me
 //   GET  /t/{slug}/{role}/me
 //   GET  /t/{slug}/student/exam-sessions
+//   POST /t/{slug}/student/exam-sessions/{sessionId}/submit
 function base(): string {
   return `${environment.apiBaseUrl}/t/${environment.tenantSlug}`;
 }
@@ -23,4 +25,10 @@ export const apiPath = {
   me: (): string => `${base()}/auth/me`,
   profile: (role: 'student' | 'tutor'): string => `${base()}/${role}/me`,
   studentExamSessions: (): string => `${base()}/student/exam-sessions`,
+  // `sessionId` viene del `Exam.id` (confirmado por back en handoff de
+  // `fase-3-exam-submit-learnex`: el `id` del GET de sesiones ES el
+  // sessionId del POST). encodeURIComponent es defensa básica — el
+  // contrato lo define como UUID v4, pero no asumimos sanitización.
+  studentExamSubmit: (sessionId: string): string =>
+    `${base()}/student/exam-sessions/${encodeURIComponent(sessionId)}/submit`,
 };

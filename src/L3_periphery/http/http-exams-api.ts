@@ -10,11 +10,16 @@ import {
 import { Exam } from '../../L1_domain/entities/exam';
 import { ExamServerStatus } from '../../L1_domain/value-objects/exam-server-status';
 import { ServerTime } from '../../L1_domain/value-objects/server-time';
+import { SubmissionAck } from '../../L1_domain/value-objects/submission-ack';
 import { InvalidExamError } from '../../L1_domain/errors/invalid-exam.error';
+import { InvalidPayloadError } from '../../L1_domain/errors/invalid-payload.error';
+import { InvalidSubmissionTimeError } from '../../L1_domain/errors/invalid-submission-time.error';
 import { NetworkError } from '../../L1_domain/errors/network.error';
 import { ExamsPermissionRevokedError } from '../../L1_domain/errors/exams-permission-revoked.error';
+import { SimulacroCerradoError } from '../../L1_domain/errors/simulacro-cerrado.error';
+import { SimulacroNoAsignadoError } from '../../L1_domain/errors/simulacro-no-asignado.error';
+import { StudentNotEnrolledError } from '../../L1_domain/errors/student-not-enrolled.error';
 import { StudentNotLinkedError } from '../../L1_domain/errors/student-not-linked.error';
-import { SubmissionNotAvailableError } from '../../L1_domain/errors/submission-not-available.error';
 import { apiPath } from './api-paths';
 
 interface ExamDto {
@@ -35,6 +40,35 @@ interface ExamsListResponseDto {
   serverTime: string;
   exams: ExamDto[];
 }
+
+// Shape exacto del response 201 del back según
+// .authentic/contrato-pwa-submit.md:
+//   { id, submission_hash, submitted_at } en snake_case.
+interface SubmitResponseDto {
+  id: string;
+  submission_hash: string;
+  submitted_at: string;
+}
+
+// Enum cerrado de valores que el back emite en `body.message` para el POST
+// submit. Esta es la ÚNICA excepción documentada a la regla "nunca leer
+// message" — ver design.md D5 de `fase-3-exam-submit-learnex`. Cualquier
+// valor de `message` fuera de este set se trata como `NetworkError` y la
+// clasificación cae al default por status.
+type SubmitErrorMessage =
+  | 'STUDENT_NOT_ENROLLED'
+  | 'STUDENT_MISMATCH'
+  | 'SESSION_NOT_ACTIVE'
+  | 'CLOCK_SKEW_BEFORE_START'
+  | 'CLOCK_SKEW_TOO_FAR_FUTURE';
+
+const SUBMIT_ERROR_MESSAGES: ReadonlySet<SubmitErrorMessage> = new Set([
+  'STUDENT_NOT_ENROLLED',
+  'STUDENT_MISMATCH',
+  'SESSION_NOT_ACTIVE',
+  'CLOCK_SKEW_BEFORE_START',
+  'CLOCK_SKEW_TOO_FAR_FUTURE',
+]);
 
 @Injectable({ providedIn: 'root' })
 export class HttpExamsApi implements ExamsApi {
@@ -60,13 +94,26 @@ export class HttpExamsApi implements ExamsApi {
     }
   }
 
-  // POST stub durante `fase-3-exam-list-learnex`. Reemplazado por el
-  // contrato real (dos timestamps, idempotencia, errores específicos)
-  // en `fase-3-exam-submit-learnex`. NO hace llamada HTTP.
-  // SubmissionNotAvailableError NO extiende NetworkError, así que el use
-  // case `EnviarSimulacroUseCase` lo propaga sin encolar en el outbox.
-  async enviar(_req: EnvioRequest): Promise<EnvioResult> {
-    throw new SubmissionNotAvailableError();
+  // POST /t/{slug}/student/exam-sessions/{sessionId}/submit
+  // `req.examId` ES el sessionId (confirmado por back en handoff de
+  // `fase-3-exam-submit-learnex`). Body en snake_case según contrato.
+  // `withCredentials` lo agrega el `credentials.interceptor` global —
+  // NO lo seteamos acá.
+  async enviar(req: EnvioRequest): Promise<EnvioResult> {
+    try {
+      const dto = await firstValueFrom(
+        this.http.post<SubmitResponseDto>(apiPath.studentExamSubmit(req.examId), {
+          code: req.code,
+          responses: req.responses,
+          client_finished_at: req.clientFinishedAt,
+        }),
+      );
+      // El VO valida shape: hash 64 hex, submittedAt Date válido.
+      const ack = new SubmissionAck(dto.id, dto.submission_hash, new Date(dto.submitted_at));
+      return { ack };
+    } catch (err) {
+      throw this.classifySubmitError(err);
+    }
   }
 
   private toExam(dto: ExamDto): Exam {
@@ -106,6 +153,52 @@ export class HttpExamsApi implements ExamsApi {
       if (err.status === 404) {
         const body = (err.error ?? {}) as { code?: string };
         if (body.code === 'STUDENT_NOT_LINKED') return new StudentNotLinkedError();
+        return new NetworkError();
+      }
+      if (err.status === 0 || err.status === 429 || err.status >= 500) {
+        return new NetworkError();
+      }
+    }
+    return new NetworkError();
+  }
+
+  // Clasificación del POST /student/exam-sessions/{id}/submit.
+  //
+  // EXCEPCIÓN documentada a la regla "nunca leer message" (design.md D5
+  // de `fase-3-exam-submit-learnex`): el back emite `body.message` con
+  // strings en mayúsculas snake_case como CONTRATO de control, no como
+  // i18n humano. Comparación por igualdad ESTRICTA contra el enum
+  // `SUBMIT_ERROR_MESSAGES`. Cualquier valor fuera del enum → NetworkError.
+  //
+  // 401 lo absorbe el credentials.interceptor.
+  private classifySubmitError(err: unknown): Error {
+    if (err instanceof HttpErrorResponse) {
+      const body = (err.error ?? {}) as { message?: string };
+      const message = body.message;
+      const knownMessage =
+        typeof message === 'string' && SUBMIT_ERROR_MESSAGES.has(message as SubmitErrorMessage)
+          ? (message as SubmitErrorMessage)
+          : null;
+
+      if (err.status === 400) return new InvalidPayloadError();
+      if (err.status === 403) {
+        if (knownMessage === 'STUDENT_NOT_ENROLLED') return new StudentNotEnrolledError();
+        // STUDENT_MISMATCH y otros 403 → genérico (D6: el back pide
+        // "error genérico, no revelar al alumno").
+        return new NetworkError();
+      }
+      if (err.status === 404) return new SimulacroNoAsignadoError();
+      if (err.status === 409) {
+        if (knownMessage === 'SESSION_NOT_ACTIVE') return new SimulacroCerradoError();
+        return new NetworkError();
+      }
+      if (err.status === 422) {
+        if (
+          knownMessage === 'CLOCK_SKEW_BEFORE_START' ||
+          knownMessage === 'CLOCK_SKEW_TOO_FAR_FUTURE'
+        ) {
+          return new InvalidSubmissionTimeError();
+        }
         return new NetworkError();
       }
       if (err.status === 0 || err.status === 429 || err.status >= 500) {
