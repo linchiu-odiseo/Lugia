@@ -4,7 +4,10 @@ import { EnviarSimulacroUseCase } from '../../../src/L2_application/use-cases/en
 import { Exam } from '../../../src/L1_domain/entities/exam';
 import { ExamServerStatus } from '../../../src/L1_domain/value-objects/exam-server-status';
 import { ServerTime } from '../../../src/L1_domain/value-objects/server-time';
-import { FakeClock, FakeExamsApi, InMemoryMarkingsStorage } from './fakes';
+import { SubmissionAck } from '../../../src/L1_domain/value-objects/submission-ack';
+import { FakeClock, FakeExamsApi, FakeIdentityStorage, InMemoryMarkingsStorage } from './fakes';
+
+const VALID_HASH = 'a3f5c8d1b2e4f6a8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2';
 
 // Stub mínimo del EnviarSimulacroUseCase para tests del programador: nos
 // importa SOLO si .execute() fue invocado y con qué input. Usamos una
@@ -16,7 +19,12 @@ class StubEnviarSimulacroUseCase extends EnviarSimulacroUseCase {
   private nextError: Error | null = null;
 
   constructor() {
-    super(new FakeExamsApi(), new InMemoryMarkingsStorage(), new FakeClock());
+    super(
+      new FakeExamsApi(),
+      new InMemoryMarkingsStorage(),
+      new FakeClock(),
+      new FakeIdentityStorage(),
+    );
   }
 
   willResolve(): void {
@@ -30,25 +38,26 @@ class StubEnviarSimulacroUseCase extends EnviarSimulacroUseCase {
 
   override async execute(input: {
     examId: string;
-    clientSubmittedAtOverride?: Date;
-  }): Promise<{ status: 'enviado' | 'queued'; clientSubmittedAt: string }> {
+    clientFinishedAtOverride?: Date;
+  }): Promise<{ status: 'enviado' | 'queued'; ack: SubmissionAck | null }> {
     this.calls.push({
       examId: input.examId,
-      override: input.clientSubmittedAtOverride,
+      override: input.clientFinishedAtOverride,
     });
     if (this.mode === 'reject' && this.nextError !== null) {
       throw this.nextError;
     }
+    const submittedAt = input.clientFinishedAtOverride ?? new Date();
     return {
       status: 'enviado',
-      clientSubmittedAt: input.clientSubmittedAtOverride?.toISOString() ?? new Date().toISOString(),
+      ack: new SubmissionAck('ack-1', VALID_HASH, submittedAt),
     };
   }
 }
 
 // Cubre `ProgramarAutoEnvioUseCase` (L2):
 // - Auto-envío a (started ?? scheduled) + duration*1000 con jitter ±3s.
-// - clientSubmittedAtOverride = cierre exacto, NO el momento del disparo.
+// - clientFinishedAtOverride = cierre exacto, NO el momento del disparo.
 // - El factor en el cálculo del cierre es ×1000 (segundos), NUNCA ×60000.
 describe('ProgramarAutoEnvioUseCase', () => {
   let enviar: StubEnviarSimulacroUseCase;
@@ -139,7 +148,7 @@ describe('ProgramarAutoEnvioUseCase', () => {
       vi.spyOn(Math, 'random').mockReturnValue(0.5);
       const exam = buildExam();
       enviar.willResolve();
-      const results: { status: string; clientSubmittedAt: string }[] = [];
+      const results: { status: string; ack: SubmissionAck | null }[] = [];
 
       useCase.execute({
         exam,
@@ -150,10 +159,10 @@ describe('ProgramarAutoEnvioUseCase', () => {
 
       expect(results).toHaveLength(1);
       expect(results[0].status).toBe('enviado');
-      const expectedCloseIso = new Date(
-        new Date(STARTED_ISO).getTime() + 90 * 1000,
-      ).toISOString();
-      expect(results[0].clientSubmittedAt).toBe(expectedCloseIso);
+      // El stub setea ack.submittedAt = override → verificamos que el override
+      // recibido por enviar.execute es exactamente started + duration*1000.
+      const expectedCloseMs = new Date(STARTED_ISO).getTime() + 90 * 1000;
+      expect(results[0].ack?.submittedAt.getTime()).toBe(expectedCloseMs);
     });
 
     it('onError callback se invoca cuando enviar lanza', async () => {

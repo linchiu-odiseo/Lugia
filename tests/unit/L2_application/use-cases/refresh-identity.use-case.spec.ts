@@ -48,8 +48,11 @@ class FakeMarkings implements MarkingsStorage {
   async dequeueEnvio(): Promise<void> {
     return Promise.resolve();
   }
-  async hasSubmittedAck(): Promise<boolean> {
-    return false;
+  async getSubmissionAck(): Promise<null> {
+    return null;
+  }
+  async setSubmissionAck(): Promise<void> {
+    return Promise.resolve();
   }
   async wipeUserScope(): Promise<void> {
     return Promise.resolve();

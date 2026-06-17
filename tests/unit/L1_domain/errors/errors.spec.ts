@@ -8,7 +8,7 @@ import { ProfileNotAvailableError } from '../../../../src/L1_domain/errors/profi
 import { UnsupportedRoleError } from '../../../../src/L1_domain/errors/unsupported-role.error';
 import { ExamsPermissionRevokedError } from '../../../../src/L1_domain/errors/exams-permission-revoked.error';
 import { StudentNotLinkedError } from '../../../../src/L1_domain/errors/student-not-linked.error';
-import { SubmissionNotAvailableError } from '../../../../src/L1_domain/errors/submission-not-available.error';
+import { StudentNotEnrolledError } from '../../../../src/L1_domain/errors/student-not-enrolled.error';
 import { InvalidExamError } from '../../../../src/L1_domain/errors/invalid-exam.error';
 
 describe('Errores de dominio', () => {
@@ -151,22 +151,22 @@ describe('Errores de dominio', () => {
     });
   });
 
-  describe('SubmissionNotAvailableError', () => {
-    it('es instanceof Error y SubmissionNotAvailableError', () => {
-      const err = new SubmissionNotAvailableError();
+  describe('StudentNotEnrolledError', () => {
+    it('es instanceof Error y StudentNotEnrolledError', () => {
+      const err = new StudentNotEnrolledError();
       expect(err).toBeInstanceOf(Error);
-      expect(err).toBeInstanceOf(SubmissionNotAvailableError);
+      expect(err).toBeInstanceOf(StudentNotEnrolledError);
     });
 
     it('tiene name correcto', () => {
-      expect(new SubmissionNotAvailableError().name).toBe('SubmissionNotAvailableError');
+      expect(new StudentNotEnrolledError().name).toBe('StudentNotEnrolledError');
     });
 
-    // CRÍTICO: si esta jerarquía cambiara, EnviarSimulacroUseCase agarraría
-    // el error en su catch de NetworkError y lo encolaría indefinidamente.
-    // Este test es el guardián de ese invariante.
-    it('NO es instanceof NetworkError (jerarquía protegida)', () => {
-      expect(new SubmissionNotAvailableError() instanceof NetworkError).toBe(false);
+    // Defensa contra clasificación accidental como NetworkError:
+    // EnviarSimulacroUseCase encola NetworkError. Si esta jerarquía cambiara,
+    // el outbox crecería con envíos que nunca van a tener éxito.
+    it('NO es instanceof NetworkError', () => {
+      expect(new StudentNotEnrolledError() instanceof NetworkError).toBe(false);
     });
   });
 

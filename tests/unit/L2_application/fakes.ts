@@ -3,7 +3,9 @@
 // y para que el reader vea el contrato del puerto en el doble.
 //
 // AuthRepository, IdentityStorage, ProfileStorage → ver tests/unit/fixtures/
-// (centralizados allí para reutilización entre use cases de auth).
+// (centralizados allí para reutilización entre use cases de auth). Reexportamos
+// FakeIdentityStorage acá para no tener que cruzar rutas de import desde los
+// specs de L2/use cases que ya viven en este directorio.
 
 import {
   AlternativaValue,
@@ -19,6 +21,9 @@ import {
   ExamsListResult,
 } from '../../../src/L1_domain/ports/exams-api';
 import { ServerTime } from '../../../src/L1_domain/value-objects/server-time';
+import { SubmissionAck } from '../../../src/L1_domain/value-objects/submission-ack';
+
+export { FakeIdentityStorage } from '../fixtures/identity-storage.fake';
 
 // Doble manual de `MarkingsStorage` para tests de L2.
 // Mantiene marcaciones en un Map keyed por `examId|pregunta` y la cola
@@ -30,13 +35,14 @@ import { ServerTime } from '../../../src/L1_domain/value-objects/server-time';
 // para que los tests puedan verificar secuencias (ej: wipe antes que clear
 // de sesión). `getOpsLog()` y `getWipeCalls()` exponen ese registro.
 //
-// `hasSubmittedAck()` retorna false por defecto — refleja la implementación
-// real del adapter L3 en `fase-3-exam-list-learnex`. Los tests que necesiten
-// verificar el seam de Change 2 pueden setear `seedAck()` por examId.
+// `setSubmissionAck`/`getSubmissionAck` reemplazan al viejo `hasSubmittedAck`:
+// el ack persiste como `SubmissionAck` (no como boolean), y los tests pueden
+// sembrarlo con `seedAck()` para verificar el seam que activa el card-state
+// `enviado` en /home.
 export class InMemoryMarkingsStorage implements MarkingsStorage {
   private marcaciones = new Map<string, AlternativaValue>();
   private queue = new Map<string, EnvioPendiente>();
-  private acks = new Map<string, boolean>();
+  private acks = new Map<string, SubmissionAck>();
   private wipeShouldFail = false;
   private wipeCalls = 0;
   private opsLog: string[] = [];
@@ -70,13 +76,13 @@ export class InMemoryMarkingsStorage implements MarkingsStorage {
     this.queue.set(envio.examId, envio);
   }
 
-  // Override del ack stub para tests del seam C2 (view-model home).
-  seedAck(examId: string, value: boolean): void {
-    this.acks.set(examId, value);
+  // Sembrar un ack persistido para verificar el seam del card-state `enviado`.
+  seedAck(examId: string, ack: SubmissionAck): void {
+    this.acks.set(examId, ack);
   }
 
   hasAnyState(): boolean {
-    return this.marcaciones.size > 0 || this.queue.size > 0;
+    return this.marcaciones.size > 0 || this.queue.size > 0 || this.acks.size > 0;
   }
 
   // --- Puerto MarkingsStorage ---
@@ -123,10 +129,13 @@ export class InMemoryMarkingsStorage implements MarkingsStorage {
     this.queue.delete(examId);
   }
 
-  // Por defecto false (mismo contrato que el adapter L3 en Change 1).
-  // Sobreescribible vía `seedAck()` para tests del seam.
-  async hasSubmittedAck(examId: string): Promise<boolean> {
-    return this.acks.get(examId) ?? false;
+  async setSubmissionAck(examId: string, ack: SubmissionAck): Promise<void> {
+    this.opsLog.push('markings.setSubmissionAck');
+    this.acks.set(examId, ack);
+  }
+
+  async getSubmissionAck(examId: string): Promise<SubmissionAck | null> {
+    return this.acks.get(examId) ?? null;
   }
 
   async wipeUserScope(): Promise<void> {
@@ -137,13 +146,14 @@ export class InMemoryMarkingsStorage implements MarkingsStorage {
     }
     this.marcaciones.clear();
     this.queue.clear();
+    this.acks.clear();
   }
 }
 
 // Doble manual del puerto `ExamsApi`. Permite preconfigurar el próximo
 // resultado/rejection de `getTodaysExams()` y `enviar()`, y registra todas
 // las llamadas a `enviar()` (con su payload exacto) para que los tests
-// puedan verificar que se preservó `clientSubmittedAt` original entre
+// puedan verificar que se preservó `clientFinishedAt` original entre
 // intento, encolado y retry.
 //
 // La cola interna `enviarPlan` soporta dos modos:
