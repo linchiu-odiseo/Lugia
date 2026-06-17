@@ -11,7 +11,7 @@ const VALID: ReadonlySet<ExamServerStatusValue> = new Set<ExamServerStatusValue>
 // 3 estados que learnex deriva por sesión de examen. El cliente NUNCA
 // recomputa por su cuenta: siempre los recibe del backend. El estado
 // "enviado" desde la perspectiva del alumno se compone en el view-model
-// con `serverStatus + hasSubmittedAck(examId)` — NO vive en este VO.
+// con `serverStatus + getSubmissionAck(examId)` — NO vive en este VO.
 export class ExamServerStatus {
   public readonly value: ExamServerStatusValue;
 

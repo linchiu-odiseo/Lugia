@@ -10,7 +10,7 @@ import { InvalidExamError } from '../errors/invalid-exam.error';
 // invocar este constructor — la entidad no lo valida.
 //
 // El estado "enviado" desde la perspectiva del alumno NO vive acá: se
-// compone en el view-model LR con `serverStatus + hasSubmittedAck(examId)`.
+// compone en el view-model LR con `serverStatus + getSubmissionAck(examId)`.
 export class Exam {
   public readonly id: string;
   public readonly area: string | null;

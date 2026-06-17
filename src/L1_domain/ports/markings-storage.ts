@@ -1,17 +1,24 @@
+import { SubmissionAck } from '../value-objects/submission-ack';
+
 // Las marcaciones de un examen son un objeto plano: clave = número de
 // pregunta como string ("1".."count"), valor = alternativa elegida o null
-// para desmarcado. El backend espera este mismo shape en el POST de envío.
+// para desmarcado. El use case reshape esto a `responses: { P<n>: letra }`
+// con prefijo P y omitiendo las nulls antes de enviar.
 export type AlternativaValue = 'A' | 'B' | 'C' | 'D' | 'E' | null;
 
 export type AnswersMap = Record<string, AlternativaValue>;
 
 // Envío encolado cuando el POST al backend falla por red. El cliente
-// conserva el `clientSubmittedAt` original (anclado al server-time del
-// momento del intento), no la hora del retry.
+// conserva el `clientFinishedAt` original (anclado al server-time del
+// momento del intento), no la hora del retry. También conserva el `code`
+// (DNI) — el dispatcher reconstruye el body sin re-consultar IdentityStorage
+// porque entre encolado y retry el alumno podría haber hecho logout/login
+// (caso patológico, pero la defensa es trivial).
 export interface EnvioPendiente {
   examId: string;
+  code: string;
   answers: AnswersMap;
-  clientSubmittedAt: string;
+  clientFinishedAt: string;
 }
 
 // Puerto del dominio para persistencia local de marcaciones offline-first.
@@ -20,18 +27,15 @@ export interface EnvioPendiente {
 // L3 deriva el `userEmail` de la sesión activa (NO se pasa como argumento).
 // Esto mantiene las firmas limpias para los use cases.
 //
-// `wipeUserScope()` borra TODO lo del usuario actual (marcaciones + queue)
-// y se invoca en logout ANTES de `identityStorage.clear()` para que el adapter
-// todavía pueda leer el email desde `IdentityStorage` internamente.
-// El email NO se pasa como argumento — el adapter (L3) lo resuelve vía DI.
-// Si no hay identity disponible al momento de `wipeUserScope()` → no-op.
+// `wipeUserScope()` borra TODO lo del usuario actual (marcaciones + queue
+// + acks) y se invoca en logout ANTES de `identityStorage.clear()` para
+// que el adapter todavía pueda leer el email desde `IdentityStorage`
+// internamente. Si no hay identity disponible → no-op.
 //
-// `hasSubmittedAck(examId)` indica si este alumno tiene un envío confirmado
-// por el server para ese examen — se usa en el view-model LR para componer
-// el card-state "enviado" vs "cerrado" en `serverStatus: 'finalized'`.
-// En el cambio `fase-3-exam-list-learnex` la implementación L3 retorna
-// siempre `false` porque el POST sigue como stub; en Change 2
-// `fase-3-exam-submit-learnex` se cablea contra el ack real.
+// `setSubmissionAck` / `getSubmissionAck` persisten el comprobante
+// criptográfico devuelto por el server. La presencia del ack es la señal
+// "yo envié este examen" que alimenta el card-state `enviado` en /home y
+// la posibilidad de mostrar el modal de comprobante.
 //
 // Cualquier operación SHALL rechazar con `OfflineStorageUnavailableError`
 // si IndexedDB no está disponible en el browser.
@@ -44,6 +48,7 @@ export interface MarkingsStorage {
   enqueueEnvio(envio: EnvioPendiente): Promise<void>;
   getEnviosPendientes(): Promise<EnvioPendiente[]>;
   dequeueEnvio(examId: string): Promise<void>;
-  hasSubmittedAck(examId: string): Promise<boolean>;
+  setSubmissionAck(examId: string, ack: SubmissionAck): Promise<void>;
+  getSubmissionAck(examId: string): Promise<SubmissionAck | null>;
   wipeUserScope(): Promise<void>; // sin argumento — el adapter lee IdentityStorage internamente
 }
