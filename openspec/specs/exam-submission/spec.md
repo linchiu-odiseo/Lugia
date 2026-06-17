@@ -5,113 +5,245 @@ Handles exam submission to backend with timestamp validation, offline queuing, a
 
 ## Requirements
 
-### Requirement: SubmissionNotAvailableError como clase independiente
+### Requirement: Envío del simulacro con `clientFinishedAt`
 
-La capa L1 SHALL definir `SubmissionNotAvailableError` como clase de error independiente. MUST NOT extender `NetworkError`. Razón: `EnviarSimulacroUseCase` captura `NetworkError` y encola en IDB; si `SubmissionNotAvailableError` heredara `NetworkError`, el outbox IDB acumularía entradas indefinidamente mientras el stub esté activo.
+El sistema SHALL exponer `EnviarSimulacroUseCase` (L2) que toma `{examId}`, lee identity desde `IdentityStorage` para resolver `code`, lee marcaciones de `MarkingsStorage`, computa el `clientFinishedAt` con el `Clock` server-anchored, reshape `AnswersMap` a `responses` con prefijo `P` y filtro de null, y delega el POST al puerto `ExamsApi.enviar`. Sobre éxito, persiste el ack en `MarkingsStorage` y borra marcaciones. Sobre `NetworkError`, encola el payload completo. Sobre otros errores de dominio, propaga sin tocar storage.
 
-#### Scenario: SubmissionNotAvailableError no es instancia de NetworkError
+#### Scenario: clientFinishedAt usa Clock server-anchored
 
-- **GIVEN** una instancia de `SubmissionNotAvailableError`
-- **WHEN** se evalúa `error instanceof NetworkError`
-- **THEN** el resultado es `false`
+- **GIVEN** el `Clock` retorna `new Date("2026-06-17T15:29:54.531Z")` y no se pasa `clientSubmittedAtOverride`
+- **WHEN** se invoca `EnviarSimulacroUseCase.execute({ examId })`
+- **THEN** el `EnvioRequest` enviado al adapter tiene `clientFinishedAt: "2026-06-17T15:29:54.531Z"`
 
-### Requirement: POST enviar es stub síncrono en este change
+#### Scenario: clientSubmittedAtOverride respeta el timestamp recibido
 
-El método `ExamsApi.enviar` en el adapter `HttpExamsApi` SHALL lanzar `SubmissionNotAvailableError` SINCRÓNICAMENTE, sin realizar ninguna llamada HTTP. El stub será reemplazado por la implementación real en `fase-3-exam-submit-learnex`.
-
-#### Scenario: POST enviar lanza error sin llamada HTTP
-
-- **GIVEN** el adapter `HttpExamsApi` está instanciado
-- **WHEN** se invoca `ExamsApi.enviar(examId, payload)`
-- **THEN** el método lanza `SubmissionNotAvailableError` de forma síncrona
-- **AND** ninguna request HTTP es emitida (verificable mediante spy de `HttpClient`)
-
-#### Scenario: EnviarSimulacroUseCase no encola SubmissionNotAvailableError en IDB
-
-- **GIVEN** `ExamsApi.enviar` lanza `SubmissionNotAvailableError`
-- **WHEN** `EnviarSimulacroUseCase.execute()` procesa el error
-- **THEN** el error NO cae en el branch de `NetworkError`
-- **AND** no se crea ninguna entrada en la cola de envíos pendientes de `MarkingsStorage`
-
-#### Scenario: View-model trata SubmissionNotAvailableError como error no recuperable
-
-- **GIVEN** `EnviarSimulacroUseCase` propaga `SubmissionNotAvailableError`
-- **WHEN** el error handler del view-model lo procesa
-- **THEN** cae en el branch genérico `unknown` y navega a `/home`
-- **AND** NO se muestra copy de UI específico para este error en este change
-
-### Requirement: Envío del simulacro con `clientSubmittedAt`
-
-El sistema SHALL exponer `EnviarSimulacroUseCase` (L2) que toma el `examId`, lee las marcaciones de `MarkingsStorage`, computa el `clientSubmittedAt` con el `Clock` server-anchored, y delega el POST al puerto `ExamsApi.enviar`. En este change, `ExamsApi.enviar` es un stub que lanza `SubmissionNotAvailableError`; el contrato completo de POST (URL, body con `clientFinishedAt` + `clientSubmittedAt`, códigos de error) queda definido en `fase-3-exam-submit-learnex`.
-
-#### Scenario: Envío exitoso dentro de ventana
-
-- **WHEN** el alumno toca "Enviar" dentro de la ventana del examen y la red está disponible
-- **THEN** `EnviarSimulacroUseCase.execute(examId)` invoca `ExamsApi.enviar`
-- **AND** (stub activo) lanza `SubmissionNotAvailableError` — no hay respuesta de backend en este change
-
-#### Scenario: Idempotencia — envío duplicado
-
-- **WHEN** se invoca `EnviarSimulacroUseCase` para un examen que ya fue enviado
-- **THEN** el comportamiento idempotente completo se define en `fase-3-exam-submit-learnex`
-
-#### Scenario: Backend rechaza por `clientSubmittedAt` fuera de ventana
-
-- **WHEN** el `clientSubmittedAt` enviado cae fuera de ventana
-- **THEN** el manejo de 400 `INVALID_TIME` se define en `fase-3-exam-submit-learnex`
-
-#### Scenario: Backend reporta examen ya cerrado
-
-- **WHEN** el backend responde 403 con `code: "CLOSED"` al POST
-- **THEN** el manejo de `SimulacroCerradoError` se define en `fase-3-exam-submit-learnex`
-
-#### Scenario: Backend reporta shape inválido
-
-- **WHEN** el backend responde 400 con `code: "INVALID_SHAPE"`
-- **THEN** el manejo de `InvalidPayloadError` se define en `fase-3-exam-submit-learnex`
-
-#### Scenario: Backend reporta examen no asignado
-
-- **WHEN** el backend responde 404
-- **THEN** el manejo de `SimulacroNoAsignadoError` se define en `fase-3-exam-submit-learnex`
-
-#### Scenario: Sesión expirada durante envío
-
-- **WHEN** el backend responde 401
-- **THEN** el interceptor `credentials` maneja refresh y redirect — sin cambio respecto a Fase 3 login
+- **GIVEN** el caller pasa `clientSubmittedAtOverride: new Date("2026-06-17T11:00:00.000Z")` (ej. ProgramarAutoEnvioUseCase fuerza el cierre exacto)
+- **WHEN** se invoca `execute({ examId, clientSubmittedAtOverride })`
+- **THEN** el `EnvioRequest` tiene `clientFinishedAt: "2026-06-17T11:00:00.000Z"`
 
 ### Requirement: Envío offline en cola con retry automático
 
-Cuando el POST falla por error de red (en cambios posteriores, cuando exista POST real), el sistema SHALL persistir el envío como pendiente en `MarkingsStorage` (cola) y reintentarlo automáticamente cuando `Connectivity.isOnline` pase a `true`. El `clientSubmittedAt` original se preserva entre el momento del intento y el envío exitoso. **En este change: no aplica (stub no hace HTTP).**
+Cuando el POST falla por error de red, el sistema SHALL persistir el envío como pendiente en `MarkingsStorage` (cola) y reintentarlo automáticamente cuando `Connectivity.isOnline` pase a `true`. El `clientFinishedAt` original se preserva entre el momento del intento y el envío exitoso.
+
+#### Scenario: NetworkError encola y reintenta al volver la red
+
+- **GIVEN** el adapter `ExamsApi.enviar` rechaza con `NetworkError`
+- **WHEN** el use case procesa el error
+- **THEN** el envío queda persistido en la cola con su `clientFinishedAt` intacto
+- **AND** `Connectivity.isOnline` pasando a `true` dispara `RetomarEnviosPendientesUseCase`
 
 ### Requirement: Auto-envío silencioso a T=0 con jitter
 
-El sistema SHALL programar un auto-envío que se dispara exactamente cuando `serverTime` llega al cierre del examen, con `clientSubmittedAt` = momento de cierre. Para mitigar thundering herd, el timer aplica un jitter aleatorio uniforme en `[-3s, +3s]`. El auto-envío usa el mismo camino que `EnviarSimulacroUseCase`, así que respeta la cola offline. **En este change: el auto-envío programado resultará en `SubmissionNotAvailableError` (stub), sin enqueueing.**
+El sistema SHALL programar un auto-envío que se dispara exactamente cuando `serverTime` llega al cierre del examen, con `clientFinishedAt` = momento de cierre. Para mitigar thundering herd, el timer aplica un jitter aleatorio uniforme en `[-3s, +3s]`. El auto-envío usa el mismo camino que `EnviarSimulacroUseCase`, así que respeta la cola offline.
 
-### Requirement: El `clientSubmittedAt` se computa con el `Clock` server-anchored
+#### Scenario: Auto-envío usa EnviarSimulacroUseCase
 
-El cálculo de `clientSubmittedAt` SHALL usar el puerto `Clock` (L1) que aplica el offset capturado en el último GET. NUNCA se usa `Date.now()` directo. **Implementación completa diferida a `fase-3-exam-submit-learnex`; en este change el stub no usa timestamps.**
+- **WHEN** `serverTime` llega al cierre del examen
+- **THEN** el timer programado invoca `EnviarSimulacroUseCase.execute({ examId, clientSubmittedAtOverride: closeAt })`
+- **AND** la lógica de retry, persistencia y queue funciona idéntica al envío manual
+
+### Requirement: El `clientFinishedAt` se computa con el `Clock` server-anchored
+
+El cálculo de `clientFinishedAt` SHALL usar el puerto `Clock` (L1) que aplica el offset capturado en el último GET. NUNCA se usa `Date.now()` directo.
+
+#### Scenario: Clock con offset aplica el offset al timestamp
+
+- **GIVEN** el `Clock` server-anchored expone un offset capturado del último GET
+- **WHEN** se invoca `EnviarSimulacroUseCase.execute({ examId })`
+- **THEN** `clientFinishedAt` resulta de `Clock.now()` (con offset aplicado), no de `Date.now()` directo
 
 ### Requirement: Errores de dominio para envío
 
-La capa L1 SHALL definir los errores `InvalidSubmissionTimeError`, `SimulacroCerradoError`, `SimulacroNoAsignadoError`, `InvalidPayloadError` (sin cambio de nombre ni semántica en este change). Se AÑADE `SubmissionNotAvailableError` como clase independiente (ver Requirement correspondiente). La clasificación por `(status, endpoint, body.code)` aplica al contrato POST que se activa en `fase-3-exam-submit-learnex`.
+La capa L1 SHALL definir los errores `InvalidSubmissionTimeError`, `SimulacroCerradoError`, `SimulacroNoAsignadoError`, `InvalidPayloadError`, `StudentNotEnrolledError`. La clasificación por `(status, endpoint, body.message)` aplica al contrato POST según la tabla del adapter `HttpExamsApi.enviar`.
 
-#### Scenario: Mapeo de 400 INVALID_TIME
+#### Scenario: Mapeo de 400 → InvalidPayloadError
 
-- **WHEN** el backend responde 400 con `code: "INVALID_TIME"` al POST
-- **THEN** el adapter HTTP lanza `InvalidSubmissionTimeError`
+- **WHEN** el backend responde 400 al POST submit
+- **THEN** el adapter HTTP lanza `InvalidPayloadError`
 
-#### Scenario: Mapeo de 403 CLOSED
+#### Scenario: Mapeo de 409 SESSION_NOT_ACTIVE → SimulacroCerradoError
 
-- **WHEN** el backend responde 403 con `code: "CLOSED"`
+- **WHEN** el backend responde 409 con `body: { message: "SESSION_NOT_ACTIVE" }`
 - **THEN** el adapter HTTP lanza `SimulacroCerradoError`
 
-#### Scenario: Mapeo de 404
+#### Scenario: Mapeo de 404 → SimulacroNoAsignadoError
 
-- **WHEN** el backend responde 404
+- **WHEN** el backend responde 404 al POST submit
 - **THEN** el adapter HTTP lanza `SimulacroNoAsignadoError`
 
-#### Scenario: Clasificación por (status, endpoint) no por mensaje
+#### Scenario: Clasificación por (status, endpoint, body.message) — nunca por texto humano
 
-- **WHEN** el backend responde 400 con cualquier `message`
-- **THEN** el adapter clasifica solo por `code` del body o por endpoint, nunca por el `message`
+- **WHEN** el backend responde con cualquier status
+- **THEN** el adapter clasifica solo por `status`, endpoint, y `body.message` (igualdad estricta contra enum cerrado), nunca por texto humano
+
+### Requirement: SubmissionAck VO en L1
+
+La capa L1 SHALL exponer el value-object `SubmissionAck` con campos readonly `id: string`, `submissionHash: string` (64 chars hex), `submittedAt: Date`. El constructor valida: `id` no vacío; `submissionHash` matchea `/^[0-9a-f]{64}$/`; `submittedAt` es `Date` válido. Sirve como comprobante criptográfico devuelto por el server tras un envío exitoso.
+
+#### Scenario: SubmissionAck válido
+
+- **GIVEN** parámetros `id="7620c18d-...", submissionHash="a3f5...a1b2" (64 hex), submittedAt=Date válido`
+- **WHEN** se construye `new SubmissionAck(...)`
+- **THEN** la instancia expone los campos sin transformación
+
+#### Scenario: SubmissionAck rechaza hash inválido
+
+- **WHEN** se construye con `submissionHash="abc"` (no es 64 hex chars)
+- **THEN** lanza Error con mensaje descriptivo
+
+### Requirement: ExamsApi.enviar contrato real
+
+El puerto `ExamsApi.enviar(req: EnvioRequest): Promise<EnvioResult>` SHALL recibir `EnvioRequest = { examId: string; code: string; responses: Record<string, 'A'|'B'|'C'|'D'|'E'>; clientFinishedAt: string }` y SHALL retornar `EnvioResult = { ack: SubmissionAck }`. El stub `SubmissionNotAvailableError` SHALL NOT existir.
+
+#### Scenario: Envío exitoso retorna ack
+
+- **WHEN** el adapter recibe HTTP 201 con body `{ id, submission_hash, submitted_at }`
+- **THEN** `enviar()` resuelve con `{ ack: SubmissionAck }` con esos campos parseados
+
+### Requirement: EnviarSimulacroUseCase inyecta IdentityStorage
+
+El use case `EnviarSimulacroUseCase` SHALL inyectar `IdentityStorage` como cuarto puerto. En `execute()` SHALL leer la identidad antes del POST y extraer `codigo` para construir `EnvioRequest.code`. Si `IdentityStorage.get()` retorna `null` o `identity.codigo` es `null`, SHALL lanzar `SessionExpiredError` sin tocar el adapter.
+
+#### Scenario: Use case resuelve DNI internamente
+
+- **GIVEN** IdentityStorage retorna `Identity` con `codigo="30303011"`
+- **WHEN** se invoca `EnviarSimulacroUseCase.execute({ examId })`
+- **THEN** el adapter recibe `EnvioRequest` con `code: "30303011"`
+
+#### Scenario: Sesión expirada durante envío
+
+- **GIVEN** `IdentityStorage.get()` resuelve a `null`
+- **WHEN** se invoca `execute()`
+- **THEN** lanza `SessionExpiredError`
+- **AND** `ExamsApi.enviar` NUNCA es invocado
+
+### Requirement: Reshape de responses con prefijo P y filtro de null
+
+El use case `EnviarSimulacroUseCase` SHALL transformar el `AnswersMap` interno (`{ "1": "C", "2": null, "3": "A" }`) en `responses` con keys con prefijo `"P"` y SHALL omitir las preguntas con valor `null`. Esto cumple el contrato learnex donde solo se envían las respuestas marcadas.
+
+#### Scenario: AnswersMap con nulls produce responses filtrado
+
+- **GIVEN** `AnswersMap = { "1": "A", "2": null, "5": "D" }`
+- **WHEN** el use case construye el body para el adapter
+- **THEN** `responses = { "P1": "A", "P5": "D" }`
+- **AND** la key `"P2"` NO está presente
+
+#### Scenario: AnswersMap vacío produce responses vacío
+
+- **GIVEN** `AnswersMap = { "1": null, "2": null, "3": null }`
+- **WHEN** el use case construye el body
+- **THEN** `responses = {}` (entrega en blanco válida según contrato)
+
+### Requirement: Envío exitoso persiste ack y limpia marcaciones
+
+Cuando `ExamsApi.enviar` resuelve con `{ ack }`, el use case `EnviarSimulacroUseCase` SHALL:
+1. Persistir el ack via `MarkingsStorage.setSubmissionAck(examId, ack)`.
+2. Borrar las marcaciones locales via `MarkingsStorage.clearMarcaciones(examId)`.
+3. Retornar `{ status: 'enviado', ack }`.
+
+#### Scenario: Persistencia y limpieza tras 201
+
+- **GIVEN** `api.enviar` retorna `{ ack: validAck }`
+- **WHEN** el use case procesa el éxito
+- **THEN** `storage.setSubmissionAck(examId, validAck)` es invocado UNA vez
+- **AND** `storage.clearMarcaciones(examId)` es invocado UNA vez
+- **AND** el output del use case es `{ status: 'enviado', ack: validAck }`
+
+### Requirement: NetworkError encola payload completo
+
+Cuando `ExamsApi.enviar` rechaza con `NetworkError`, el use case `EnviarSimulacroUseCase` SHALL encolar el envío en `MarkingsStorage.enqueueEnvio` con el `code`, `responses`, `clientFinishedAt` y `examId` originales. SHALL retornar `{ status: 'queued', ack: null }`. SHALL NO persistir ack.
+
+#### Scenario: NetworkError → queued con payload completo
+
+- **GIVEN** `api.enviar` rechaza con `new NetworkError()`
+- **WHEN** el use case procesa el error
+- **THEN** `storage.enqueueEnvio` recibe `{ examId, code, responses, clientFinishedAt }`
+- **AND** el output es `{ status: 'queued', ack: null }`
+- **AND** `setSubmissionAck` NO es invocado
+
+### Requirement: Queue retry persiste ack
+
+El use case `RetomarEnviosPendientesUseCase` SHALL, tras un éxito 201 del retry, persistir el ack via `MarkingsStorage.setSubmissionAck` ANTES de hacer `dequeueEnvio` + `clearMarcaciones`. Esto garantiza que el comprobante esté disponible cuando el alumno reabra la app.
+
+#### Scenario: Queue replay exitoso persiste ack y dequeue
+
+- **GIVEN** hay 1 envío en la cola y `api.enviar` retorna `{ ack }`
+- **WHEN** `RetomarEnviosPendientesUseCase.execute()` procesa la cola
+- **THEN** `storage.setSubmissionAck` es invocado con el `examId` y el `ack`
+- **AND** `storage.dequeueEnvio(examId)` es invocado después
+- **AND** `storage.clearMarcaciones(examId)` es invocado
+
+### Requirement: Mapeo de 403 STUDENT_NOT_ENROLLED → StudentNotEnrolledError
+
+El adapter `HttpExamsApi.enviar` SHALL clasificar HTTP 403 con `body.message === "STUDENT_NOT_ENROLLED"` como `StudentNotEnrolledError`. El view-model trata este error mostrando copy "No estás inscripto en este examen" y redirige a `/home`.
+
+#### Scenario: 403 STUDENT_NOT_ENROLLED
+
+- **WHEN** el back responde 403 con `body: { message: "STUDENT_NOT_ENROLLED" }`
+- **THEN** `enviar()` rechaza con `StudentNotEnrolledError`
+
+#### Scenario: 403 STUDENT_MISMATCH cae a NetworkError genérico
+
+- **WHEN** el back responde 403 con `body: { message: "STUDENT_MISMATCH" }`
+- **THEN** `enviar()` rechaza con `NetworkError` (sin clase dedicada)
+- **AND** el view-model lo trata como error desconocido y redirige a `/home`
+
+#### Scenario: 409 SESSION_NOT_ACTIVE reusa SimulacroCerradoError
+
+- **WHEN** el back responde 409 con `body: { message: "SESSION_NOT_ACTIVE" }`
+- **THEN** `enviar()` rechaza con `SimulacroCerradoError`
+
+#### Scenario: 422 CLOCK_SKEW_BEFORE_START reusa InvalidSubmissionTimeError
+
+- **WHEN** el back responde 422 con `body: { message: "CLOCK_SKEW_BEFORE_START" }`
+- **THEN** `enviar()` rechaza con `InvalidSubmissionTimeError`
+
+#### Scenario: 422 CLOCK_SKEW_TOO_FAR_FUTURE reusa InvalidSubmissionTimeError
+
+- **WHEN** el back responde 422 con `body: { message: "CLOCK_SKEW_TOO_FAR_FUTURE" }`
+- **THEN** `enviar()` rechaza con `InvalidSubmissionTimeError`
+
+#### Scenario: 400 cualquier message → InvalidPayloadError
+
+- **WHEN** el back responde 400
+- **THEN** `enviar()` rechaza con `InvalidPayloadError` (sin leer message)
+
+#### Scenario: 404 → SimulacroNoAsignadoError
+
+- **WHEN** el back responde 404
+- **THEN** `enviar()` rechaza con `SimulacroNoAsignadoError`
+
+#### Scenario: 429 → NetworkError
+
+- **WHEN** el back responde 429
+- **THEN** `enviar()` rechaza con `NetworkError`
+
+#### Scenario: 5xx → NetworkError
+
+- **WHEN** el back responde 500
+- **THEN** `enviar()` rechaza con `NetworkError`
+
+### Requirement: Cleanup de SubmissionNotAvailableError
+
+La clase `SubmissionNotAvailableError` SHALL ser eliminada de L1 (archivo borrado). Toda referencia en L2 (`EnviarSimulacroUseCase.execute` catch branch), LR (view-model `handleSubmissionError`, imports) SHALL eliminarse. `grep -r "SubmissionNotAvailableError" src/` SHALL devolver cero matches.
+
+#### Scenario: Grep limpio
+
+- **WHEN** se ejecuta `grep -r "SubmissionNotAvailableError" src/`
+- **THEN** el comando retorna 0 matches
+
+### Requirement: POST envío real con contrato learnex
+
+El método `ExamsApi.enviar` en el adapter `HttpExamsApi` SHALL emitir HTTP POST a `apiPath.studentExamSubmit(req.examId)` con `withCredentials: true` (heredado del interceptor) y body `{ code, responses, client_finished_at }` (snake_case). Al recibir 201 SHALL mapear `{ id, submission_hash, submitted_at }` a `SubmissionAck` y retornar `{ ack }`.
+
+#### Scenario: URL armada con apiPath.studentExamSubmit y examId
+
+- **GIVEN** `EnvioRequest = { examId: "7620c18d-..." }`
+- **WHEN** `enviar()` emite el POST
+- **THEN** la URL es `/t/<slug>/student/exam-sessions/7620c18d-.../submit`
+
+#### Scenario: Body exact match al contrato
+
+- **GIVEN** `EnvioRequest = { examId, code: "30303011", responses: {"P1": "A"}, clientFinishedAt: "2026-06-17T15:29:54.531Z" }`
+- **WHEN** `enviar()` emite el POST
+- **THEN** el body es `{ "code": "30303011", "responses": {"P1": "A"}, "client_finished_at": "2026-06-17T15:29:54.531Z" }`
