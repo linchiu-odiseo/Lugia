@@ -1,0 +1,40 @@
+<div class="modal-overlay" aria-hidden="true"></div>
+<div
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="receipt-modal-title"
+  aria-describedby="receipt-modal-subtitle"
+  class="modal"
+>
+  <div class="modal__check" aria-hidden="true">
+    <span class="material-symbols-outlined">check</span>
+  </div>
+
+  <h2 id="receipt-modal-title" class="modal__title">Envío exitoso</h2>
+  <p id="receipt-modal-subtitle" class="modal__subtitle">
+    Tus respuestas quedaron guardadas. Pendiente de calificación.
+  </p>
+
+  <div class="modal__divider" aria-hidden="true"></div>
+
+  <p class="modal__meta-label">Hora del servidor</p>
+  <p class="modal__meta-value">{{ formattedSubmittedAt() }}</p>
+
+  <p class="modal__meta-label">Comprobante</p>
+  <div class="hash-block">
+    @for (line of hashLines(); track $index) {
+      <div class="hash-block__line">{{ line }}</div>
+    }
+  </div>
+  <p class="hash-block__caption">SHA-256 emitido por el servidor</p>
+
+  <button
+    #primaryButton
+    type="button"
+    class="modal__btn-primary"
+    (click)="closed.emit()"
+  >
+    <span>Volver al inicio</span>
+    <span class="material-symbols-outlined" aria-hidden="true">arrow_forward</span>
+  </button>
+</div>
