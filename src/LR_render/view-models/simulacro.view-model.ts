@@ -374,7 +374,10 @@ export class SimulacroPageViewModel {
     // de la escritura exitosa en IDB — el dispatcher leerá el snapshot de IDB
     // cuando el debounce expire. Si el flag está apagado, el Noop absorbe la
     // llamada silenciosamente.
-    this.draftDispatcher.notificarCambio(this.sessionId);
+    // `e.count` se pasa al dispatcher para que el use case L2 arme el string
+    // compacto de longitud fija (design.md D12). Es estable durante la sesión;
+    // el dispatcher lo cachea idempotentemente.
+    this.draftDispatcher.notificarCambio(this.sessionId, e.count);
     // Volver a `locked` (o `unmarked` derivado por rowState) cancelando el
     // timer de edición si estábamos en `editing`. Si veníamos de `unmarked`
     // estas llamadas son no-op pero seguras.

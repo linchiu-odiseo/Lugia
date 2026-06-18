@@ -27,14 +27,25 @@ export interface EnvioResult {
 }
 
 // Body del POST de draft (auto-save progresivo). `examId` es el `sessionId`
-// del path (igual que en EnvioRequest); `code` es el DNI del alumno; `responses`
-// ya viene con keys `P<n>` y SIN nulls (filtrados en L2).
+// del path (igual que en EnvioRequest); `code` es el DNI del alumno.
+//
+// `responses` es un STRING COMPACTO de longitud `exam.count`. Cada char (0-indexed)
+// corresponde a la pregunta P(i+1):
+//   - 'A' | 'B' | 'C' | 'D' | 'E' (mayúsculas) → respuesta marcada
+//   - '-' (guion U+002D)                       → sin marcar (null)
+// Ejemplo (exam.count=4, P1=E, P2=A, P3=null, P4=C):  "EA-C"
+// Validación server zod: `^[A-E-]*$` && `length === exam.count`.
+//
+// Asimetría intencional con EnvioRequest.responses (Record): el /draft se
+// optimiza para RAM de Redis (~9× ahorro vs dict); el /submit queda con dict
+// + hash + 201 inalterado. Ver design.md D12 de `draft-auto-save`.
+//
 // NOTA: NO incluye `clientFinishedAt` — exclusivo del /submit final. El draft
 // es snapshot completo del estado actual; el server usa `expectedEndAt` para TTL.
 export interface DraftRequest {
   examId: string;
   code: string;
-  responses: Record<string, 'A' | 'B' | 'C' | 'D' | 'E'>;
+  responses: string;
 }
 
 // Puerto del dominio para el backend de exámenes de learnex.

@@ -2,8 +2,13 @@
 // marcaciones. Errores se propagan; el `DraftAutoSaveDispatcher` los clasifica
 // para decidir cuál escala al view-model.
 //
-// Resuelve el snapshot actual de marcaciones → reshape → delega al port
-// ExamsApi.guardarDraft (POST /draft, 204 No Content).
+// Resuelve el snapshot actual de marcaciones → reshape a STRING COMPACTO →
+// delega al port ExamsApi.guardarDraft (POST /draft, 204 No Content).
+//
+// Asimetría intencional con EnviarSimulacroUseCase (que arma dict
+// `Record<"P<n>", Letter>` para el /submit con hash y 201). Ver design.md D12
+// de `draft-auto-save`: optimización de RAM de Redis ~9× vs dict, coordinada
+// con learnex antes del deploy del endpoint.
 import { IdentityStorage } from '../../L1_domain/ports/identity-storage';
 import { AnswersMap, MarkingsStorage } from '../../L1_domain/ports/markings-storage';
 import { DraftRequest, ExamsApi } from '../../L1_domain/ports/exams-api';
@@ -16,7 +21,7 @@ export class GuardarDraftUseCase {
     private readonly identityStorage: IdentityStorage,
   ) {}
 
-  async execute({ examId }: { examId: string }): Promise<void> {
+  async execute({ examId, count }: { examId: string; count: number }): Promise<void> {
     const identity = await this.identityStorage.read();
     // Defensivo: identity nula (sesión expirada) o sin codigo (tutor stub que
     // no debería llegar acá) → no tocamos storage ni api.
@@ -26,22 +31,28 @@ export class GuardarDraftUseCase {
     const code = identity.codigo;
 
     const answers = await this.markingsStorage.getMarcaciones(examId);
-    const responses = this.toResponses(answers);
+    const responses = this.toResponsesString(answers, count);
 
     const req: DraftRequest = { examId, code, responses };
     await this.api.guardarDraft(req);
   }
 
-  // Reshape de AnswersMap interno a `responses` del contrato learnex:
-  // - Omite las preguntas con valor `null` (el back solo quiere las marcadas).
-  // - Prefija las keys con "P" (`"1"` → `"P1"`).
-  // Lógica idéntica a `responsesFromAnswers` de EnviarSimulacroUseCase.
-  private toResponses(answers: AnswersMap): Record<string, 'A' | 'B' | 'C' | 'D' | 'E'> {
-    const out: Record<string, 'A' | 'B' | 'C' | 'D' | 'E'> = {};
+  // Reshape de AnswersMap interno al STRING COMPACTO del contrato learnex:
+  // - Array de `count` posiciones pre-llenado con '-' (sin marcar).
+  // - Para cada (pregunta, letra) con letra no-null, sobrescribe posición
+  //   `parseInt(pregunta) - 1` (1-indexed → 0-indexed) si está en rango.
+  // - Marcas fuera de rango [0, count) se ignoran silenciosamente (defensivo).
+  // - `join('')` produce el string final.
+  // Edge: count = 0 retorna "" (válido por contrato server zod `^[A-E-]*$`).
+  private toResponsesString(answers: AnswersMap, count: number): string {
+    const arr = new Array<string>(count).fill('-');
     for (const [pregunta, letra] of Object.entries(answers)) {
       if (letra === null) continue;
-      out[`P${pregunta}`] = letra;
+      const idx = parseInt(pregunta, 10) - 1;
+      if (idx >= 0 && idx < count) {
+        arr[idx] = letra;
+      }
     }
-    return out;
+    return arr.join('');
   }
 }

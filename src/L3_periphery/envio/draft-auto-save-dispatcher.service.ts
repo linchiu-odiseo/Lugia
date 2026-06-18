@@ -30,7 +30,11 @@ import { SessionExpiredError } from '../../L1_domain/errors/session-expired.erro
 // stub no-op (NoopDraftAutoSaveDispatcher) para que el view-model no conozca
 // qué está inyectado.
 export interface IDraftAutoSaveDispatcher {
-  notificarCambio(sessionId: string): void;
+  // `count` es Exam.count del simulacro activo. El dispatcher lo persiste en
+  // DraftState y el use case lo necesita para armar el string compacto de
+  // longitud fija (design.md D12). El view-model lo conoce desde el Exam
+  // cargado y lo pasa en cada notificarCambio (idempotente).
+  notificarCambio(sessionId: string, count: number): void;
   cancelarDraftsPendientes(sessionId: string): void;
   // Signal de sessionIds donde el back devolvió 409 SESSION_NOT_ACTIVE.
   // El view-model observa este signal con effect() para disparar el flujo
@@ -38,8 +42,9 @@ export interface IDraftAutoSaveDispatcher {
   readonly closedSessions: Signal<readonly string[]>;
 }
 
-// Estado interno por sessionId. Ver design.md D2 + D3 + D11.
+// Estado interno por sessionId. Ver design.md D2 + D3 + D11 + D12.
 interface DraftState {
+  count: number; // Exam.count, requerido por el use case para armar el string fijo (D12)
   dirty: boolean;
   debounceTimer: ReturnType<typeof setTimeout> | null;
   lastPostAt: number;
@@ -89,11 +94,13 @@ export class DraftAutoSaveDispatcher implements IDraftAutoSaveDispatcher {
   }
 
   // Notifica al dispatcher que hubo un cambio en las marcaciones del sessionId.
-  // Crea la entrada en el mapa si no existe (lazy). Resetea el debounce.
-  notificarCambio(sessionId: string): void {
+  // Crea la entrada en el mapa si no existe (lazy). Persiste `count` en el state
+  // (idempotente: si cambió entre llamadas, actualiza). Resetea el debounce.
+  notificarCambio(sessionId: string, count: number): void {
     let st = this.state.get(sessionId);
     if (st === undefined) {
       st = {
+        count,
         dirty: false,
         debounceTimer: null,
         lastPostAt: 0,
@@ -103,6 +110,10 @@ export class DraftAutoSaveDispatcher implements IDraftAutoSaveDispatcher {
         nextRetryAt: null,
       };
       this.state.set(sessionId, st);
+    } else {
+      // Actualización idempotente del count (defensivo, no debería cambiar
+      // mid-sesión; el Exam.count es estable).
+      st.count = count;
     }
 
     st.dirty = true;
@@ -171,7 +182,7 @@ export class DraftAutoSaveDispatcher implements IDraftAutoSaveDispatcher {
     st.dirty = false; // CRÍTICO: bajar dirty ANTES de leer IDB (ver Coalesce)
 
     try {
-      await this.useCase.execute({ examId: sessionId });
+      await this.useCase.execute({ examId: sessionId, count: st.count });
       // Éxito (204): actualizar lastPostAt y resetear backoff.
       st.lastPostAt = Date.now();
       st.retryCount = 0;
@@ -229,7 +240,7 @@ export class NoopDraftAutoSaveDispatcher implements IDraftAutoSaveDispatcher {
     [],
   ).asReadonly();
 
-  notificarCambio(_sessionId: string): void {
+  notificarCambio(_sessionId: string, _count: number): void {
     // no-op
   }
 
