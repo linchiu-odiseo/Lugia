@@ -30,4 +30,36 @@ Auto-generado por `.claude/hooks/log-agent-usage.ps1` en cada PostToolUse del to
 | 2026-06-12 16:02:53 | test-engineer    | Tests para protecci├│n anti-cambio accidental                    | opus-4-7 | 110,013      | --    | --       | $0.2325   |
 | 2026-06-12 17:46:36 | sdd-verify       | Verify cartilla-fase-2 SDD change                                | opus-4-7 | 59,438       | --    | --       | $0.2172   |
 | 2026-06-12 17:56:19 | sdd-archive      | Archive cartilla-fase-2 SDD change                               | opus-4-7 | 88,354       | --    | --       | $0.2238   |
-| 2026-06-13 23:55:37 | hexagonal-guard | Audit boundaries post restyle | opus-4-7 | 29,227 | -- | -- | $0.1590 |
+| 2026-06-13 23:55:37 | hexagonal-guard  | Audit boundaries post restyle                                    | opus-4-7 | 29,227       | --    | --       | $0.1590   |
+| 2026-06-14 10:39:50 | sdd-verify       | Verify restyle change vs specs                                   | opus-4-7 | 62,129       | --    | --       | $0.2542   |
+| 2026-06-14 10:46:41 | sdd-archive      | Archive restyle-native-excellence change                         | opus-4-7 | 73,285       | --    | --       | $0.1691   |
+| 2026-06-14 11:59:03 | sdd-explore      | SDD explore: login Lugia ÔåÆ learnex                             | opus-4-7 | 88,025       | --    | --       | $0.8905   |
+| 2026-06-14 12:28:04 | sdd-propose      | SDD propose: login Lugia ÔåÆ learnex                             | opus-4-7 | 56,497       | --    | --       | $0.3812   |
+| 2026-06-14 13:16:53 | sdd-spec         | SDD spec: login Lugia ÔåÆ learnex                                | opus-4-7 | 51,790       | --    | --       | $0.2512   |
+| 2026-06-14 13:25:55 | sdd-design       | SDD design: login Lugia ÔåÆ learnex                              | opus-4-7 | 92,609       | --    | --       | $0.6205   |
+| 2026-06-14 13:40:46 | sdd-tasks        | SDD tasks: login Lugia ÔåÆ learnex                               | opus-4-7 | 84,415       | --    | --       | $0.2410   |
+| 2026-06-14 14:38:33 | sdd-apply        | SDD apply PR1: L1+L2 puros                                       | opus-4-7 | 155,222      | --    | --       | $0.3980   |
+| 2026-06-14 15:17:22 | test-engineer    | Tests L3 para PR2 fase-3-login-learnex                           | opus-4-7 | 203,119      | --    | --       | $0.4967   |
+| 2026-06-14 15:20:43 | hexagonal-guard  | Auditor├¡a hexagonal PR2                                         | opus-4-7 | 52,946       | --    | --       | $0.4140   |
+| 2026-06-14 15:34:53 | frontend-builder | TutorHomePage stub Native Excellence                             | opus-4-7 | 73,002       | --    | --       | $0.2347   |
+| 2026-06-14 15:48:01 | test-engineer    | Tests LR PR3 fase-3-login-learnex                                | opus-4-7 | 149,516      | --    | --       | $0.3463   |
+| 2026-06-14 15:53:13 | hexagonal-guard  | Audit final hexagonal PR3                                        | opus-4-7 | 77,135       | --    | --       | $0.5323   |
+| 2026-06-14 21:36:42 | sdd-verify       | SDD verify fase-3-login-learnex                                  | opus-4-7 | 101,514      | --    | --       | $0.4987   |
+| 2026-06-14 22:13:59 | sdd-archive | SDD archive fase-3-login-learnex | opus-4-7 | 120,400 | -- | -- | $0.3938 |
+| 2026-06-15 18:08:53 | sdd-explore | SDD explore fase-3-exam-list-learnex | opus-4-7 | 79,150 | -- | -- | $0.5384 |
+| 2026-06-15 18:14:43 | sdd-propose | SDD propose fase-3-exam-list-learnex | opus-4-7 | 19,091 | -- | -- | $0.1444 |
+| 2026-06-15 18:21:43 | sdd-spec | SDD spec fase-3-exam-list-learnex | opus-4-7 | 33,065 | -- | -- | $0.1593 |
+| 2026-06-15 18:24:42 | sdd-design | SDD design fase-3-exam-list-learnex | opus-4-7 | 34,281 | -- | -- | $0.2440 |
+| 2026-06-15 18:28:53 | sdd-tasks | SDD tasks fase-3-exam-list-learnex | opus-4-7 | 43,085 | -- | -- | $0.1517 |
+| 2026-06-15 18:58:38 | frontend-builder | LR view-models Exam migration | opus-4-7 | 101,327 | -- | -- | $0.3364 |
+| 2026-06-15 19:22:30 | test-engineer | Reshape tests to Exam vocabulary | opus-4-7 | 292,144 | -- | -- | $0.7590 |
+| 2026-06-15 19:29:53 | hexagonal-guard | Hexagonal audit post-change | opus-4-7 | 118,355 | -- | -- | $0.4843 |
+| 2026-06-16 12:38:10 | hexagonal-guard | Audit hexagonal post-fixes | opus-4-7 | -- | -- | -- | -- |
+| 2026-06-16 14:32:51 | sdd-archive | Archive fase-3-exam-list-learnex | opus-4-7 | 95,447 | -- | -- | $0.3252 |
+| 2026-06-16 16:13:20 | test-engineer | Tests Vitest del PwaUpdateService + integraci├│n LR | opus-4-7 | 155,836 | -- | -- | $0.3039 |
+| 2026-06-16 16:17:44 | hexagonal-guard | Hexagonal audit de los archivos nuevos del change | opus-4-7 | 45,126 | -- | -- | $0.1464 |
+| 2026-06-17 14:58:37 | frontend-builder | C5 ÔÇö modal de comprobante + view-models | opus-4-7 | 141,848 | -- | -- | $0.3930 |
+| 2026-06-17 15:15:55 | test-engineer | C7 ÔÇö tests del flujo POST + ack + modal | opus-4-7 | -- | -- | -- | -- |
+| 2026-06-17 15:16:52 | hexagonal-guard | G1 ÔÇö hexagonal-guard audit de src/ | opus-4-7 | -- | -- | -- | -- |
+| 2026-06-17 15:58:13 | general-purpose | Sync delta specs a main specs | opus-4-7 | 79,431 | -- | -- | $0.2391 |
+| 2026-06-18 11:39:42 | sdd-explore | SDD explore: draft-auto-save | opus-4-7 | 58,296 | -- | -- | $0.4043 |
