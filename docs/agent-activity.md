@@ -63,3 +63,7 @@ Auto-generado por `.claude/hooks/log-agent-usage.ps1` en cada PostToolUse del to
 | 2026-06-17 15:16:52 | hexagonal-guard | G1 ÔÇö hexagonal-guard audit de src/ | opus-4-7 | -- | -- | -- | -- |
 | 2026-06-17 15:58:13 | general-purpose | Sync delta specs a main specs | opus-4-7 | 79,431 | -- | -- | $0.2391 |
 | 2026-06-18 11:39:42 | sdd-explore | SDD explore: draft-auto-save | opus-4-7 | 58,296 | -- | -- | $0.4043 |
+| 2026-06-18 12:18:52 | sdd-propose | SDD propose: draft-auto-save | opus-4-7 | -- | -- | -- | -- |
+| 2026-06-18 12:28:42 | sdd-propose | Resume sdd-propose draft-auto-save | opus-4-7 | 109,041 | -- | -- | $0.3505 |
+| 2026-06-18 13:14:21 | sdd-apply | SDD apply: draft-auto-save | opus-4-7 | 85,825 | -- | -- | $0.2162 |
+| 2026-06-18 14:20:21 | test-engineer | Update tests for fixed-string contract | opus-4-7 | 102,223 | -- | -- | $0.3081 |
