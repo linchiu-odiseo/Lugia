@@ -183,8 +183,10 @@ export class DraftAutoSaveDispatcher implements IDraftAutoSaveDispatcher {
         this._closedSessions.update((prev) => [...prev, sessionId]);
       } else if (e instanceof NetworkError) {
         // Retryable (0/429/5xx/timeout/403 genérico/404 sin message): backoff.
-        // dirty queda como esté (puede haber sido re-seteado por notificarCambio
-        // durante el inflight — no lo pisamos acá).
+        // Restauramos dirty=true para que el heartbeat (o el reagenda de tryFire)
+        // pueda disparar el reintento sin depender de un nuevo notificarCambio.
+        // Si notificarCambio ya lo subió a true durante el inflight, no pisa nada.
+        st.dirty = true;
         st.retryCount += 1;
         st.nextRetryAt = Date.now() + this.backoffDelay(st.retryCount);
         // NO marca stopped.

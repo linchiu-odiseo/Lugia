@@ -16,6 +16,12 @@ import {
   ProgramarAutoEnvioUseCase,
 } from '../../../../src/L2_application/use-cases/programar-auto-envio.use-case';
 import { CLOCK, MARKINGS_STORAGE } from '../../../../src/app.config';
+import {
+  DraftAutoSaveDispatcher,
+  IDraftAutoSaveDispatcher,
+  NoopDraftAutoSaveDispatcher,
+} from '../../../../src/L3_periphery/envio/draft-auto-save-dispatcher.service';
+import { Signal, signal } from '@angular/core';
 import { Exam } from '../../../../src/L1_domain/entities/exam';
 import { ExamServerStatus } from '../../../../src/L1_domain/value-objects/exam-server-status';
 import { ServerTime } from '../../../../src/L1_domain/value-objects/server-time';
@@ -226,6 +232,29 @@ class FakeProgramarAutoEnvioUseCase {
   }
 }
 
+// Fake dispatcher que registra invocaciones de notificarCambio y
+// cancelarDraftsPendientes para los tests de integración del view-model.
+class FakeDraftDispatcher implements IDraftAutoSaveDispatcher {
+  public notificarCalls: string[] = [];
+  public cancelarCalls: string[] = [];
+
+  private readonly _closedSessions = signal<readonly string[]>([]);
+  readonly closedSessions: Signal<readonly string[]> = this._closedSessions.asReadonly();
+
+  notificarCambio(sessionId: string): void {
+    this.notificarCalls.push(sessionId);
+  }
+
+  cancelarDraftsPendientes(sessionId: string): void {
+    this.cancelarCalls.push(sessionId);
+  }
+
+  // Helper de test: emite un sessionId como cerrado para disparar el effect.
+  emitClosed(sessionId: string): void {
+    this._closedSessions.update((prev) => [...prev, sessionId]);
+  }
+}
+
 // Helper
 const buildExam = (
   id: string,
@@ -261,6 +290,7 @@ describe('SimulacroPageViewModel', () => {
   let fakeMarcar: FakeMarcarRespuestaUseCase;
   let fakeEnviar: FakeEnviarSimulacroUseCase;
   let fakeProgramar: FakeProgramarAutoEnvioUseCase;
+  let fakeDraftDispatcher: FakeDraftDispatcher;
 
   const createVm = (): SimulacroPageViewModel =>
     TestBed.runInInjectionContext(() => new SimulacroPageViewModel());
@@ -272,6 +302,7 @@ describe('SimulacroPageViewModel', () => {
     fakeMarcar = new FakeMarcarRespuestaUseCase(fakeMarkings);
     fakeEnviar = new FakeEnviarSimulacroUseCase();
     fakeProgramar = new FakeProgramarAutoEnvioUseCase();
+    fakeDraftDispatcher = new FakeDraftDispatcher();
 
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
@@ -286,6 +317,7 @@ describe('SimulacroPageViewModel', () => {
         { provide: ProgramarAutoEnvioUseCase, useValue: fakeProgramar },
         { provide: CLOCK, useValue: fakeClock },
         { provide: MARKINGS_STORAGE, useValue: fakeMarkings },
+        { provide: DraftAutoSaveDispatcher, useValue: fakeDraftDispatcher },
       ],
     });
   });
@@ -882,6 +914,162 @@ describe('SimulacroPageViewModel', () => {
       vm.stop();
     });
 
+  });
+
+  describe('DraftAutoSaveDispatcher — integración con view-model', () => {
+    it('marcarRespuesta exitoso → notificarCambio(sessionId) invocado exactamente 1 vez', async () => {
+      // El examen debe ser vigente para que marcar() no se aborte antes de
+      // llamar al dispatcher. Seteamos el reloj justo después del started del exam.
+      fakeClock.setNow(new Date('2026-06-11T10:01:00Z'));
+      const exam = buildExam('exam-1', 'in_progress', { count: 5 });
+      fakeGetTodaysExams.willResolve([exam]);
+      fakeMarkings.seedMarcaciones('exam-1', {
+        '1': null,
+        '2': null,
+        '3': null,
+        '4': null,
+        '5': null,
+      });
+
+      const vm = createVm();
+      await vm.start('exam-1');
+
+      expect(fakeDraftDispatcher.notificarCalls).toHaveLength(0);
+
+      await vm.marcar(1, 'A');
+
+      expect(fakeDraftDispatcher.notificarCalls).toHaveLength(1);
+      expect(fakeDraftDispatcher.notificarCalls[0]).toBe('exam-1');
+      vm.stop();
+    });
+
+    it('submit() llama cancelarDraftsPendientes(sessionId) antes del envío', async () => {
+      const exam = buildExam('exam-1', 'in_progress');
+      fakeGetTodaysExams.willResolve([exam]);
+      fakeEnviar.willResolve({ status: 'enviado', ack: null });
+
+      const vm = createVm();
+      await vm.start('exam-1');
+
+      const router = TestBed.inject(Router);
+      vi.spyOn(router, 'navigate').mockResolvedValue(true);
+
+      expect(fakeDraftDispatcher.cancelarCalls).toHaveLength(0);
+
+      await vm.submit();
+
+      // cancelar debe haber sido llamado antes de que el submit resolviera
+      expect(fakeDraftDispatcher.cancelarCalls).toContain('exam-1');
+      vm.stop();
+    });
+
+    it('stop() llama cancelarDraftsPendientes para prevenir timer leak', async () => {
+      const exam = buildExam('exam-1', 'in_progress');
+      fakeGetTodaysExams.willResolve([exam]);
+
+      const vm = createVm();
+      await vm.start('exam-1');
+
+      expect(fakeDraftDispatcher.cancelarCalls).toHaveLength(0);
+
+      vm.stop();
+
+      expect(fakeDraftDispatcher.cancelarCalls).toContain('exam-1');
+    });
+
+    it('closedSessions emite sessionId activo → errorState=cerrado + redirect /home', async () => {
+      const exam = buildExam('exam-1', 'in_progress');
+      fakeGetTodaysExams.willResolve([exam]);
+
+      const vm = createVm();
+      const router = TestBed.inject(Router);
+      const navigateSpy = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+
+      await vm.start('exam-1');
+      expect(vm.errorState()).toBeNull();
+
+      // Dispatcher emite el cierre (simula 409 SESSION_NOT_ACTIVE recibido mid-draft)
+      fakeDraftDispatcher.emitClosed('exam-1');
+      // El effect es reactivo — TestBed debe procesar el cambio de signal
+      TestBed.flushEffects();
+
+      expect(vm.errorState()).toBe('cerrado');
+      expect(navigateSpy).toHaveBeenCalledWith(['/home']);
+      vm.stop();
+    });
+
+    it('closedSessions con sessionId diferente al activo → no dispara flujo cerrado', async () => {
+      const exam = buildExam('exam-1', 'in_progress');
+      fakeGetTodaysExams.willResolve([exam]);
+
+      const vm = createVm();
+      const router = TestBed.inject(Router);
+      const navigateSpy = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+
+      await vm.start('exam-1');
+
+      // Emitir un sessionId diferente — no debe afectar exam-1
+      fakeDraftDispatcher.emitClosed('otro-exam');
+      TestBed.flushEffects();
+
+      expect(vm.errorState()).toBeNull();
+      expect(navigateSpy).not.toHaveBeenCalled();
+      vm.stop();
+    });
+
+    it('con NoopDraftAutoSaveDispatcher, métodos del view-model funcionan sin error', async () => {
+      // Re-configurar TestBed con el Noop para este test
+      TestBed.resetTestingModule();
+      const noop = new NoopDraftAutoSaveDispatcher();
+      TestBed.configureTestingModule({
+        providers: [
+          provideRouter([
+            { path: 'home', component: HomeStub },
+            { path: 'login', component: LoginStub },
+          ]),
+          { provide: GetTodaysExamsUseCase, useValue: fakeGetTodaysExams },
+          { provide: MarcarRespuestaUseCase, useValue: fakeMarcar },
+          { provide: EnviarSimulacroUseCase, useValue: fakeEnviar },
+          { provide: ProgramarAutoEnvioUseCase, useValue: fakeProgramar },
+          { provide: CLOCK, useValue: fakeClock },
+          { provide: MARKINGS_STORAGE, useValue: fakeMarkings },
+          { provide: DraftAutoSaveDispatcher, useValue: noop },
+        ],
+      });
+
+      const exam = buildExam('exam-1', 'in_progress', { count: 5 });
+      fakeGetTodaysExams.willResolve([exam]);
+      fakeMarkings.seedMarcaciones('exam-1', {
+        '1': null,
+        '2': null,
+        '3': null,
+        '4': null,
+        '5': null,
+      });
+
+      const vm = createVm();
+      await vm.start('exam-1');
+
+      // marcar con noop no lanza
+      await vm.marcar(1, 'A');
+
+      // stop con noop no lanza
+      expect(() => vm.stop()).not.toThrow();
+
+      // closedSessions del noop nunca emite
+      expect(noop.closedSessions()).toEqual([]);
+    });
+
+    it('draftStatus signal inicializa en idle', async () => {
+      const exam = buildExam('exam-1', 'in_progress');
+      fakeGetTodaysExams.willResolve([exam]);
+
+      const vm = createVm();
+      await vm.start('exam-1');
+
+      expect(vm.draftStatus()).toBe('idle');
+      vm.stop();
+    });
   });
 
   describe('cierreHHMM y countdownRestante usan effectiveCloseAt', () => {

@@ -14,6 +14,7 @@ import {
   ProgramarAutoEnvioUseCase,
 } from '../../../../../src/L2_application/use-cases/programar-auto-envio.use-case';
 import { CLOCK, MARKINGS_STORAGE } from '../../../../../src/app.config';
+import { NoopDraftAutoSaveDispatcher, DraftAutoSaveDispatcher } from '../../../../../src/L3_periphery/envio/draft-auto-save-dispatcher.service';
 import { Exam } from '../../../../../src/L1_domain/entities/exam';
 import { ExamServerStatus } from '../../../../../src/L1_domain/value-objects/exam-server-status';
 import { ServerTime } from '../../../../../src/L1_domain/value-objects/server-time';
@@ -203,6 +204,7 @@ describe('SimulacroPage', () => {
         { provide: ProgramarAutoEnvioUseCase, useValue: new FakeProgramarAutoEnvioUseCase() },
         { provide: CLOCK, useValue: fakeClock },
         { provide: MARKINGS_STORAGE, useValue: fakeMarkings },
+        { provide: DraftAutoSaveDispatcher, useValue: new NoopDraftAutoSaveDispatcher() },
       ],
     }).compileComponents();
   };

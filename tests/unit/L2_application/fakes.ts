@@ -15,6 +15,7 @@ import {
 } from '../../../src/L1_domain/ports/markings-storage';
 import { Clock } from '../../../src/L1_domain/ports/clock';
 import {
+  DraftRequest,
   EnvioRequest,
   EnvioResult,
   ExamsApi,
@@ -237,6 +238,13 @@ export class FakeExamsApi implements ExamsApi {
     throw new Error(
       'FakeExamsApi: configurar willResolveEnviar / willRejectEnviar / willEnviarInSequence antes de llamar enviar()',
     );
+  }
+
+  // Stub no-op para guardarDraft — no usado por los use cases existentes.
+  // Los tests de GuardarDraftUseCase usan su propio FakeDraftExamsApi
+  // (definido en guardar-draft.use-case.spec.ts) para control más fino.
+  async guardarDraft(_req: DraftRequest): Promise<void> {
+    // no-op — los tests de EnviarSimulacroUseCase no tocan este método.
   }
 }
 
