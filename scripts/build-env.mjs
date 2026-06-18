@@ -56,6 +56,12 @@ if (missing.length) {
   process.exit(1);
 }
 
+// DRAFT_ENABLED: habilita el auto-save de drafts (POST /draft). Default false
+// hasta que el back deploye el endpoint en Docker local. Coerción conservadora:
+// solo el string 'true' (case-insensitive) activa el flag; cualquier otro valor
+// (ausente, 'false', '0') queda en false.
+const draftEnabled = (env['DRAFT_ENABLED'] ?? '').toLowerCase() === 'true';
+
 const envDir = resolve(repoRoot, 'src/environments');
 mkdirSync(envDir, { recursive: true });
 
@@ -76,6 +82,7 @@ writeFileSync(
     `  apiBaseUrl: ${apiBaseUrl},\n` +
     `  tenantSlug: ${tenantSlug},\n` +
     `  appVersion: ${appVersion},\n` +
+    `  draftEnabled: ${draftEnabled},\n` +
     `};\n`,
 );
 
@@ -86,6 +93,7 @@ writeFileSync(
     `  apiBaseUrl: ${apiBaseUrl},\n` +
     `  tenantSlug: ${tenantSlug},\n` +
     `  appVersion: ${appVersion},\n` +
+    `  draftEnabled: ${draftEnabled},\n` +
     `};\n`,
 );
 
