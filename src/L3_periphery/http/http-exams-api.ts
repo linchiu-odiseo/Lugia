@@ -1,7 +1,9 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
+import { timeout } from 'rxjs/operators';
 import {
+  DraftRequest,
   EnvioRequest,
   EnvioResult,
   ExamsApi,
@@ -70,6 +72,28 @@ const SUBMIT_ERROR_MESSAGES: ReadonlySet<SubmitErrorMessage> = new Set([
   'CLOCK_SKEW_TOO_FAR_FUTURE',
 ]);
 
+// Segundo set enumerado cerrado para el POST /draft. EXCEPCIÓN documentada a
+// la regla "nunca leer message" (design.md D5/D10 de `draft-auto-save`):
+// misma justificación que SUBMIT_ERROR_MESSAGES — son códigos de control
+// en mayúsculas snake_case, no i18n humano. Comparación por igualdad
+// ESTRICTA (===), jamás .includes() ni regex sobre message.
+// Valores: 'STUDENT_NOT_ENROLLED' | 'STUDENT_MISMATCH' | 'SESSION_NOT_FOUND'
+//          | 'STUDENT_BY_CODE_NOT_FOUND' | 'SESSION_NOT_ACTIVE'
+type DraftErrorMessage =
+  | 'STUDENT_NOT_ENROLLED'
+  | 'STUDENT_MISMATCH'
+  | 'SESSION_NOT_FOUND'
+  | 'STUDENT_BY_CODE_NOT_FOUND'
+  | 'SESSION_NOT_ACTIVE';
+
+const DRAFT_ERROR_MESSAGES: ReadonlySet<DraftErrorMessage> = new Set([
+  'STUDENT_NOT_ENROLLED',
+  'STUDENT_MISMATCH',
+  'SESSION_NOT_FOUND',
+  'STUDENT_BY_CODE_NOT_FOUND',
+  'SESSION_NOT_ACTIVE',
+]);
+
 @Injectable({ providedIn: 'root' })
 export class HttpExamsApi implements ExamsApi {
   private readonly http = inject(HttpClient);
@@ -116,6 +140,27 @@ export class HttpExamsApi implements ExamsApi {
     }
   }
 
+  // POST /t/{slug}/student/exam-sessions/{sessionId}/draft
+  // Envía un snapshot completo del set de respuestas al server (Redis buffer).
+  // El draft NO reemplaza al submit: es piso de recuperación para force-close.
+  // Body: { code, responses } — SIN client_finished_at (exclusivo de /submit).
+  // `withCredentials` lo agrega el `credentials.interceptor` global — NO se
+  // setea acá. Response: 204 No Content (void). Timeout: 10s.
+  async guardarDraft(req: DraftRequest): Promise<void> {
+    try {
+      await firstValueFrom(
+        this.http
+          .post<void>(apiPath.studentExamDraft(req.examId), {
+            code: req.code,
+            responses: req.responses,
+          })
+          .pipe(timeout(10_000)),
+      );
+    } catch (err) {
+      throw this.classifyDraftError(err);
+    }
+  }
+
   private toExam(dto: ExamDto): Exam {
     const scheduled = new Date(dto.scheduled);
     if (Number.isNaN(scheduled.getTime())) {
@@ -159,6 +204,51 @@ export class HttpExamsApi implements ExamsApi {
         return new NetworkError();
       }
     }
+    return new NetworkError();
+  }
+
+  // Clasificación del POST /student/exam-sessions/{id}/draft.
+  //
+  // EXCEPCIÓN documentada a la regla "nunca leer message" (design.md D5/D10
+  // de `draft-auto-save`): misma justificación que classifySubmitError — los
+  // valores del enum son códigos de control, no i18n humano. Comparación por
+  // igualdad ESTRICTA (===) contra el set `DRAFT_ERROR_MESSAGES`. Nunca se
+  // usa .includes(), .match() ni regex sobre message.
+  // Set: 'STUDENT_NOT_ENROLLED' | 'STUDENT_MISMATCH' | 'SESSION_NOT_FOUND'
+  //      | 'STUDENT_BY_CODE_NOT_FOUND' | 'SESSION_NOT_ACTIVE'
+  //
+  // 401 lo absorbe el credentials.interceptor (refresh + redirect login).
+  private classifyDraftError(err: unknown): Error {
+    if (err instanceof HttpErrorResponse) {
+      const body = (err.error ?? {}) as { message?: string };
+      const message = body.message;
+      const knownMessage =
+        typeof message === 'string' && DRAFT_ERROR_MESSAGES.has(message as DraftErrorMessage)
+          ? (message as DraftErrorMessage)
+          : null;
+
+      if (err.status === 400) return new InvalidPayloadError();
+      if (err.status === 403) {
+        if (knownMessage === 'STUDENT_NOT_ENROLLED') return new StudentNotEnrolledError();
+        // STUDENT_MISMATCH y otros 403 → NetworkError retryable con backoff (D5).
+        return new NetworkError();
+      }
+      if (err.status === 404) {
+        if (knownMessage === 'SESSION_NOT_FOUND') return new SimulacroNoAsignadoError();
+        if (knownMessage === 'STUDENT_BY_CODE_NOT_FOUND') return new StudentNotLinkedError();
+        // 404 sin message conocido → NetworkError retryable; autoheal si el
+        // back deploya mid-sesión (design.md D6).
+        return new NetworkError();
+      }
+      if (err.status === 409) {
+        if (knownMessage === 'SESSION_NOT_ACTIVE') return new SimulacroCerradoError();
+        return new NetworkError();
+      }
+      if (err.status === 0 || err.status === 429 || err.status >= 500) {
+        return new NetworkError();
+      }
+    }
+    // TimeoutError de rxjs/operators o cualquier otro error de transporte.
     return new NetworkError();
   }
 

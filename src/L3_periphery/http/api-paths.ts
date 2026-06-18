@@ -14,6 +14,7 @@ import { environment } from '../../environments/environment';
 //   GET  /t/{slug}/{role}/me
 //   GET  /t/{slug}/student/exam-sessions
 //   POST /t/{slug}/student/exam-sessions/{sessionId}/submit
+//   POST /t/{slug}/student/exam-sessions/{sessionId}/draft
 function base(): string {
   return `${environment.apiBaseUrl}/t/${environment.tenantSlug}`;
 }
@@ -31,4 +32,8 @@ export const apiPath = {
   // contrato lo define como UUID v4, pero no asumimos sanitización.
   studentExamSubmit: (sessionId: string): string =>
     `${base()}/student/exam-sessions/${encodeURIComponent(sessionId)}/submit`,
+  // Auto-save progresivo (draft-auto-save). Mismo patrón que studentExamSubmit.
+  // El endpoint recibe 204 No Content; sin body de respuesta.
+  studentExamDraft: (sessionId: string): string =>
+    `${base()}/student/exam-sessions/${encodeURIComponent(sessionId)}/draft`,
 };
