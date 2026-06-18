@@ -1,4 +1,4 @@
-import { Injectable, Signal, computed, inject, signal } from '@angular/core';
+import { Injectable, Signal, computed, effect, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { GetTodaysExamsUseCase } from '../../L2_application/use-cases/get-todays-exams.use-case';
 import { MarcarRespuestaUseCase } from '../../L2_application/use-cases/marcar-respuesta.use-case';
@@ -8,6 +8,7 @@ import {
   ProgramarAutoEnvioUseCase,
 } from '../../L2_application/use-cases/programar-auto-envio.use-case';
 import { CLOCK, MARKINGS_STORAGE } from '../../app.config';
+import { DraftAutoSaveDispatcher } from '../../L3_periphery/envio/draft-auto-save-dispatcher.service';
 import { Exam } from '../../L1_domain/entities/exam';
 import { Alternativa } from '../../L1_domain/value-objects/alternativa';
 import { AlternativaValue, AnswersMap } from '../../L1_domain/ports/markings-storage';
@@ -83,6 +84,10 @@ export class SimulacroPageViewModel {
   private readonly markings = inject(MARKINGS_STORAGE);
   private readonly clock = inject(CLOCK);
   private readonly router = inject(Router);
+  // El provider en app.config.ts devuelve DraftAutoSaveDispatcher real si
+  // environment.draftEnabled===true, o NoopDraftAutoSaveDispatcher si está
+  // apagado. El view-model llama métodos sin condicional (design.md D7).
+  private readonly draftDispatcher = inject(DraftAutoSaveDispatcher);
 
   readonly exam = signal<Exam | null>(null);
   readonly marcaciones = signal<AnswersMap>({});
@@ -102,6 +107,11 @@ export class SimulacroPageViewModel {
   // este signal para mostrar el chip flotante "Toca para cambiar" sobre
   // la fila editing.
   readonly editingRow = signal<number | null>(null);
+
+  // Signal opcional para UI futura. Hoy queda en 'idle' — el dispatcher no
+  // expone ganchos para actualizarla. Change posterior los agregará cuando
+  // UX pida render visible del estado del auto-save.
+  readonly draftStatus = signal<'idle' | 'syncing' | 'synced' | 'offline'>('idle');
 
   // Lista derivada de números de pregunta 1..count. Recomputa solo cuando
   // cambia el examen — barato.
@@ -181,6 +191,25 @@ export class SimulacroPageViewModel {
   private editingTimer: ReturnType<typeof setTimeout> | null = null;
   private started = false;
   private stopped = false;
+  // sessionId activo: se setea en start() cuando el examen existe. Necesario
+  // para que stop() y submit() puedan cancelar el dispatcher sin tener que
+  // leer exam() (que puede ser null en edge cases de lifecycle).
+  private sessionId = '';
+
+  constructor() {
+    // Observa la signal closedSessions del dispatcher. Si el back devuelve
+    // 409 SESSION_NOT_ACTIVE en un POST /draft mientras el alumno está en la
+    // cartilla, el dispatcher emite el sessionId a esta signal y el effect
+    // lo detecta para disparar el flujo "cerrado" + redirect a /home.
+    // Design.md D3 + spec "409 escala al view-model".
+    effect(() => {
+      const closed = this.draftDispatcher.closedSessions();
+      if (this.sessionId.length > 0 && closed.includes(this.sessionId)) {
+        this.errorState.set('cerrado');
+        void this.router.navigate(['/home']);
+      }
+    });
+  }
 
   async start(examId: string): Promise<void> {
     if (this.started) return;
@@ -239,6 +268,7 @@ export class SimulacroPageViewModel {
     // queda accesible. Las marcaciones se guardan en IDB; el countdown
     // arranca cuando el reloj cliente cruza `started`.
 
+    this.sessionId = encontrado.id;
     this.exam.set(encontrado);
     await this.loadMarcaciones(encontrado);
     this.startCountdownTicker();
@@ -247,6 +277,10 @@ export class SimulacroPageViewModel {
 
   stop(): void {
     this.stopped = true;
+    // Cancela el debounce del dispatcher para prevenir timer leak (design.md R1).
+    // Si el alumno navega fuera de /simulacro sin enviar, no queremos que el
+    // debounce dispare un POST espurio desde /home.
+    this.draftDispatcher.cancelarDraftsPendientes(this.sessionId);
     this.stopCountdownTicker();
     this.cancelAutoEnvio();
     this.cancelEditingTimer();
@@ -336,6 +370,11 @@ export class SimulacroPageViewModel {
     });
 
     this.marcaciones.update((prev) => ({ ...prev, [String(pregunta)]: proxima }));
+    // Notificar al dispatcher que hay cambios para auto-save. Se llama DESPUÉS
+    // de la escritura exitosa en IDB — el dispatcher leerá el snapshot de IDB
+    // cuando el debounce expire. Si el flag está apagado, el Noop absorbe la
+    // llamada silenciosamente.
+    this.draftDispatcher.notificarCambio(this.sessionId);
     // Volver a `locked` (o `unmarked` derivado por rowState) cancelando el
     // timer de edición si estábamos en `editing`. Si veníamos de `unmarked`
     // estas llamadas son no-op pero seguras.
@@ -362,6 +401,11 @@ export class SimulacroPageViewModel {
     if (e === null) return;
     if (!e.serverStatus.permiteEntrada()) return;
 
+    // Cancel-on-submit: limpiar el debounce pendiente y marcar la sesión como
+    // stopped ANTES de cualquier rama del submit. El POST en vuelo (si lo hay)
+    // completará en el back, que hará no-op silent si el submit ya escribió
+    // `final` en Redis. Design.md D3 cancel-on-submit + spec Requirement.
+    this.draftDispatcher.cancelarDraftsPendientes(this.sessionId);
     this.cancelAutoEnvio();
     this.isSubmitting.set(true);
     this.submissionState.set('sending');
