@@ -28,7 +28,7 @@ describe('HttpExamsApi.guardarDraft (POST /draft)', () => {
   const validRequest = (): DraftRequest => ({
     examId: SESSION_ID,
     code: '30303011',
-    responses: { P1: 'A', P3: 'C' },
+    responses: 'A-C-',
   });
 
   beforeEach(() => {
@@ -52,14 +52,16 @@ describe('HttpExamsApi.guardarDraft (POST /draft)', () => {
       await pending;
     });
 
-    it('body exacto: { code, responses } sin client_finished_at', async () => {
+    it('body exacto: { code, responses: string } sin client_finished_at', async () => {
       const pending = adapter.guardarDraft(validRequest());
 
       const req = httpMock.expectOne(DRAFT_URL);
+      // El responses viaja como STRING COMPACTO (no como Record).
       expect(req.request.body).toEqual({
         code: '30303011',
-        responses: { P1: 'A', P3: 'C' },
+        responses: 'A-C-',
       });
+      expect(typeof (req.request.body as { responses: unknown }).responses).toBe('string');
       // client_finished_at NO debe estar en el body
       expect(req.request.body).not.toHaveProperty('client_finished_at');
 

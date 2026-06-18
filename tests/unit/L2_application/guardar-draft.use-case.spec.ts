@@ -72,49 +72,82 @@ describe('GuardarDraftUseCase', () => {
     useCase = new GuardarDraftUseCase(api, storage, identityStorage);
   });
 
-  describe('Reshape AnswersMap', () => {
-    it('filtra nulls y prefija keys con P', async () => {
-      storage.seedMarcacion('exam-1', 1, 'A');
-      storage.seedMarcacion('exam-1', 2, null);
-      storage.seedMarcacion('exam-1', 5, 'D');
+  describe('Reshape AnswersMap a string compacto de longitud fija = count', () => {
+    it('marcas mezcladas con un null intermedio: {1:E, 2:A, 3:null, 4:C} count=4 → "EA-C"', async () => {
+      storage.seedMarcacion('exam-1', 1, 'E');
+      storage.seedMarcacion('exam-1', 2, 'A');
+      storage.seedMarcacion('exam-1', 3, null);
+      storage.seedMarcacion('exam-1', 4, 'C');
       api.willResolveDraft();
 
-      await useCase.execute({ examId: 'exam-1' });
+      await useCase.execute({ examId: 'exam-1', count: 4 });
 
       expect(api.draftCalls).toHaveLength(1);
       expect(api.draftCalls[0].examId).toBe('exam-1');
       expect(api.draftCalls[0].code).toBe(VALID_CODIGO);
-      expect(api.draftCalls[0].responses).toEqual({ P1: 'A', P5: 'D' });
-      // P2 no debe estar presente
-      expect(api.draftCalls[0].responses).not.toHaveProperty('P2');
+      expect(api.draftCalls[0].responses).toBe('EA-C');
+      // El responses es string, NO un objeto.
+      expect(typeof api.draftCalls[0].responses).toBe('string');
     });
 
-    it('AnswersMap vacío produce responses vacío', async () => {
-      // getMarcaciones retorna {} si no hay nada sembrado
+    it('AnswersMap vacío {} con count=5 → "-----"', async () => {
       api.willResolveDraft();
 
-      await useCase.execute({ examId: 'exam-1' });
+      await useCase.execute({ examId: 'exam-1', count: 5 });
 
-      expect(api.draftCalls[0].responses).toEqual({});
+      expect(api.draftCalls[0].responses).toBe('-----');
+      expect(api.draftCalls[0].responses).toHaveLength(5);
     });
 
-    it('AnswersMap todo nulls produce responses vacío', async () => {
+    it('todos null {1:null, 2:null, 3:null} con count=3 → "---"', async () => {
       storage.seedMarcacion('exam-1', 1, null);
       storage.seedMarcacion('exam-1', 2, null);
+      storage.seedMarcacion('exam-1', 3, null);
       api.willResolveDraft();
 
-      await useCase.execute({ examId: 'exam-1' });
+      await useCase.execute({ examId: 'exam-1', count: 3 });
 
-      expect(api.draftCalls[0].responses).toEqual({});
+      expect(api.draftCalls[0].responses).toBe('---');
+    });
+
+    it('marcas dispersas {1:A, 5:D} con count=6 → "A---D-"', async () => {
+      storage.seedMarcacion('exam-1', 1, 'A');
+      storage.seedMarcacion('exam-1', 5, 'D');
+      api.willResolveDraft();
+
+      await useCase.execute({ examId: 'exam-1', count: 6 });
+
+      expect(api.draftCalls[0].responses).toBe('A---D-');
+      expect(api.draftCalls[0].responses).toHaveLength(6);
+    });
+
+    it('count=0 con {} → "" (string vacío válido por contrato server)', async () => {
+      api.willResolveDraft();
+
+      await useCase.execute({ examId: 'exam-1', count: 0 });
+
+      expect(api.draftCalls[0].responses).toBe('');
+      expect(api.draftCalls[0].responses).toHaveLength(0);
+    });
+
+    it('marca fuera de rango {1:A, 50:B} con count=4 → "A---" (P50 ignorada silenciosamente)', async () => {
+      storage.seedMarcacion('exam-1', 1, 'A');
+      storage.seedMarcacion('exam-1', 50, 'B');
+      api.willResolveDraft();
+
+      await useCase.execute({ examId: 'exam-1', count: 4 });
+
+      expect(api.draftCalls[0].responses).toBe('A---');
+      expect(api.draftCalls[0].responses).toHaveLength(4);
     });
   });
 
   describe('Sesión expirada antes del POST', () => {
-    it('identity null → SessionExpiredError sin invocar getMarcaciones ni guardarDraft', async () => {
+    it('identity null → SessionExpiredError sin invocar guardarDraft', async () => {
       await identityStorage.clear();
       api.willResolveDraft();
 
-      await expect(useCase.execute({ examId: 'exam-1' })).rejects.toBeInstanceOf(
+      await expect(useCase.execute({ examId: 'exam-1', count: 4 })).rejects.toBeInstanceOf(
         SessionExpiredError,
       );
 
@@ -126,7 +159,7 @@ describe('GuardarDraftUseCase', () => {
       await identityStorage.write(studentIdentity(null));
       api.willResolveDraft();
 
-      await expect(useCase.execute({ examId: 'exam-1' })).rejects.toBeInstanceOf(
+      await expect(useCase.execute({ examId: 'exam-1', count: 4 })).rejects.toBeInstanceOf(
         SessionExpiredError,
       );
 
@@ -134,12 +167,12 @@ describe('GuardarDraftUseCase', () => {
     });
   });
 
-  describe('Use case NO toca queue ni ack', () => {
+  describe('Use case NO toca queue ni ack ni clear', () => {
     it('tras éxito, NO invoca enqueueEnvio ni setSubmissionAck ni clearMarcaciones', async () => {
       storage.seedMarcacion('exam-1', 1, 'A');
       api.willResolveDraft();
 
-      await useCase.execute({ examId: 'exam-1' });
+      await useCase.execute({ examId: 'exam-1', count: 4 });
 
       const log = storage.getOpsLog();
       expect(log).not.toContain('markings.enqueueEnvio');
@@ -154,14 +187,14 @@ describe('GuardarDraftUseCase', () => {
       const error = new SimulacroCerradoError();
       api.willRejectDraft(error);
 
-      await expect(useCase.execute({ examId: 'exam-1' })).rejects.toBe(error);
+      await expect(useCase.execute({ examId: 'exam-1', count: 4 })).rejects.toBe(error);
     });
 
     it('error genérico propaga tal cual', async () => {
       const error = new Error('error-generico');
       api.willRejectDraft(error);
 
-      await expect(useCase.execute({ examId: 'exam-1' })).rejects.toBe(error);
+      await expect(useCase.execute({ examId: 'exam-1', count: 4 })).rejects.toBe(error);
     });
   });
 });

@@ -234,15 +234,17 @@ class FakeProgramarAutoEnvioUseCase {
 
 // Fake dispatcher que registra invocaciones de notificarCambio y
 // cancelarDraftsPendientes para los tests de integración del view-model.
+// Captura (sessionId, count) para verificar que el view-model pasa el
+// Exam.count al dispatcher (design.md D12 de draft-auto-save).
 class FakeDraftDispatcher implements IDraftAutoSaveDispatcher {
-  public notificarCalls: string[] = [];
+  public notificarCalls: { sessionId: string; count: number }[] = [];
   public cancelarCalls: string[] = [];
 
   private readonly _closedSessions = signal<readonly string[]>([]);
   readonly closedSessions: Signal<readonly string[]> = this._closedSessions.asReadonly();
 
-  notificarCambio(sessionId: string): void {
-    this.notificarCalls.push(sessionId);
+  notificarCambio(sessionId: string, count: number): void {
+    this.notificarCalls.push({ sessionId, count });
   }
 
   cancelarDraftsPendientes(sessionId: string): void {
@@ -917,7 +919,7 @@ describe('SimulacroPageViewModel', () => {
   });
 
   describe('DraftAutoSaveDispatcher — integración con view-model', () => {
-    it('marcarRespuesta exitoso → notificarCambio(sessionId) invocado exactamente 1 vez', async () => {
+    it('marcarRespuesta exitoso → notificarCambio(sessionId, count) invocado exactamente 1 vez', async () => {
       // El examen debe ser vigente para que marcar() no se aborte antes de
       // llamar al dispatcher. Seteamos el reloj justo después del started del exam.
       fakeClock.setNow(new Date('2026-06-11T10:01:00Z'));
@@ -939,7 +941,11 @@ describe('SimulacroPageViewModel', () => {
       await vm.marcar(1, 'A');
 
       expect(fakeDraftDispatcher.notificarCalls).toHaveLength(1);
-      expect(fakeDraftDispatcher.notificarCalls[0]).toBe('exam-1');
+      // El view-model debe pasar el Exam.count al dispatcher (design.md D12).
+      expect(fakeDraftDispatcher.notificarCalls[0]).toEqual({
+        sessionId: 'exam-1',
+        count: 5,
+      });
       vm.stop();
     });
 

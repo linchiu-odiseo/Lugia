@@ -8,9 +8,16 @@ import { NetworkError } from '../../../../src/L1_domain/errors/network.error';
 import { SimulacroCerradoError } from '../../../../src/L1_domain/errors/simulacro-cerrado.error';
 import { InvalidPayloadError } from '../../../../src/L1_domain/errors/invalid-payload.error';
 
+// Fixture razonable para `count` en la mayoría de los specs — irrelevante al
+// comportamiento del dispatcher (debounce/throttle/backoff/heartbeat), solo
+// importa que el use case lo reciba intacto.
+const DEFAULT_COUNT = 4;
+
 // Fake del GuardarDraftUseCase que controla el resultado de cada llamada.
+// Captura `{ examId, count }` exactamente como llega del dispatcher para
+// permitir assert del passthrough del count nuevo (design.md D12).
 class FakeGuardarDraftUseCase {
-  public calls: { examId: string }[] = [];
+  public calls: { examId: string; count: number }[] = [];
   private plan:
     | { kind: 'resolve' }
     | { kind: 'reject'; error: Error }
@@ -34,8 +41,8 @@ class FakeGuardarDraftUseCase {
     this.plan = null;
   }
 
-  async execute(input: { examId: string }): Promise<void> {
-    this.calls.push({ examId: input.examId });
+  async execute(input: { examId: string; count: number }): Promise<void> {
+    this.calls.push({ examId: input.examId, count: input.count });
 
     let planToUse = this.plan;
     if (this.sequence.length > 0) {
@@ -82,9 +89,9 @@ describe('DraftAutoSaveDispatcher', () => {
   });
 
   describe('Debounce 3s', () => {
-    it('1 notificarCambio + 3000ms → 1 POST', async () => {
+    it('1 notificarCambio + 3000ms → 1 POST con (examId, count)', async () => {
       uc.willResolve();
-      dispatcher.notificarCambio('S1');
+      dispatcher.notificarCambio('S1', DEFAULT_COUNT);
 
       expect(uc.calls).toHaveLength(0);
 
@@ -92,13 +99,14 @@ describe('DraftAutoSaveDispatcher', () => {
 
       expect(uc.calls).toHaveLength(1);
       expect(uc.calls[0].examId).toBe('S1');
+      expect(uc.calls[0].count).toBe(DEFAULT_COUNT);
     });
 
     it('10 notificarCambio en 2s coalesce a 1 POST', async () => {
       uc.willResolve();
 
       for (let i = 0; i < 10; i++) {
-        dispatcher.notificarCambio('S1');
+        dispatcher.notificarCambio('S1', DEFAULT_COUNT);
         vi.advanceTimersByTime(200); // 200ms entre cada notificación (total 2s)
       }
 
@@ -111,9 +119,9 @@ describe('DraftAutoSaveDispatcher', () => {
     it('notificarCambio a t=0 y t=2000ms → POST a t=5000ms (debounce reset)', async () => {
       uc.willResolve();
 
-      dispatcher.notificarCambio('S1'); // timer A: dispara a t=3000
+      dispatcher.notificarCambio('S1', DEFAULT_COUNT); // timer A: dispara a t=3000
       vi.advanceTimersByTime(2000);
-      dispatcher.notificarCambio('S1'); // cancela timer A; timer B: dispara a t=5000
+      dispatcher.notificarCambio('S1', DEFAULT_COUNT); // cancela timer A; timer B: dispara a t=5000
 
       // A t=3000 (1000ms después) — timer A fue cancelado, no POST
       await advanceAndDrain(1000);
@@ -125,18 +133,77 @@ describe('DraftAutoSaveDispatcher', () => {
     });
   });
 
+  describe('count se persiste en DraftState idempotentemente', () => {
+    it('notificarCambio("S1", 50) → fire pasa { examId: "S1", count: 50 } al use case', async () => {
+      uc.willResolve();
+      dispatcher.notificarCambio('S1', 50);
+
+      await advanceAndDrain(3000);
+
+      expect(uc.calls).toHaveLength(1);
+      expect(uc.calls[0]).toEqual({ examId: 'S1', count: 50 });
+    });
+
+    it('count diferente entre llamadas: la última gana (idempotente) y el fire usa la última', async () => {
+      uc.willResolve();
+
+      // Primera notificación arma debounce con count=10
+      dispatcher.notificarCambio('S1', 10);
+      vi.advanceTimersByTime(1000);
+      // Segunda notificación actualiza count a 20 (reset debounce)
+      dispatcher.notificarCambio('S1', 20);
+
+      await advanceAndDrain(3000);
+
+      expect(uc.calls).toHaveLength(1);
+      expect(uc.calls[0].count).toBe(20);
+    });
+
+    it('count se mantiene entre POSTs sucesivos sin necesidad de re-notificar el mismo valor', async () => {
+      uc.willDoSequence([{ kind: 'resolve' }, { kind: 'resolve' }]);
+
+      // Primer ciclo: count=7
+      dispatcher.notificarCambio('S1', 7);
+      await advanceAndDrain(3000);
+      expect(uc.calls[0].count).toBe(7);
+
+      // Segundo ciclo: notifica sin actualizar count (pasa el mismo)
+      await advanceAndDrain(10_000); // libera throttle
+      dispatcher.notificarCambio('S1', 7);
+      await advanceAndDrain(3000);
+
+      expect(uc.calls).toHaveLength(2);
+      expect(uc.calls[1].count).toBe(7);
+    });
+
+    it('sesiones distintas mantienen counts independientes', async () => {
+      uc.willResolve();
+
+      dispatcher.notificarCambio('S1', 30);
+      dispatcher.notificarCambio('S2', 80);
+
+      await advanceAndDrain(3000);
+
+      expect(uc.calls).toHaveLength(2);
+      const s1 = uc.calls.find((c) => c.examId === 'S1');
+      const s2 = uc.calls.find((c) => c.examId === 'S2');
+      expect(s1?.count).toBe(30);
+      expect(s2?.count).toBe(80);
+    });
+  });
+
   describe('Throttle 10s entre POSTs', () => {
     it('tras éxito, segundo notificarCambio 3s después → POST gateado por throttle', async () => {
       uc.willResolve();
 
       // Primer dispatch a t=3000
-      dispatcher.notificarCambio('S1');
+      dispatcher.notificarCambio('S1', DEFAULT_COUNT);
       await advanceAndDrain(3000);
       expect(uc.calls).toHaveLength(1);
 
       // Segundo cambio a t=4000 (1s después del primer POST exitoso)
       vi.advanceTimersByTime(1000);
-      dispatcher.notificarCambio('S1'); // debounce: dispara tryFire a t=7000
+      dispatcher.notificarCambio('S1', DEFAULT_COUNT); // debounce: dispara tryFire a t=7000
 
       // t=7000: debounce dispara, throttle detecta (7000 - 3000 = 4000 < 10000) → reagenda
       await advanceAndDrain(3000);
@@ -152,13 +219,13 @@ describe('DraftAutoSaveDispatcher', () => {
     it('primera falla NetworkError → reintento bloqueado hasta backoff', async () => {
       uc.willReject(new NetworkError());
 
-      dispatcher.notificarCambio('S1');
+      dispatcher.notificarCambio('S1', DEFAULT_COUNT);
       await advanceAndDrain(3000);
       expect(uc.calls).toHaveLength(1);
 
       // Intento inmediato post-falla — bloqueado por backoff (30s)
       uc.willResolve();
-      dispatcher.notificarCambio('S1');
+      dispatcher.notificarCambio('S1', DEFAULT_COUNT);
       await advanceAndDrain(3000); // debounce dispara, pero backoff bloquea
       expect(uc.calls).toHaveLength(1);
 
@@ -173,12 +240,12 @@ describe('DraftAutoSaveDispatcher', () => {
         { kind: 'resolve' },
       ]);
 
-      dispatcher.notificarCambio('S1');
+      dispatcher.notificarCambio('S1', DEFAULT_COUNT);
       await advanceAndDrain(3000); // primera falla a t=3000
 
       // Debounce post-falla expira a t=6000, pero backoff bloquea hasta t=33000.
       // tryFire() reagenda un timer en 27000ms (33000-6000) que dispara a t=33000.
-      dispatcher.notificarCambio('S1');
+      dispatcher.notificarCambio('S1', DEFAULT_COUNT);
       await advanceAndDrain(3000); // t=6000: debounce → tryFire → backoff reagenda t=33000
       const callsAt6s = uc.calls.length;
       await advanceAndDrain(25_000); // t=31_000 — aún antes del backoff (t=33_000)
@@ -197,17 +264,17 @@ describe('DraftAutoSaveDispatcher', () => {
         { kind: 'resolve' },
       ]);
 
-      dispatcher.notificarCambio('S1');
+      dispatcher.notificarCambio('S1', DEFAULT_COUNT);
       await advanceAndDrain(3_000); // falla 1 a t=3000
 
       // Avanzar el primer backoff (30s) + reintentar
       await advanceAndDrain(30_001); // t=33001
-      dispatcher.notificarCambio('S1');
+      dispatcher.notificarCambio('S1', DEFAULT_COUNT);
       await advanceAndDrain(3_000); // t=36001, falla 2
 
       // Ahora el backoff es 60s. Verificar que espera.
       uc.willResolve();
-      dispatcher.notificarCambio('S1');
+      dispatcher.notificarCambio('S1', DEFAULT_COUNT);
       await advanceAndDrain(3_000); // debounce + intento bloqueado
 
       const callsBefore = uc.calls.length;
@@ -225,13 +292,13 @@ describe('DraftAutoSaveDispatcher', () => {
       });
       uc.willDoSequence([...rejects, { kind: 'resolve' }]);
 
-      dispatcher.notificarCambio('S1');
+      dispatcher.notificarCambio('S1', DEFAULT_COUNT);
       await advanceAndDrain(3_000); // falla 1
 
       const backoffs = [30_001, 60_001, 120_001, 240_001];
       for (const delay of backoffs) {
         await advanceAndDrain(delay);
-        dispatcher.notificarCambio('S1');
+        dispatcher.notificarCambio('S1', DEFAULT_COUNT);
         await advanceAndDrain(3_000);
       }
       // fallas 1-5 completadas (5 calls)
@@ -241,7 +308,7 @@ describe('DraftAutoSaveDispatcher', () => {
       // En este punto: nextRetryAt = falla5_at + 300_000. El debounce expira
       // 3s después de notificarCambio → tryFire ve delta = 300_000 - 3_000 = 297_000ms.
       uc.willResolve();
-      dispatcher.notificarCambio('S1');
+      dispatcher.notificarCambio('S1', DEFAULT_COUNT);
       await advanceAndDrain(3_000); // debounce → tryFire → reagenda en 297_000ms
       const callsAfter5th = uc.calls.length;
 
@@ -264,23 +331,23 @@ describe('DraftAutoSaveDispatcher', () => {
         { kind: 'resolve' },
       ]);
 
-      dispatcher.notificarCambio('S1');
+      dispatcher.notificarCambio('S1', DEFAULT_COUNT);
       await advanceAndDrain(3_000); // falla 1
 
       const backoffs = [30_001, 60_001, 120_001, 240_001];
       for (const delay of backoffs) {
         await advanceAndDrain(delay);
-        dispatcher.notificarCambio('S1');
+        dispatcher.notificarCambio('S1', DEFAULT_COUNT);
         await advanceAndDrain(3_000);
       }
       // fallas 1-4, luego éxito (5 calls total)
 
       // La siguiente falla debe aplicar 30s (reset), no 300s
-      dispatcher.notificarCambio('S1');
+      dispatcher.notificarCambio('S1', DEFAULT_COUNT);
       await advanceAndDrain(3_000); // falla 6 → nextRetryAt = now + 30_000
 
       uc.willResolve();
-      dispatcher.notificarCambio('S1');
+      dispatcher.notificarCambio('S1', DEFAULT_COUNT);
       await advanceAndDrain(3_000); // debounce, bloqueado
       const callsBefore = uc.calls.length;
 
@@ -291,13 +358,13 @@ describe('DraftAutoSaveDispatcher', () => {
     it('backoff NO aplica a InvalidPayloadError → stopped=true', async () => {
       uc.willReject(new InvalidPayloadError());
 
-      dispatcher.notificarCambio('S1');
+      dispatcher.notificarCambio('S1', DEFAULT_COUNT);
       await advanceAndDrain(3_000);
       expect(uc.calls).toHaveLength(1);
 
       // stopped=true, futuros notificarCambio no hacen nada
       uc.willResolve();
-      dispatcher.notificarCambio('S1');
+      dispatcher.notificarCambio('S1', DEFAULT_COUNT);
       await advanceAndDrain(300_000);
       expect(uc.calls).toHaveLength(1);
     });
@@ -305,13 +372,13 @@ describe('DraftAutoSaveDispatcher', () => {
     it('backoff NO aplica a SimulacroCerradoError → stopped=true, escala closedSessions', async () => {
       uc.willReject(new SimulacroCerradoError());
 
-      dispatcher.notificarCambio('S1');
+      dispatcher.notificarCambio('S1', DEFAULT_COUNT);
       await advanceAndDrain(3_000);
 
       expect(dispatcher.closedSessions()).toContain('S1');
 
       uc.willResolve();
-      dispatcher.notificarCambio('S1');
+      dispatcher.notificarCambio('S1', DEFAULT_COUNT);
       await advanceAndDrain(300_000);
       expect(uc.calls).toHaveLength(1);
     });
@@ -322,7 +389,7 @@ describe('DraftAutoSaveDispatcher', () => {
         { kind: 'resolve' },
       ]);
 
-      dispatcher.notificarCambio('S1');
+      dispatcher.notificarCambio('S1', DEFAULT_COUNT);
       await advanceAndDrain(3_000); // falla → nextRetryAt = 3000 + 30000 = 33000
       expect(uc.calls).toHaveLength(1);
 
@@ -355,14 +422,14 @@ describe('DraftAutoSaveDispatcher', () => {
       uc.willResolve();
 
       // Primer POST a t=3000
-      dispatcher.notificarCambio('S1');
+      dispatcher.notificarCambio('S1', DEFAULT_COUNT);
       await advanceAndDrain(3_000);
       expect(uc.calls).toHaveLength(1);
 
       // Nuevo cambio a t=5000. El debounce expira a t=8000.
       // El throttle (lastPostAt=3000 + 10_000 = 13000) reagenda a t=13000.
       vi.advanceTimersByTime(2_000); // t=5000
-      dispatcher.notificarCambio('S1');
+      dispatcher.notificarCambio('S1', DEFAULT_COUNT);
       await advanceAndDrain(3_000); // t=8000: debounce → throttle reagenda a t=13000
       expect(uc.calls).toHaveLength(1); // throttle bloqueó
 
@@ -375,7 +442,7 @@ describe('DraftAutoSaveDispatcher', () => {
     it('heartbeat NO dispara si stopped', async () => {
       uc.willResolve();
 
-      dispatcher.notificarCambio('S1');
+      dispatcher.notificarCambio('S1', DEFAULT_COUNT);
       dispatcher.cancelarDraftsPendientes('S1'); // stopped=true
 
       await advanceAndDrain(60_000);
@@ -390,7 +457,7 @@ describe('DraftAutoSaveDispatcher', () => {
       let callCount = 0;
 
       const customUc = {
-        async execute(_input: { examId: string }): Promise<void> {
+        async execute(_input: { examId: string; count: number }): Promise<void> {
           callCount++;
           return inflightPromise;
         },
@@ -401,7 +468,7 @@ describe('DraftAutoSaveDispatcher', () => {
       );
 
       // Iniciar primer POST (inflight)
-      d.notificarCambio('S1');
+      d.notificarCambio('S1', DEFAULT_COUNT);
       await advanceAndDrain(3_000); // fire() comienza pero no termina
 
       expect(callCount).toBe(1);
@@ -427,7 +494,7 @@ describe('DraftAutoSaveDispatcher', () => {
       const customUc = {
         calls: 0,
         resolvers: [firstInflight, resolveSecond()],
-        async execute(_input: { examId: string }): Promise<void> {
+        async execute(_input: { examId: string; count: number }): Promise<void> {
           callCount++;
           this.calls++;
           const next = this.resolvers.shift();
@@ -440,13 +507,13 @@ describe('DraftAutoSaveDispatcher', () => {
       );
 
       // Primer POST arranca (inflight)
-      d.notificarCambio('S1');
+      d.notificarCambio('S1', DEFAULT_COUNT);
       await advanceAndDrain(3_000); // fire() comienza, queda en inflight
 
       expect(callCount).toBe(1);
 
       // Notificar durante el inflight → dirty=true, arma debounce
-      d.notificarCambio('S1');
+      d.notificarCambio('S1', DEFAULT_COUNT);
 
       // Resolver el primer POST
       resolveFirst();
@@ -466,14 +533,14 @@ describe('DraftAutoSaveDispatcher', () => {
     it('cancelarDraftsPendientes cancela debounce; futuros notificarCambio no programan timer', async () => {
       uc.willResolve();
 
-      dispatcher.notificarCambio('S1'); // arma debounce a 3s
+      dispatcher.notificarCambio('S1', DEFAULT_COUNT); // arma debounce a 3s
       dispatcher.cancelarDraftsPendientes('S1'); // cancela y stopped=true
 
       await advanceAndDrain(3_000);
       expect(uc.calls).toHaveLength(0); // debounce cancelado
 
       // Futuros cambios tampoco disparan
-      dispatcher.notificarCambio('S1');
+      dispatcher.notificarCambio('S1', DEFAULT_COUNT);
       await advanceAndDrain(10_000);
       expect(uc.calls).toHaveLength(0);
     });
@@ -484,7 +551,7 @@ describe('DraftAutoSaveDispatcher', () => {
       const inflightPromise = new Promise<void>((r) => (resolveUc = r));
 
       const customUc = {
-        async execute(_input: { examId: string }): Promise<void> {
+        async execute(_input: { examId: string; count: number }): Promise<void> {
           callCount++;
           return inflightPromise;
         },
@@ -495,7 +562,7 @@ describe('DraftAutoSaveDispatcher', () => {
       );
 
       // POST arranca (inflight)
-      d.notificarCambio('S1');
+      d.notificarCambio('S1', DEFAULT_COUNT);
       await advanceAndDrain(3_000);
       expect(callCount).toBe(1);
 
@@ -515,7 +582,7 @@ describe('DraftAutoSaveDispatcher', () => {
     it('SimulacroCerradoError → stopped=true y sessionId aparece en closedSessions', async () => {
       uc.willReject(new SimulacroCerradoError());
 
-      dispatcher.notificarCambio('S1');
+      dispatcher.notificarCambio('S1', DEFAULT_COUNT);
       await advanceAndDrain(3_000);
 
       expect(dispatcher.closedSessions()).toContain('S1');
@@ -527,10 +594,10 @@ describe('DraftAutoSaveDispatcher', () => {
         { kind: 'resolve' }, // S2 sigue bien
       ]);
 
-      dispatcher.notificarCambio('S1');
+      dispatcher.notificarCambio('S1', DEFAULT_COUNT);
       await advanceAndDrain(3_000);
 
-      dispatcher.notificarCambio('S2');
+      dispatcher.notificarCambio('S2', DEFAULT_COUNT);
       await advanceAndDrain(3_000);
 
       expect(dispatcher.closedSessions()).toContain('S1');
@@ -545,7 +612,7 @@ describe('DraftAutoSaveDispatcher', () => {
         { kind: 'resolve' },
       ]);
 
-      dispatcher.notificarCambio('S1');
+      dispatcher.notificarCambio('S1', DEFAULT_COUNT);
       await advanceAndDrain(3_000);
 
       expect(uc.calls).toHaveLength(1);
@@ -553,7 +620,7 @@ describe('DraftAutoSaveDispatcher', () => {
 
       // Avanzar el backoff (30s) y reintentar
       await advanceAndDrain(30_001);
-      dispatcher.notificarCambio('S1');
+      dispatcher.notificarCambio('S1', DEFAULT_COUNT);
       await advanceAndDrain(3_000);
       expect(uc.calls).toHaveLength(2);
     });
@@ -561,13 +628,13 @@ describe('DraftAutoSaveDispatcher', () => {
     it('InvalidPayloadError → stopped=true, closedSessions NO emite', async () => {
       uc.willReject(new InvalidPayloadError());
 
-      dispatcher.notificarCambio('S1');
+      dispatcher.notificarCambio('S1', DEFAULT_COUNT);
       await advanceAndDrain(3_000);
 
       expect(dispatcher.closedSessions()).not.toContain('S1');
 
       uc.willResolve();
-      dispatcher.notificarCambio('S1');
+      dispatcher.notificarCambio('S1', DEFAULT_COUNT);
       await advanceAndDrain(10_000);
       expect(uc.calls).toHaveLength(1);
     });
@@ -580,13 +647,13 @@ describe('DraftAutoSaveDispatcher', () => {
         { kind: 'resolve' }, // autoheal cuando el back deploya
       ]);
 
-      dispatcher.notificarCambio('S1');
+      dispatcher.notificarCambio('S1', DEFAULT_COUNT);
       await advanceAndDrain(3_000);
       expect(uc.calls).toHaveLength(1);
 
       // Avanzar el backoff (30s) para el autoheal
       await advanceAndDrain(30_001);
-      dispatcher.notificarCambio('S1');
+      dispatcher.notificarCambio('S1', DEFAULT_COUNT);
       await advanceAndDrain(3_000);
       expect(uc.calls).toHaveLength(2);
     });
@@ -605,8 +672,8 @@ describe('NoopDraftAutoSaveDispatcher', () => {
     vi.useRealTimers();
   });
 
-  it('notificarCambio no programa timer', async () => {
-    noop.notificarCambio('S1');
+  it('notificarCambio(sessionId, count) no programa timer', async () => {
+    noop.notificarCambio('S1', DEFAULT_COUNT);
     vi.advanceTimersByTime(60_000);
     await Promise.resolve();
     // No lanza, no tiene efectos observables
@@ -619,7 +686,7 @@ describe('NoopDraftAutoSaveDispatcher', () => {
 
   it('closedSessions siempre vacía', () => {
     expect(noop.closedSessions()).toEqual([]);
-    noop.notificarCambio('S1');
+    noop.notificarCambio('S1', DEFAULT_COUNT);
     vi.advanceTimersByTime(60_000);
     expect(noop.closedSessions()).toEqual([]);
   });
