@@ -36,6 +36,7 @@ import { MarcarRespuestaUseCase } from './L2_application/use-cases/marcar-respue
 import { EnviarSimulacroUseCase } from './L2_application/use-cases/enviar-simulacro.use-case';
 import { RetomarEnviosPendientesUseCase } from './L2_application/use-cases/retomar-envios-pendientes.use-case';
 import { ProgramarAutoEnvioUseCase } from './L2_application/use-cases/programar-auto-envio.use-case';
+import { GuardarDraftUseCase } from './L2_application/use-cases/guardar-draft.use-case';
 
 // L3 implementaciones de los puertos.
 import { HttpAuthRepository } from './L3_periphery/http/http-auth-repository';
@@ -46,9 +47,14 @@ import { IndexedDbMarkingsStorage } from './L3_periphery/storage/indexed-db-mark
 import { ServerAnchoredClock } from './L3_periphery/clock/server-anchored-clock';
 import { BrowserConnectivity } from './L3_periphery/connectivity/browser-connectivity';
 import { EnvioRetryDispatcher } from './L3_periphery/envio/envio-retry-dispatcher.service';
+import {
+  DraftAutoSaveDispatcher,
+  NoopDraftAutoSaveDispatcher,
+} from './L3_periphery/envio/draft-auto-save-dispatcher.service';
 import { credentialsInterceptor } from './L3_periphery/interceptors/credentials.interceptor';
 import { PwaUpdateService } from './L3_periphery/pwa/pwa-update.service';
 import { IDENTITY_STORAGE, PROFILE_STORAGE, OUTBOX_STORAGE } from './L3_periphery/tokens';
+import { environment } from './environments/environment';
 
 // Tokens DI para ports de Fase 2 que aún no migraron a src/L3_periphery/tokens.ts.
 // Se mantienen acá hasta que un change futuro los consolide.
@@ -176,6 +182,22 @@ export const appConfig: ApplicationConfig = {
       useFactory: (enviar: EnviarSimulacroUseCase, clock: Clock) =>
         new ProgramarAutoEnvioUseCase(enviar, clock),
       deps: [EnviarSimulacroUseCase, CLOCK],
+    },
+    {
+      provide: GuardarDraftUseCase,
+      useFactory: (api: ExamsApi, markings: MarkingsStorage, identity: IdentityStorage) =>
+        new GuardarDraftUseCase(api, markings, identity),
+      deps: [EXAMS_API, MARKINGS_STORAGE, IDENTITY_STORAGE],
+    },
+    // Provider del dispatcher de draft. Con draftEnabled=true se instancia el
+    // dispatcher real; con false, el stub no-op que no emite tráfico ni timers.
+    // El view-model inyecta DraftAutoSaveDispatcher y llama métodos sin condicional.
+    // (design.md D7 — NO en APP_INITIALIZER, arranca lazy desde el view-model D8)
+    {
+      provide: DraftAutoSaveDispatcher,
+      useFactory: (useCase: GuardarDraftUseCase) =>
+        environment.draftEnabled ? new DraftAutoSaveDispatcher(useCase) : new NoopDraftAutoSaveDispatcher(),
+      deps: [GuardarDraftUseCase],
     },
 
     // AppInitializer: re-valida identity contra learnex al arrancar (cookie
