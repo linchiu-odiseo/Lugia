@@ -139,7 +139,7 @@ describe('SubmissionReceiptModalComponent', () => {
     // NOTAR: el output se llama `closed` (no `close`) por la regla ESLint
     // `no-output-native` que prohíbe nombres colisionando con eventos DOM.
     it('al click en "Volver al inicio" emite `closed` (sin payload)', () => {
-      const emissions: Array<void> = [];
+      const emissions: void[] = [];
       component.closed.subscribe(() => emissions.push(undefined));
 
       const button = fixture.nativeElement.querySelector(

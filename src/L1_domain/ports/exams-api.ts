@@ -26,6 +26,17 @@ export interface EnvioResult {
   ack: SubmissionAck;
 }
 
+// Body del POST de draft (auto-save progresivo). `examId` es el `sessionId`
+// del path (igual que en EnvioRequest); `code` es el DNI del alumno; `responses`
+// ya viene con keys `P<n>` y SIN nulls (filtrados en L2).
+// NOTA: NO incluye `clientFinishedAt` — exclusivo del /submit final. El draft
+// es snapshot completo del estado actual; el server usa `expectedEndAt` para TTL.
+export interface DraftRequest {
+  examId: string;
+  code: string;
+  responses: Record<string, 'A' | 'B' | 'C' | 'D' | 'E'>;
+}
+
 // Puerto del dominio para el backend de exámenes de learnex.
 // Implementación concreta vive en L3 (`HttpExamsApi`).
 //
@@ -46,7 +57,24 @@ export interface EnvioResult {
 //   - 409 + message "SESSION_NOT_ACTIVE"               → SimulacroCerradoError
 //   - 422 + message "CLOCK_SKEW_*"                     → InvalidSubmissionTimeError
 //   - 0 / 429 / 5xx / message fuera de enum            → NetworkError
+//
+// Mapeo de errores POST /student/exam-sessions/{id}/draft (excepción
+// documentada a la regla "nunca leer message" — segundo set enumerado cerrado,
+// ver design.md D5/D10 de `draft-auto-save`; misma justificación que submit):
+// Set DRAFT_ERROR_MESSAGES = { 'STUDENT_NOT_ENROLLED', 'STUDENT_MISMATCH',
+//   'SESSION_NOT_FOUND', 'STUDENT_BY_CODE_NOT_FOUND', 'SESSION_NOT_ACTIVE' }
+//   - 400                                                → InvalidPayloadError
+//   - 401                                                → manejado por `credentials.interceptor`
+//   - 403 + message "STUDENT_NOT_ENROLLED"               → StudentNotEnrolledError
+//   - 403 + message "STUDENT_MISMATCH" u otro            → NetworkError (retryable con backoff)
+//   - 404 + message "SESSION_NOT_FOUND"                  → SimulacroNoAsignadoError
+//   - 404 + message "STUDENT_BY_CODE_NOT_FOUND"          → StudentNotLinkedError
+//   - 404 sin message conocido                           → NetworkError (retryable con backoff;
+//       autoheal si el back deploya mid-sesión — ver design.md D6)
+//   - 409 + message "SESSION_NOT_ACTIVE"                 → SimulacroCerradoError (escala al VM)
+//   - 429 / 5xx / 0 / timeout / message fuera de enum   → NetworkError (retryable con backoff)
 export interface ExamsApi {
   getTodaysExams(): Promise<ExamsListResult>;
   enviar(req: EnvioRequest): Promise<EnvioResult>;
+  guardarDraft(req: DraftRequest): Promise<void>; // 204 No Content
 }
