@@ -1,0 +1,8 @@
+services:
+  lugia:
+    build: .
+    image: lugia:latest
+    container_name: lugia
+    ports:
+      - "3005:80"
+    restart: unless-stopped
