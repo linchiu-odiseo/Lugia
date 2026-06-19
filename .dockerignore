@@ -1,3 +1,36 @@
-*
-!dist/lugia/browser/**
-!nginx.conf
+# Excluir todo lo que no necesita el build adentro del contenedor.
+# El objetivo: que el build context que se manda al daemon sea minimo
+# y que no contamine el build con artefactos locales.
+
+# Dependencias y caches: se reinstalan / regeneran adentro
+node_modules
+.angular
+dist
+
+# Control de version y editor
+.git
+.gitignore
+.vscode
+.idea
+
+# Tests y docs: no son necesarios para el bundle de prod
+tests
+docs
+agents
+openspec
+tools
+
+# Markdown y meta
+*.md
+!README.md
+
+# Archivos de Docker que no van adentro del contenedor
+Dockerfile
+.dockerignore
+compose.yml
+docker-compose.yml
+
+# Logs y env locales irrelevantes (el .env SI se necesita para build-env.mjs)
+*.log
+.DS_Store
+Thumbs.db
