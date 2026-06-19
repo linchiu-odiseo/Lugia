@@ -67,3 +67,5 @@ Auto-generado por `.claude/hooks/log-agent-usage.ps1` en cada PostToolUse del to
 | 2026-06-18 12:28:42 | sdd-propose | Resume sdd-propose draft-auto-save | opus-4-7 | 109,041 | -- | -- | $0.3505 |
 | 2026-06-18 13:14:21 | sdd-apply | SDD apply: draft-auto-save | opus-4-7 | 85,825 | -- | -- | $0.2162 |
 | 2026-06-18 14:20:21 | test-engineer | Update tests for fixed-string contract | opus-4-7 | 102,223 | -- | -- | $0.3081 |
+| 2026-06-19 01:05:48 | sdd-verify | SDD verify draft-auto-save | opus-4-7 | 114,633 | -- | -- | $0.4378 |
+| 2026-06-19 01:15:25 | sdd-archive | SDD archive draft-auto-save | opus-4-7 | 101,246 | -- | -- | $0.3058 |
