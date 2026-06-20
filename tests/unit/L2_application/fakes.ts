@@ -333,7 +333,7 @@ export class FakeTutorExamsApi implements TutorExamsApi {
     this.nextListClassroomStudents = { kind: 'reject', error };
   }
 
-  getListClassroomStudentsCalls(): readonly Array<{ classroomId: string; virtualExamDetailId: string }> {
+  getListClassroomStudentsCalls(): ReadonlyArray<{ classroomId: string; virtualExamDetailId: string }> {
     return this.listClassroomStudentsCalls;
   }
 
@@ -361,7 +361,7 @@ export class FakeTutorExamsApi implements TutorExamsApi {
     this.nextUpdateEnabledStudents = { kind: 'reject', error };
   }
 
-  getUpdateEnabledStudentsCalls(): readonly Array<{ recordId: string; enabledStudentIds: readonly string[] }> {
+  getUpdateEnabledStudentsCalls(): ReadonlyArray<{ recordId: string; enabledStudentIds: readonly string[] }> {
     return this.updateEnabledStudentsCalls;
   }
 

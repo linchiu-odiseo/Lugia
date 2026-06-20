@@ -30,8 +30,8 @@ describe('TutorExamDetail — tipo/estructura', () => {
     };
     // Si el tipo tiene classroomId / entryId, TS lo inferiría como requerido y
     // el objeto de arriba fallaría. Verificamos en runtime que no están presentes.
-    expect((detail as Record<string, unknown>)['classroomId']).toBeUndefined();
-    expect((detail as Record<string, unknown>)['entryId']).toBeUndefined();
+    expect((detail as unknown as Record<string, unknown>)['classroomId']).toBeUndefined();
+    expect((detail as unknown as Record<string, unknown>)['entryId']).toBeUndefined();
   });
 
   it('NO tiene campo entryId (compilación TypeScript)', () => {
@@ -48,7 +48,7 @@ describe('TutorExamDetail — tipo/estructura', () => {
       finishedAt: null,
       createdAt: new Date('2026-06-01T10:00:00Z'),
     };
-    expect((detail as Record<string, unknown>)['entryId']).toBeUndefined();
+    expect((detail as unknown as Record<string, unknown>)['entryId']).toBeUndefined();
   });
 
   it('tiene enabledStudentIds: readonly string[]', () => {

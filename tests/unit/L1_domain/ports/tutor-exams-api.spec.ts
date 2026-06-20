@@ -38,8 +38,9 @@ describe('TutorExamsApi port — smoke de tipos', () => {
     };
 
     // Contamos los métodos expuestos en el fake (debe ser exactamente 6).
-    const methodCount = Object.keys(fake).filter(
-      (key) => typeof (fake as Record<string, unknown>)[key] === 'function',
+    const fakeAsRecord = fake as unknown as Record<string, unknown>;
+    const methodCount = Object.keys(fakeAsRecord).filter(
+      (key) => typeof fakeAsRecord[key] === 'function',
     ).length;
 
     expect(methodCount).toBe(6);
