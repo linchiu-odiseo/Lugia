@@ -100,6 +100,17 @@ describe('app.routes', () => {
       expect(typeof r?.loadComponent).toBe('function');
     });
 
+    it('/tutor/exams/:recordId loadComponent resuelve TutorExamDetailPage (no el stub)', async () => {
+      const r = findRoute('tutor/exams/:recordId');
+      expect(typeof r?.loadComponent).toBe('function');
+      const result = await r!.loadComponent!() as unknown;
+      const resultName =
+        (result as { name?: string })?.name ??
+        (result as { default?: { name?: string } })?.default?.name ??
+        '';
+      expect(resultName).toContain('TutorExamDetail');
+    });
+
     it('roleGuard("student") y roleGuard("tutor") son funciones distintas (factory genera instancia nueva por rol)', () => {
       const studentRoute = findRoute('student/home');
       const tutorRoute = findRoute('tutor/home');
