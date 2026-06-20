@@ -1,0 +1,56 @@
+<main class="tutor-exams-list">
+  <header class="tutor-exams-list__header">
+    <span class="role-badge">Tutor</span>
+    @if (vm.profileLoading()) {
+      <p class="tutor-exams-list__user skeleton">Cargando perfil…</p>
+    } @else if (vm.profileUnavailable()) {
+      <p class="tutor-exams-list__user">{{ vm.userEmail() }}</p>
+    } @else {
+      <p class="tutor-exams-list__user">{{ vm.userName() }}</p>
+    }
+  </header>
+
+  @if (vm.loading()) {
+    <section class="tutor-exams-list__loading" aria-busy="true">
+      <p>Cargando exámenes…</p>
+    </section>
+  }
+
+  @if (vm.error()) {
+    <section class="tutor-exams-list__error" role="alert">
+      <p>Sin conexión. Revisá tu red y reintentá.</p>
+      <button type="button" (click)="vm.refresh()">Reintentar</button>
+    </section>
+  }
+
+  <ul class="tutor-exams-list__list">
+    @for (exam of vm.exams(); track exam.recordId) {
+      <li
+        class="exam-card"
+        data-testid="exam-card"
+        (click)="onExamCardClick(exam)"
+        (keydown.enter)="onExamCardClick(exam)"
+        role="button"
+        tabindex="0"
+      >
+        <div class="exam-card__header">
+          <h2 class="exam-card__name">{{ exam.name }}</h2>
+          <span class="exam-card__status-badge" data-testid="status-badge">
+            {{ statusLabel(exam) }}
+          </span>
+        </div>
+        <div class="exam-card__meta">
+          <span class="exam-card__count">{{ countDisplay(exam) }} preguntas</span>
+          @if (exam.courseId) {
+            <span class="exam-card__course">{{ exam.courseId }}</span>
+          }
+          <span class="exam-card__duration">{{ exam.duration }} min</span>
+        </div>
+      </li>
+    } @empty {
+      <li class="tutor-exams-list__empty">
+        <p>No tenés exámenes asignados.</p>
+      </li>
+    }
+  </ul>
+</main>

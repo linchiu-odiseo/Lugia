@@ -36,7 +36,16 @@ export const routes: Routes = [
   {
     path: 'tutor/home',
     canActivate: [authGuard, roleGuard('tutor')],
-    loadComponent: () => import('./pages/tutor-home/tutor-home.page').then((m) => m.TutorHomePage),
+    loadComponent: () =>
+      import('./pages/tutor-exams-list/tutor-exams-list.page').then((m) => m.TutorExamsListPage),
+  },
+  {
+    path: 'tutor/exams/:recordId',
+    canActivate: [authGuard, roleGuard('tutor')],
+    loadComponent: () =>
+      import('./pages/tutor-exam-detail/tutor-exam-detail.page').then(
+        (m) => m.TutorExamDetailPage,
+      ),
   },
   // Redirects legacy para bookmarks / instalaciones PWA existentes.
   { path: 'home', pathMatch: 'full', redirectTo: '/student/home' },

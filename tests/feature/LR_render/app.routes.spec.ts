@@ -68,13 +68,19 @@ describe('app.routes', () => {
       expect(typeof r?.canActivate?.[1]).toBe('function');
     });
 
-    it('/tutor/home carga TutorExamsListPage (lazy loadComponent apunta al componente de lista)', () => {
+    it('/tutor/home carga TutorExamsListPage (lazy loadComponent existe)', async () => {
       const r = findRoute('tutor/home');
       expect(typeof r?.loadComponent).toBe('function');
-      // Verificamos que la función lazy NO referencia el placeholder antiguo
-      // inspeccionando el toString() del import dinámico.
-      const importStr = r?.loadComponent?.toString() ?? '';
-      expect(importStr).toContain('tutor-exams-list');
+      // Verificamos que la función lazy resuelve al componente correcto.
+      // En el entorno de test, loadComponent() puede retornar la clase directamente
+      // o un objeto con la clase. Inspeccionamos ambas posibilidades.
+      const result = await r!.loadComponent!() as unknown;
+      // Buscar recursivamente el nombre de clase en el resultado
+      const resultName =
+        (result as { name?: string })?.name ??
+        (result as { default?: { name?: string } })?.default?.name ??
+        '';
+      expect(resultName).toContain('TutorExamsList');
     });
 
     it('/tutor/exams/:recordId existe en la configuración de rutas', () => {
@@ -105,13 +111,18 @@ describe('app.routes', () => {
       expect(typeof newStudentGuard).toBe('function');
     });
 
-    it('no existe componente placeholder para /tutor/home (tutor-home.page en loadComponent)', () => {
+    it('no existe componente placeholder para /tutor/home (loadComponent resuelve TutorExamsListPage)', async () => {
       // Tras el change, /tutor/home debe apuntar a TutorExamsListPage, NO al
-      // placeholder TutorHomePage. Verificamos que la función de lazy load NO
-      // contiene 'tutor-home.page'.
+      // placeholder TutorHomePage. Verificamos resolviendo la lazy function.
       const r = findRoute('tutor/home');
-      const importStr = r?.loadComponent?.toString() ?? '';
-      expect(importStr).not.toContain('tutor-home.page');
+      expect(typeof r?.loadComponent).toBe('function');
+      const result = await r!.loadComponent!() as unknown;
+      const resultName =
+        (result as { name?: string })?.name ??
+        (result as { default?: { name?: string } })?.default?.name ??
+        '';
+      // Si apuntara al placeholder, el nombre sería TutorHomePage.
+      expect(resultName).not.toContain('TutorHome');
     });
   });
 
