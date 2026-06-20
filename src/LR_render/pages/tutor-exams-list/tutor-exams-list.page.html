@@ -1,0 +1,127 @@
+<main class="tutor-exams-list">
+  <header class="tutor-exams-list__header">
+    <span class="role-badge">Tutor</span>
+    <p class="tutor-exams-list__kicker">Modo tutor</p>
+  </header>
+
+  <!-- Profile card: skeleton / degraded / normal -->
+  @if (vm.profileLoading()) {
+    <section
+      class="profile-card profile-card--skeleton"
+      data-testid="profile-skeleton"
+      aria-busy="true"
+    >
+      <p class="tutor-exams-list__skeleton-line">Cargando perfil…</p>
+    </section>
+  } @else if (vm.profileUnavailable()) {
+    <section class="profile-card profile-card--degraded" data-testid="profile-card-degraded">
+      <h1 class="tutor-exams-list__greeting">Hola</h1>
+      <p class="tutor-exams-list__email">{{ vm.userEmail() }}</p>
+      <p class="tutor-exams-list__hint">Perfil no disponible. Contactá a tu administrador.</p>
+    </section>
+  } @else {
+    <section class="profile-card" data-testid="profile-card">
+      <h1 class="tutor-exams-list__greeting">Hola, {{ vm.userName() }}</h1>
+      <dl class="profile-meta">
+        <div class="profile-meta__row">
+          <dt>Email</dt>
+          <dd>{{ vm.profileEmail() ?? vm.userEmail() }}</dd>
+        </div>
+        <div class="profile-meta__row">
+          <dt>DNI / Código</dt>
+          <dd class="profile-meta__mono">{{ vm.userCode() }}</dd>
+        </div>
+      </dl>
+    </section>
+
+    <!-- Mis aulas -->
+    <section class="stats-card" data-testid="classrooms-section">
+      <h2 class="section-title">Mis aulas</h2>
+      @if (vm.hasClassrooms()) {
+        <p class="stats-card__line" data-testid="classrooms-summary">
+          {{ vm.classroomCount() }} aulas · {{ vm.studentTotal() }} alumnos
+        </p>
+        <ul class="classrooms-list">
+          @for (aula of vm.classrooms(); track aula.id) {
+            <li class="classroom-item" data-testid="classroom-item">
+              <span class="classroom-item__name">{{ aula.name }}</span>
+              <span class="classroom-item__cycle">{{ aula.cycleName }}</span>
+              <span class="classroom-item__meta">
+                {{ aula.modality }} · {{ aula.shift }}
+              </span>
+              <span class="classroom-item__students">{{ aula.studentCount }} alumnos</span>
+            </li>
+          }
+        </ul>
+      } @else {
+        <p class="stats-card__empty" data-testid="classrooms-empty">
+          Aún no tenés aulas asignadas — contactá a tu administrador.
+        </p>
+      }
+    </section>
+  }
+
+  <!-- Exámenes -->
+  <section class="exams-section">
+    <h2 class="section-title">Exámenes</h2>
+
+    @if (vm.loading()) {
+      <section class="tutor-exams-list__loading" aria-busy="true">
+        <p>Cargando exámenes…</p>
+      </section>
+    }
+
+    @if (vm.error()) {
+      <section class="tutor-exams-list__error" role="alert">
+        <p>Sin conexión. Revisá tu red y reintentá.</p>
+        <button type="button" (click)="vm.refresh()">Reintentar</button>
+      </section>
+    }
+
+    <ul class="tutor-exams-list__list" data-testid="exams-list">
+      @for (exam of vm.exams(); track exam.recordId) {
+        <li
+          class="exam-card"
+          data-testid="exam-card"
+          (click)="onExamCardClick(exam)"
+          (keydown.enter)="onExamCardClick(exam)"
+          role="button"
+          tabindex="0"
+        >
+          <div class="exam-card__header">
+            <h3 class="exam-card__name">{{ exam.name }}</h3>
+            <span class="exam-card__status-badge" data-testid="status-badge">
+              {{ statusLabel(exam) }}
+            </span>
+          </div>
+          <div class="exam-card__meta">
+            <span class="exam-card__count">{{ countDisplay(exam) }} preguntas</span>
+            @if (exam.courseId) {
+              <span class="exam-card__course">{{ exam.courseId }}</span>
+            }
+            <span class="exam-card__duration">{{ exam.duration }} min</span>
+          </div>
+        </li>
+      } @empty {
+        <li class="tutor-exams-list__empty">
+          <p>No tenés exámenes asignados.</p>
+        </li>
+      }
+    </ul>
+  </section>
+
+  <footer class="tutor-exams-list__footer">
+    <button
+      type="button"
+      data-testid="btn-logout"
+      [disabled]="vm.isSigningOut()"
+      (click)="onSignOut()"
+    >
+      @if (vm.isSigningOut()) {
+        Cerrando…
+      } @else {
+        Cerrar sesión
+      }
+    </button>
+  </footer>
+</main>

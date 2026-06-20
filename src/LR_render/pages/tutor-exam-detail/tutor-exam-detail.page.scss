@@ -1,0 +1,114 @@
+// Estilos de la pantalla de gestión de examen virtual del tutor.
+// Reutiliza la misma estructura visual que tutor-exams-list.page.scss.
+
+.tutor-exam-detail {
+  padding: 1rem;
+  max-width: 42rem;
+  margin: 0 auto;
+
+  &__header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+  }
+
+  &__name {
+    font-size: 1.25rem;
+    font-weight: 600;
+  }
+
+  &__status {
+    font-size: 0.875rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    background: #e5e7eb;
+  }
+
+  &__error,
+  &__action-error {
+    background: #fee2e2;
+    border: 1px solid #fca5a5;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin-bottom: 1rem;
+  }
+
+  &__loading {
+    padding: 1rem;
+    color: #6b7280;
+  }
+
+  &__actions {
+    display: flex;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+
+    button {
+      padding: 0.5rem 1.25rem;
+      border-radius: 0.375rem;
+      font-weight: 500;
+      cursor: pointer;
+      border: 1px solid transparent;
+
+      &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+    }
+  }
+
+  &__btn-iniciar {
+    background: #2563eb;
+    color: #fff;
+  }
+
+  &__btn-finalizar {
+    background: #dc2626;
+    color: #fff;
+  }
+
+  &__students {
+    h2 {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 0.75rem;
+    }
+  }
+
+  &__student-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  &__student-item {
+    border: 1px solid #e5e7eb;
+    border-radius: 0.375rem;
+    padding: 0.5rem 0.75rem;
+  }
+
+  &__student-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+  }
+
+  &__submitted-badge {
+    font-size: 0.75rem;
+    padding: 0.125rem 0.375rem;
+    border-radius: 0.25rem;
+    background: #f3f4f6;
+    color: #6b7280;
+    margin-left: auto;
+  }
+
+  &__no-students {
+    color: #6b7280;
+    font-size: 0.875rem;
+  }
+}

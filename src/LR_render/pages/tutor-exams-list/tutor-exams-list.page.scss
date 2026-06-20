@@ -1,3 +1,7 @@
+// Estilos de /tutor/home (lista de exámenes + perfil del tutor).
+// Estructura: :host → .tutor-exams-list (flex column) → profile-card →
+// stats-card (aulas) → exams-section → footer.
+
 :host {
   display: block;
   min-height: 100dvh;
@@ -8,7 +12,7 @@
   font-family: var(--font-body);
 }
 
-.tutor-home {
+.tutor-exams-list {
   max-width: 28rem;
   margin: 0 auto;
   padding-block: var(--space-lg) var(--space-md);
@@ -25,8 +29,6 @@
     gap: var(--space-xs);
   }
 
-  // Kicker label-caps — mismo registro tipográfico que el "Bienvenido" del
-  // StudentHomePage. Le indica al tutor que entró en su modo sin gritar.
   &__kicker {
     margin: 0;
     font-size: 0.75rem;
@@ -96,11 +98,30 @@
       }
     }
   }
+
+  &__loading,
+  &__error,
+  &__empty {
+    padding: var(--space-md);
+    text-align: center;
+    color: var(--color-on-surface-variant);
+  }
+
+  &__error {
+    color: var(--color-error, #dc2626);
+  }
+
+  &__list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
 }
 
-// Pill "Tutor" — paleta Lugia Blue para identificar el rol sin competir con
-// los acentos verde de simulacro-abierto del lado alumno. Si en el futuro
-// hay más roles, cada uno tendrá su color en `--color-primary*`.
+// Pill "Tutor"
 .role-badge {
   display: inline-flex;
   align-items: center;
@@ -142,12 +163,6 @@
     border-color: var(--color-warning);
     background: var(--color-warning-container);
     color: var(--color-on-warning-container);
-
-    .tutor-home__greeting,
-    .tutor-home__email,
-    .tutor-home__hint {
-      color: var(--color-on-warning-container);
-    }
   }
 }
 
@@ -209,19 +224,96 @@
   }
 }
 
-// Placeholder card de "próximamente": dashed border + bg surface-low para
-// telegrafiar que no es accionable. Cuando llegue la gestión real, se
-// reemplaza por una lista de exámenes y se borra esta clase.
-.placeholder-card {
-  padding: var(--space-md) 1.1rem;
-  border-radius: var(--radius-md);
-  border: 1px dashed var(--color-outline);
-  background: var(--color-surface-container-low);
-  color: var(--color-on-surface-variant);
+.classrooms-list {
+  list-style: none;
+  padding: 0;
+  margin: var(--space-xs) 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
 
-  p {
+.classroom-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--color-outline-variant);
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  &__name {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--color-on-surface);
+  }
+
+  &__cycle {
+    font-size: 0.8rem;
+    color: var(--color-on-surface-variant);
+  }
+
+  &__meta {
+    font-size: 0.75rem;
+    color: var(--color-on-surface-variant);
+    text-transform: capitalize;
+  }
+
+  &__students {
+    font-size: 0.8rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-on-surface-variant);
+  }
+}
+
+.exams-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.exam-card {
+  background: var(--color-card-bg, #fff);
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: var(--radius-md, 8px);
+  padding: var(--space-md, 1rem);
+  cursor: pointer;
+
+  &:hover,
+  &:focus {
+    border-color: var(--color-primary, #1e3a5f);
+    outline: 2px solid var(--color-primary, #1e3a5f);
+    outline-offset: 2px;
+  }
+
+  &__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 0.5rem;
+  }
+
+  &__name {
+    font-size: 1rem;
+    font-weight: 600;
     margin: 0;
-    font-size: 0.9rem;
-    line-height: 1.5;
+  }
+
+  &__status-badge {
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.125rem 0.5rem;
+    border-radius: 4px;
+    background: var(--color-status-bg, #f3f4f6);
+    color: var(--color-status-text, #374151);
+  }
+
+  &__meta {
+    display: flex;
+    gap: 0.75rem;
+    font-size: 0.875rem;
+    color: var(--color-text-secondary, #6b7280);
   }
 }

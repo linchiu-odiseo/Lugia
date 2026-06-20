@@ -3,6 +3,7 @@ import { IdentityStorage } from '../L1_domain/ports/identity-storage';
 import { ProfileStorage } from '../L1_domain/ports/profile-storage';
 import { OutboxStoragePort } from '../L1_domain/ports/outbox-storage.port';
 import { SwMessengerPort } from '../L1_domain/ports/sw-messenger.port';
+import { TutorExamsApi } from '../L1_domain/ports/tutor-exams-api';
 
 // Tokens DI para los ports L1 que se inyectan via interface (Angular no
 // puede inyectar interfaces por tipo en TypeScript runtime). Los bindings
@@ -18,3 +19,8 @@ export const IDENTITY_STORAGE = new InjectionToken<IdentityStorage>('IdentitySto
 export const PROFILE_STORAGE = new InjectionToken<ProfileStorage>('ProfileStorage');
 export const OUTBOX_STORAGE = new InjectionToken<OutboxStoragePort>('OutboxStoragePort');
 export const SW_MESSENGER = new InjectionToken<SwMessengerPort>('SwMessengerPort');
+
+// Token DI para el puerto de virtual exams del tutor. El binding concreto
+// vive en `app.config.ts` con `useExisting: HttpTutorExamsApi`.
+// Las VM del tutor lo inyectan para usarlo sin acoplarse a la clase L3.
+export const TUTOR_EXAMS_API = new InjectionToken<TutorExamsApi>('TUTOR_EXAMS_API');

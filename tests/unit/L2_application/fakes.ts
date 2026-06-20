@@ -248,6 +248,188 @@ export class FakeExamsApi implements ExamsApi {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Doble manual del puerto `TutorExamsApi`. Patrón idéntico a FakeExamsApi:
+// control programático resolve/reject por método, call recording.
+// ---------------------------------------------------------------------------
+
+import {
+  TutorExamsApi,
+  FinalizeResult,
+} from '../../../src/L1_domain/ports/tutor-exams-api';
+import { TutorExam } from '../../../src/L1_domain/entities/tutor-exam';
+import { TutorExamDetail } from '../../../src/L1_domain/value-objects/tutor-exam-detail';
+import { ClassroomStudent } from '../../../src/L1_domain/value-objects/classroom-student';
+
+export class FakeTutorExamsApi implements TutorExamsApi {
+  // --- getTutorExams ---
+  private nextGetTutorExams:
+    | { kind: 'resolve'; result: readonly TutorExam[] }
+    | { kind: 'reject'; error: Error }
+    | null = null;
+  private getTutorExamsCalls = 0;
+
+  willResolveGetTutorExams(result: readonly TutorExam[]): void {
+    this.nextGetTutorExams = { kind: 'resolve', result };
+  }
+
+  willRejectGetTutorExams(error: Error): void {
+    this.nextGetTutorExams = { kind: 'reject', error };
+  }
+
+  getGetTutorExamsCallCount(): number {
+    return this.getTutorExamsCalls;
+  }
+
+  async getTutorExams(): Promise<readonly TutorExam[]> {
+    this.getTutorExamsCalls++;
+    if (!this.nextGetTutorExams) {
+      throw new Error('FakeTutorExamsApi: configurar willResolveGetTutorExams o willRejectGetTutorExams antes de llamar getTutorExams()');
+    }
+    if (this.nextGetTutorExams.kind === 'reject') throw this.nextGetTutorExams.error;
+    return this.nextGetTutorExams.result;
+  }
+
+  // --- getExamDetail ---
+  private nextGetExamDetail:
+    | { kind: 'resolve'; result: TutorExamDetail }
+    | { kind: 'reject'; error: Error }
+    | null = null;
+  private getExamDetailCalls: string[] = [];
+
+  willResolveGetExamDetail(result: TutorExamDetail): void {
+    this.nextGetExamDetail = { kind: 'resolve', result };
+  }
+
+  willRejectGetExamDetail(error: Error): void {
+    this.nextGetExamDetail = { kind: 'reject', error };
+  }
+
+  getGetExamDetailCalls(): readonly string[] {
+    return this.getExamDetailCalls;
+  }
+
+  async getExamDetail(recordId: string): Promise<TutorExamDetail> {
+    this.getExamDetailCalls.push(recordId);
+    if (!this.nextGetExamDetail) {
+      throw new Error('FakeTutorExamsApi: configurar willResolveGetExamDetail o willRejectGetExamDetail antes de llamar getExamDetail()');
+    }
+    if (this.nextGetExamDetail.kind === 'reject') throw this.nextGetExamDetail.error;
+    return this.nextGetExamDetail.result;
+  }
+
+  // --- listClassroomStudents ---
+  private nextListClassroomStudents:
+    | { kind: 'resolve'; result: readonly ClassroomStudent[] }
+    | { kind: 'reject'; error: Error }
+    | null = null;
+  private listClassroomStudentsCalls: Array<{ classroomId: string; virtualExamDetailId: string }> = [];
+
+  willResolveListClassroomStudents(result: readonly ClassroomStudent[]): void {
+    this.nextListClassroomStudents = { kind: 'resolve', result };
+  }
+
+  willRejectListClassroomStudents(error: Error): void {
+    this.nextListClassroomStudents = { kind: 'reject', error };
+  }
+
+  getListClassroomStudentsCalls(): ReadonlyArray<{ classroomId: string; virtualExamDetailId: string }> {
+    return this.listClassroomStudentsCalls;
+  }
+
+  async listClassroomStudents(req: { classroomId: string; virtualExamDetailId: string }): Promise<readonly ClassroomStudent[]> {
+    this.listClassroomStudentsCalls.push(req);
+    if (!this.nextListClassroomStudents) {
+      throw new Error('FakeTutorExamsApi: configurar willResolveListClassroomStudents o willRejectListClassroomStudents antes de llamar listClassroomStudents()');
+    }
+    if (this.nextListClassroomStudents.kind === 'reject') throw this.nextListClassroomStudents.error;
+    return this.nextListClassroomStudents.result;
+  }
+
+  // --- updateEnabledStudents ---
+  private nextUpdateEnabledStudents:
+    | { kind: 'resolve' }
+    | { kind: 'reject'; error: Error }
+    | null = null;
+  private updateEnabledStudentsCalls: Array<{ recordId: string; enabledStudentIds: readonly string[] }> = [];
+
+  willResolveUpdateEnabledStudents(): void {
+    this.nextUpdateEnabledStudents = { kind: 'resolve' };
+  }
+
+  willRejectUpdateEnabledStudents(error: Error): void {
+    this.nextUpdateEnabledStudents = { kind: 'reject', error };
+  }
+
+  getUpdateEnabledStudentsCalls(): ReadonlyArray<{ recordId: string; enabledStudentIds: readonly string[] }> {
+    return this.updateEnabledStudentsCalls;
+  }
+
+  async updateEnabledStudents(req: { recordId: string; enabledStudentIds: readonly string[] }): Promise<void> {
+    this.updateEnabledStudentsCalls.push(req);
+    if (!this.nextUpdateEnabledStudents) {
+      throw new Error('FakeTutorExamsApi: configurar willResolveUpdateEnabledStudents o willRejectUpdateEnabledStudents antes de llamar updateEnabledStudents()');
+    }
+    if (this.nextUpdateEnabledStudents.kind === 'reject') throw this.nextUpdateEnabledStudents.error;
+  }
+
+  // --- iniciar ---
+  private nextIniciar:
+    | { kind: 'resolve' }
+    | { kind: 'reject'; error: Error }
+    | null = null;
+  private iniciarCalls: string[] = [];
+
+  willResolveIniciar(): void {
+    this.nextIniciar = { kind: 'resolve' };
+  }
+
+  willRejectIniciar(error: Error): void {
+    this.nextIniciar = { kind: 'reject', error };
+  }
+
+  getIniciarCalls(): readonly string[] {
+    return this.iniciarCalls;
+  }
+
+  async iniciar(recordId: string): Promise<void> {
+    this.iniciarCalls.push(recordId);
+    if (!this.nextIniciar) {
+      throw new Error('FakeTutorExamsApi: configurar willResolveIniciar o willRejectIniciar antes de llamar iniciar()');
+    }
+    if (this.nextIniciar.kind === 'reject') throw this.nextIniciar.error;
+  }
+
+  // --- finalizar ---
+  private nextFinalizar:
+    | { kind: 'resolve'; result: FinalizeResult }
+    | { kind: 'reject'; error: Error }
+    | null = null;
+  private finalizarCalls: string[] = [];
+
+  willResolveFinalizar(result: FinalizeResult): void {
+    this.nextFinalizar = { kind: 'resolve', result };
+  }
+
+  willRejectFinalizar(error: Error): void {
+    this.nextFinalizar = { kind: 'reject', error };
+  }
+
+  getFinalizarCalls(): readonly string[] {
+    return this.finalizarCalls;
+  }
+
+  async finalizar(recordId: string): Promise<FinalizeResult> {
+    this.finalizarCalls.push(recordId);
+    if (!this.nextFinalizar) {
+      throw new Error('FakeTutorExamsApi: configurar willResolveFinalizar o willRejectFinalizar antes de llamar finalizar()');
+    }
+    if (this.nextFinalizar.kind === 'reject') throw this.nextFinalizar.error;
+    return this.nextFinalizar.result;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Doble manual del puerto `Clock`. Registra las llamadas a setServerTime
 // para que los tests del use case puedan assertear que el side-effect ocurrió.
 // `now()` devuelve el último ServerTime seteado, o new Date() como fallback.

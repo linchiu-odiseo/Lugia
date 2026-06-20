@@ -68,6 +68,49 @@ describe('app.routes', () => {
       expect(typeof r?.canActivate?.[1]).toBe('function');
     });
 
+    it('/tutor/home carga TutorExamsListPage (lazy loadComponent existe)', async () => {
+      const r = findRoute('tutor/home');
+      expect(typeof r?.loadComponent).toBe('function');
+      // Verificamos que la función lazy resuelve al componente correcto.
+      // En el entorno de test, loadComponent() puede retornar la clase directamente
+      // o un objeto con la clase. Inspeccionamos ambas posibilidades.
+      const result = await r!.loadComponent!() as unknown;
+      // Buscar recursivamente el nombre de clase en el resultado
+      const resultName =
+        (result as { name?: string })?.name ??
+        (result as { default?: { name?: string } })?.default?.name ??
+        '';
+      expect(resultName).toContain('TutorExamsList');
+    });
+
+    it('/tutor/exams/:recordId existe en la configuración de rutas', () => {
+      const r = findRoute('tutor/exams/:recordId');
+      expect(r).toBeDefined();
+    });
+
+    it('/tutor/exams/:recordId tiene canActivate: [authGuard, roleGuard("tutor")]', () => {
+      const r = findRoute('tutor/exams/:recordId');
+      expect(r?.canActivate?.length).toBe(2);
+      expect(r?.canActivate?.[0]).toBe(authGuard);
+      expect(typeof r?.canActivate?.[1]).toBe('function');
+    });
+
+    it('/tutor/exams/:recordId tiene loadComponent (lazy)', () => {
+      const r = findRoute('tutor/exams/:recordId');
+      expect(typeof r?.loadComponent).toBe('function');
+    });
+
+    it('/tutor/exams/:recordId loadComponent resuelve TutorExamDetailPage (no el stub)', async () => {
+      const r = findRoute('tutor/exams/:recordId');
+      expect(typeof r?.loadComponent).toBe('function');
+      const result = await r!.loadComponent!() as unknown;
+      const resultName =
+        (result as { name?: string })?.name ??
+        (result as { default?: { name?: string } })?.default?.name ??
+        '';
+      expect(resultName).toContain('TutorExamDetail');
+    });
+
     it('roleGuard("student") y roleGuard("tutor") son funciones distintas (factory genera instancia nueva por rol)', () => {
       const studentRoute = findRoute('student/home');
       const tutorRoute = findRoute('tutor/home');
@@ -77,6 +120,44 @@ describe('app.routes', () => {
       // Sanity check: producen un guard al ser invocadas independientemente.
       const newStudentGuard = roleGuard('student');
       expect(typeof newStudentGuard).toBe('function');
+    });
+
+    it('no existe componente placeholder para /tutor/home (loadComponent resuelve TutorExamsListPage)', async () => {
+      // Tras el change, /tutor/home debe apuntar a TutorExamsListPage, NO al
+      // placeholder TutorHomePage. Verificamos resolviendo la lazy function.
+      const r = findRoute('tutor/home');
+      expect(typeof r?.loadComponent).toBe('function');
+      const result = await r!.loadComponent!() as unknown;
+      const resultName =
+        (result as { name?: string })?.name ??
+        (result as { default?: { name?: string } })?.default?.name ??
+        '';
+      // Si apuntara al placeholder, el nombre sería TutorHomePage.
+      expect(resultName).not.toContain('TutorHome');
+    });
+  });
+
+  describe('Scenario: Rutas del alumno sin cambios', () => {
+    it('/student/home sigue con authGuard + roleGuard("student") sin alteración', () => {
+      const r = findRoute('student/home');
+      expect(r).toBeDefined();
+      expect(r?.canActivate?.length).toBe(2);
+      expect(r?.canActivate?.[0]).toBe(authGuard);
+      expect(typeof r?.canActivate?.[1]).toBe('function');
+      expect(typeof r?.loadComponent).toBe('function');
+    });
+
+    it('/student/simulacro/:id sigue sin cambios', () => {
+      const r = findRoute('student/simulacro/:id');
+      expect(r).toBeDefined();
+      expect(r?.canActivate?.length).toBe(2);
+      expect(r?.canActivate?.[0]).toBe(authGuard);
+      expect(typeof r?.canActivate?.[1]).toBe('function');
+    });
+
+    it('/login sigue con publicOnlyGuard', () => {
+      const r = findRoute('login');
+      expect(r?.canActivate).toContain(publicOnlyGuard);
     });
   });
 
