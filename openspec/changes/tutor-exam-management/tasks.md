@@ -58,7 +58,7 @@ Targets: `testing`
 
 *Write failing specs first (red). No source files created yet.*
 
-- [ ] 1.1 Create `tests/unit/L1_domain/entities/tutor-exam.spec.ts`.
+- [x] 1.1 Create `tests/unit/L1_domain/entities/tutor-exam.spec.ts`.
   - Scenario `TutorExam.puedeIniciar` returns `true` only for `'scheduled'`. Satisfies `tutor-exams-api` Requirement "Read-models TutorExam..." / Scenario "TutorExam.puedeIniciar retorna true solo para scheduled".
   - Scenario `TutorExam.puedeIniciar` returns `false` for `'in_progress'`. Same Requirement / Scenario.
   - Scenario `TutorExam.puedeIniciar` returns `false` for `'finalized'`. Same Requirement / Scenario.
@@ -68,19 +68,19 @@ Targets: `testing`
   - Scenario `TutorExam.estaFinalizado` returns `true` for `'finalized'`. Satisfies Scenario "TutorExam.estaFinalizado retorna true solo para finalized".
   - Scenario `count: null` and `courseId: null` are valid TypeScript (compile-time check). Satisfies Scenario "count null y courseId null son tipos válidos".
 
-- [ ] 1.2 Create `tests/unit/L1_domain/value-objects/tutor-exam-detail.spec.ts`.
+- [x] 1.2 Create `tests/unit/L1_domain/value-objects/tutor-exam-detail.spec.ts`.
   - Scenario `TutorExamDetail` does NOT have `classroomId` field. Satisfies Scenario "TutorExamDetail NOT incluye classroomId".
   - Scenario `TutorExamDetail` does NOT have `entryId` field. Same Scenario.
   - Scenario `TutorExamDetail` has `enabledStudentIds: readonly string[]`. Same Scenario.
 
-- [ ] 1.3 Create `tests/unit/L1_domain/errors/tutor-errors.spec.ts`.
+- [x] 1.3 Create `tests/unit/L1_domain/errors/tutor-errors.spec.ts`.
   - Scenario `VirtualExamNotFoundError` is an `Error` instance. Satisfies Scenario "Port NOT depende de implementaciones concretas" (infrastructure check) and error classification coverage from `tutor-exams-api` Requirement "Clasificación de errores del tutor".
   - Scenario `ExamConflictError` is an `Error` instance. Same Requirement.
   - Scenario `ExamPreconditionError` is an `Error` instance. Same Requirement.
   - Scenario `TutorExamForbiddenError` is an `Error` instance. Same Requirement.
   - Scenario `ExamServerStatus` file is unchanged (import and verify the same 3 known values compile). Satisfies Scenario "ExamServerStatus se reutiliza sin modificar".
 
-- [ ] 1.4 Create `tests/unit/L1_domain/ports/tutor-exams-api.spec.ts` (type-only smoke, no runtime assertions).
+- [x] 1.4 Create `tests/unit/L1_domain/ports/tutor-exams-api.spec.ts` (type-only smoke, no runtime assertions).
   - Scenario the interface `TutorExamsApi` exposes exactly 6 methods. Satisfies `tutor-exams-api` Requirement "TutorExamsApi port en L1" / Scenario "Port expone los 6 métodos exactos".
   - Scenario the file has zero Angular imports (compile-time assertion in comment). Satisfies Scenario "Port NOT depende de implementaciones concretas".
 
@@ -90,15 +90,15 @@ Targets: `testing`
 
 *Make commit 1 specs green.*
 
-- [ ] 2.1 Create `src/L1_domain/errors/virtual-exam-not-found.error.ts` — `export class VirtualExamNotFoundError extends Error`. Satisfies `tutor-exams-api` Requirement "Read-models TutorExam..." (domain errors section).
-- [ ] 2.2 Create `src/L1_domain/errors/exam-conflict.error.ts` — `export class ExamConflictError extends Error`. Same Requirement.
-- [ ] 2.3 Create `src/L1_domain/errors/exam-precondition.error.ts` — `export class ExamPreconditionError extends Error`. Same Requirement.
-- [ ] 2.4 Create `src/L1_domain/errors/tutor-exam-forbidden.error.ts` — `export class TutorExamForbiddenError extends Error`. Same Requirement.
-- [ ] 2.5 Create `src/L1_domain/value-objects/classroom-student.ts` — `ClassroomStudent` with fields `studentId`, `studentCode`, `firstName`, `lastName`, `enabled: boolean`, `hasSubmitted: boolean`. Satisfies `tutor-exams-api` Requirement "Read-models TutorExam, TutorExamDetail, ClassroomStudent y FinalizeResult en L1".
-- [ ] 2.6 Create `src/L1_domain/value-objects/tutor-exam-detail.ts` — `TutorExamDetail` with fields: `id`, `recordId`, `status: ExamServerStatus`, `name`, `courseId: string | null`, `count: number | null`, `duration`, `enabledStudentIds: readonly string[]`, `startedAt: Date | null`, `finishedAt: Date | null`, `createdAt`. NO `classroomId`, NO `entryId`. Satisfies same Requirement / Scenario "TutorExamDetail NOT incluye classroomId".
-- [ ] 2.7 Create `src/L1_domain/entities/tutor-exam.ts` — `TutorExam` class with all 13 fields + helpers `puedeIniciar()`, `puedeFinalizar()`, `estaFinalizado()` using `ExamServerStatus.is(...)`. Satisfies `tutor-exams-api` Requirement "Read-models TutorExam..." / Scenarios "puedeIniciar", "puedeFinalizar", "estaFinalizado".
-- [ ] 2.8 Create `src/L1_domain/ports/tutor-exams-api.ts` — `FinalizeResult` type + `TutorExamsApi` interface (6 methods). Inline comment block documents HTTP error mapping per status. NO Angular imports. Satisfies `tutor-exams-api` Requirement "TutorExamsApi port en L1" / Scenarios "Port expone los 6 métodos exactos" and "Port NOT depende de implementaciones concretas".
-- [ ] 2.9 Verify `npm run lint` clean. Verify commit 1 specs are now green.
+- [x] 2.1 Create `src/L1_domain/errors/virtual-exam-not-found.error.ts` — `export class VirtualExamNotFoundError extends Error`. Satisfies `tutor-exams-api` Requirement "Read-models TutorExam..." (domain errors section).
+- [x] 2.2 Create `src/L1_domain/errors/exam-conflict.error.ts` — `export class ExamConflictError extends Error`. Same Requirement.
+- [x] 2.3 Create `src/L1_domain/errors/exam-precondition.error.ts` — `export class ExamPreconditionError extends Error`. Same Requirement.
+- [x] 2.4 Create `src/L1_domain/errors/tutor-exam-forbidden.error.ts` — `export class TutorExamForbiddenError extends Error`. Same Requirement.
+- [x] 2.5 Create `src/L1_domain/value-objects/classroom-student.ts` — `ClassroomStudent` with fields `studentId`, `studentCode`, `firstName`, `lastName`, `enabled: boolean`, `hasSubmitted: boolean`. Satisfies `tutor-exams-api` Requirement "Read-models TutorExam, TutorExamDetail, ClassroomStudent y FinalizeResult en L1".
+- [x] 2.6 Create `src/L1_domain/value-objects/tutor-exam-detail.ts` — `TutorExamDetail` with fields: `id`, `recordId`, `status: ExamServerStatus`, `name`, `courseId: string | null`, `count: number | null`, `duration`, `enabledStudentIds: readonly string[]`, `startedAt: Date | null`, `finishedAt: Date | null`, `createdAt`. NO `classroomId`, NO `entryId`. Satisfies same Requirement / Scenario "TutorExamDetail NOT incluye classroomId".
+- [x] 2.7 Create `src/L1_domain/entities/tutor-exam.ts` — `TutorExam` class with all 13 fields + helpers `puedeIniciar()`, `puedeFinalizar()`, `estaFinalizado()` using `ExamServerStatus.is(...)`. Satisfies `tutor-exams-api` Requirement "Read-models TutorExam..." / Scenarios "puedeIniciar", "puedeFinalizar", "estaFinalizado".
+- [x] 2.8 Create `src/L1_domain/ports/tutor-exams-api.ts` — `FinalizeResult` type + `TutorExamsApi` interface (6 methods). Inline comment block documents HTTP error mapping per status. NO Angular imports. Satisfies `tutor-exams-api` Requirement "TutorExamsApi port en L1" / Scenarios "Port expone los 6 métodos exactos" and "Port NOT depende de implementaciones concretas".
+- [x] 2.9 Verify `npm run lint` clean. Verify commit 1 specs are now green.
 
 ---
 
@@ -106,25 +106,25 @@ Targets: `testing`
 
 *Write failing L2 specs first (red). FakeTutorExamsApi is used here before it has a home file — define it inline or stub in fakes.ts temporarily.*
 
-- [ ] 3.1 In `tests/unit/L2_application/fakes.ts`: add `FakeTutorExamsApi` class implementing `TutorExamsApi` with the same manual-fake pattern as `FakeExamsApi` — recordable calls + programmable resolve/reject per method. All 6 methods: `willResolve/willReject` controls, `getCallCount()`, `getCalls()` accessors. Satisfies `tutor-exams-api` Requirement "Token de inyección TUTOR_EXAMS_API" / Scenario "FakeTutorExamsApi implementa el port completo".
-- [ ] 3.2 Create `tests/unit/L2_application/get-tutor-exams.use-case.spec.ts`.
+- [x] 3.1 In `tests/unit/L2_application/fakes.ts`: add `FakeTutorExamsApi` class implementing `TutorExamsApi` with the same manual-fake pattern as `FakeExamsApi` — recordable calls + programmable resolve/reject per method. All 6 methods: `willResolve/willReject` controls, `getCallCount()`, `getCalls()` accessors. Satisfies `tutor-exams-api` Requirement "Token de inyección TUTOR_EXAMS_API" / Scenario "FakeTutorExamsApi implementa el port completo".
+- [x] 3.2 Create `tests/unit/L2_application/get-tutor-exams.use-case.spec.ts`.
   - Scenario delegates to `TutorExamsApi.getTutorExams()` and returns the list as-is. Satisfies `tutor-exams-api` Requirement "6 use-cases L2" / Scenario "GetTutorExamsUseCase delega al port y retorna lista".
   - Scenario propagates `NetworkError` without wrapping. Satisfies Scenario "Use-cases propaganErrores del port sin envoltorio".
   - Scenario does NOT call `enqueueEnvio`, `setSubmissionAck`, or IDB. Satisfies Scenario "Use-cases NO tocan outbox ni IndexedDB".
-- [ ] 3.3 Create `tests/unit/L2_application/get-tutor-exam-detail.use-case.spec.ts`.
+- [x] 3.3 Create `tests/unit/L2_application/get-tutor-exam-detail.use-case.spec.ts`.
   - Scenario delegates `execute({ recordId })` to `getExamDetail(recordId)` and returns `TutorExamDetail`. Satisfies `tutor-exams-api` Requirement "6 use-cases L2".
   - Scenario propagates `VirtualExamNotFoundError` as-is. Same Requirement / Scenario "Use-cases propaganErrores del port sin envoltorio".
-- [ ] 3.4 Create `tests/unit/L2_application/list-classroom-students.use-case.spec.ts`.
+- [x] 3.4 Create `tests/unit/L2_application/list-classroom-students.use-case.spec.ts`.
   - Scenario delegates `execute({ classroomId, virtualExamDetailId })` and returns `ClassroomStudent[]`. Satisfies `tutor-exams-api` Requirement "6 use-cases L2".
   - Scenario propagates `TutorExamForbiddenError` as-is. Same Requirement.
-- [ ] 3.5 Create `tests/unit/L2_application/iniciar-examen.use-case.spec.ts`.
+- [x] 3.5 Create `tests/unit/L2_application/iniciar-examen.use-case.spec.ts`.
   - Scenario delegates `execute({ recordId })` to `iniciar(recordId)` → void. Satisfies `tutor-exams-api` Requirement "6 use-cases L2".
   - Scenario propagates `ExamPreconditionError` as-is. Satisfies Scenario "Use-cases propaganErrores del port sin envoltorio".
   - Scenario does NOT call IDB or outbox. Satisfies Scenario "Use-cases NO tocan outbox ni IndexedDB".
-- [ ] 3.6 Create `tests/unit/L2_application/finalizar-examen.use-case.spec.ts`.
+- [x] 3.6 Create `tests/unit/L2_application/finalizar-examen.use-case.spec.ts`.
   - Scenario delegates `execute({ recordId })` and returns `FinalizeResult`. Satisfies Scenario "FinalizarExamenUseCase propaga FinalizeResult".
   - Scenario propagates `ExamConflictError` as-is. Same Requirement.
-- [ ] 3.7 Create `tests/unit/L2_application/actualizar-alumnos-habilitados.use-case.spec.ts`.
+- [x] 3.7 Create `tests/unit/L2_application/actualizar-alumnos-habilitados.use-case.spec.ts`.
   - Scenario delegates `execute({ recordId, enabledStudentIds })` to `updateEnabledStudents(...)` → void. Satisfies `tutor-exams-api` Requirement "6 use-cases L2".
   - Scenario propagates `ExamConflictError` as-is. Same Requirement.
 
@@ -134,13 +134,13 @@ Targets: `testing`
 
 *Make commit 3 specs green.*
 
-- [ ] 4.1 Create `src/L2_application/use-cases/get-tutor-exams.use-case.ts` — `GetTutorExamsUseCase`. Constructor accepts `TutorExamsApi`. `execute()` delegates to `api.getTutorExams()`. No decorators. Satisfies `tutor-exams-api` Requirement "6 use-cases L2".
-- [ ] 4.2 Create `src/L2_application/use-cases/get-tutor-exam-detail.use-case.ts` — `GetTutorExamDetailUseCase`. `execute({ recordId })`. No decorators. Same Requirement.
-- [ ] 4.3 Create `src/L2_application/use-cases/list-classroom-students.use-case.ts` — `ListClassroomStudentsUseCase`. `execute({ classroomId, virtualExamDetailId })`. No decorators. Same Requirement.
-- [ ] 4.4 Create `src/L2_application/use-cases/iniciar-examen.use-case.ts` — `IniciarExamenUseCase`. `execute({ recordId }): Promise<void>`. No decorators. Same Requirement.
-- [ ] 4.5 Create `src/L2_application/use-cases/finalizar-examen.use-case.ts` — `FinalizarExamenUseCase`. `execute({ recordId }): Promise<FinalizeResult>`. No decorators. Same Requirement.
-- [ ] 4.6 Create `src/L2_application/use-cases/actualizar-alumnos-habilitados.use-case.ts` — `ActualizarAlumnosHabilitadosUseCase`. `execute({ recordId, enabledStudentIds: readonly string[] }): Promise<void>`. No decorators. Same Requirement.
-- [ ] 4.7 Verify `npm run lint` clean. Verify all L2 specs (commit 3) are now green.
+- [x] 4.1 Create `src/L2_application/use-cases/get-tutor-exams.use-case.ts` — `GetTutorExamsUseCase`. Constructor accepts `TutorExamsApi`. `execute()` delegates to `api.getTutorExams()`. No decorators. Satisfies `tutor-exams-api` Requirement "6 use-cases L2".
+- [x] 4.2 Create `src/L2_application/use-cases/get-tutor-exam-detail.use-case.ts` — `GetTutorExamDetailUseCase`. `execute({ recordId })`. No decorators. Same Requirement.
+- [x] 4.3 Create `src/L2_application/use-cases/list-classroom-students.use-case.ts` — `ListClassroomStudentsUseCase`. `execute({ classroomId, virtualExamDetailId })`. No decorators. Same Requirement.
+- [x] 4.4 Create `src/L2_application/use-cases/iniciar-examen.use-case.ts` — `IniciarExamenUseCase`. `execute({ recordId }): Promise<void>`. No decorators. Same Requirement.
+- [x] 4.5 Create `src/L2_application/use-cases/finalizar-examen.use-case.ts` — `FinalizarExamenUseCase`. `execute({ recordId }): Promise<FinalizeResult>`. No decorators. Same Requirement.
+- [x] 4.6 Create `src/L2_application/use-cases/actualizar-alumnos-habilitados.use-case.ts` — `ActualizarAlumnosHabilitadosUseCase`. `execute({ recordId, enabledStudentIds: readonly string[] }): Promise<void>`. No decorators. Same Requirement.
+- [x] 4.7 Verify `npm run lint` clean. Verify all L2 specs (commit 3) are now green.
 
 ---
 
@@ -148,7 +148,7 @@ Targets: `testing`
 
 *Write failing specs first (red).*
 
-- [ ] 5.1 In `tests/feature/L3_periphery/http/http-exams-api.spec.ts` (or a new file `http-tutor-exams-api.spec.ts`): add describe block for `apiPath` new helpers.
+- [x] 5.1 In `tests/feature/L3_periphery/http/http-exams-api.spec.ts` (or a new file `http-tutor-exams-api.spec.ts`): add describe block for `apiPath` new helpers.
   - Scenario `apiPath.tutorVirtualExams()` returns `"<base>/tutor/virtual-exams"`. Satisfies `http-client` Requirement "apiPath — 6 nuevos helpers" / Scenario "tutorVirtualExams genera URL correcta".
   - Scenario `apiPath.virtualExam("rec-123")` returns `"<base>/virtual-exams/rec-123"`. Satisfies Scenario "virtualExam usa encodeURIComponent sobre recordId".
   - Scenario `apiPath.virtualExam("foo/bar")` returns `"<base>/virtual-exams/foo%2Fbar"`. Same Scenario.
@@ -166,7 +166,7 @@ Targets: `testing`
 
 *Make commit 5 specs green.*
 
-- [ ] 6.1 Modify `src/L3_periphery/http/api-paths.ts` — add 6 helpers to the existing `apiPath` object:
+- [x] 6.1 Modify `src/L3_periphery/http/api-paths.ts` — add 6 helpers to the existing `apiPath` object:
   - `tutorVirtualExams()` → `${base()}/tutor/virtual-exams`
   - `virtualExam(recordId)` → `${base()}/virtual-exams/${encodeURIComponent(recordId)}`
   - `classroomStudents(classroomId, virtualExamDetailId)` → `${base()}/classrooms/${encodeURIComponent(classroomId)}/students?virtualExamDetailId=${encodeURIComponent(virtualExamDetailId)}`
@@ -174,7 +174,7 @@ Targets: `testing`
   - `virtualExamStart(recordId)` → `${base()}/virtual-exams/${encodeURIComponent(recordId)}/start`
   - `virtualExamFinalize(recordId)` → `${base()}/virtual-exams/${encodeURIComponent(recordId)}/finalize`
   Satisfies `http-client` Requirement "apiPath — 6 nuevos helpers para endpoints del tutor".
-- [ ] 6.2 Verify `npm run lint` clean. Verify commit 5 specs are now green.
+- [x] 6.2 Verify `npm run lint` clean. Verify commit 5 specs are now green.
 
 ---
 
@@ -182,7 +182,7 @@ Targets: `testing`
 
 *Write failing specs first (red).*
 
-- [ ] 7.1 Create `tests/feature/L3_periphery/http/http-tutor-exams-api.spec.ts`. Use `TestBed` + `HttpTestingController` (mirrors `http-exams-api.spec.ts` pattern).
+- [x] 7.1 Create `tests/feature/L3_periphery/http/http-tutor-exams-api.spec.ts`. Use `TestBed` + `HttpTestingController` (mirrors `http-exams-api.spec.ts` pattern).
 
   **getTutorExams() scenarios:**
   - Scenario URL is `<base>/tutor/virtual-exams` (GET). Satisfies `tutor-exams-api` Requirement "Contrato HTTP — GET /tutor/virtual-exams" / Scenario "URL armada con apiPath.tutorVirtualExams".
@@ -243,27 +243,27 @@ Targets: `testing`
 
 *Make commit 7 specs green.*
 
-- [ ] 8.1 Create `src/L3_periphery/http/http-tutor-exams-api.ts`. `@Injectable({ providedIn: 'root' })`. Inject `HttpClient`. Implement all 6 port methods using `firstValueFrom(this.http.<verb>(...).pipe(timeout(10_000)))`. All wrapped in `try/catch` routing through `classifyTutorError`. No manual `withCredentials` (interceptor handles it). Satisfies `tutor-exams-api` Requirements for all 6 HTTP contracts.
-- [ ] 8.2 In the same file: implement `classifyTutorError(err: unknown): Error`. Switch on `err.status`: 400 → `InvalidPayloadError`, 403 → `TutorExamForbiddenError`, 404 → `VirtualExamNotFoundError`, 409 → `ExamConflictError`, 422 → `ExamPreconditionError`, everything else → `NetworkError`. Inline comment documents: (a) classification by pure status; (b) why NOT reading `body.message` (generic codes + prose messages, not control codes); (c) reference to design.md D2. Satisfies `tutor-exams-api` Requirement "Clasificación de errores del tutor por status".
-- [ ] 8.3 In `finalizar()`: inline comment documents that the endpoint returns **200** (not 202/204) with body `{ transitioned, jobId? }`, referencing learnex PR #276 discrepancy. Satisfies design.md R2.
-- [ ] 8.4 Implement DTO → domain mappings:
+- [x] 8.1 Create `src/L3_periphery/http/http-tutor-exams-api.ts`. `@Injectable({ providedIn: 'root' })`. Inject `HttpClient`. Implement all 6 port methods using `firstValueFrom(this.http.<verb>(...).pipe(timeout(10_000)))`. All wrapped in `try/catch` routing through `classifyTutorError`. No manual `withCredentials` (interceptor handles it). Satisfies `tutor-exams-api` Requirements for all 6 HTTP contracts.
+- [x] 8.2 In the same file: implement `classifyTutorError(err: unknown): Error`. Switch on `err.status`: 400 → `InvalidPayloadError`, 403 → `TutorExamForbiddenError`, 404 → `VirtualExamNotFoundError`, 409 → `ExamConflictError`, 422 → `ExamPreconditionError`, everything else → `NetworkError`. Inline comment documents: (a) classification by pure status; (b) why NOT reading `body.message` (generic codes + prose messages, not control codes); (c) reference to design.md D2. Satisfies `tutor-exams-api` Requirement "Clasificación de errores del tutor por status".
+- [x] 8.3 In `finalizar()`: inline comment documents that the endpoint returns **200** (not 202/204) with body `{ transitioned, jobId? }`, referencing learnex PR #276 discrepancy. Satisfies design.md R2.
+- [x] 8.4 Implement DTO → domain mappings:
   - `getTutorExams`: `dto.id → detailId`, `dto.recordId → recordId`, `dto.classroomId`, `dto.entryId`, `new ExamServerStatus(dto.status)`, nullable `count`/`courseId`, `string → Date` for timestamps (null-safe). Satisfies `tutor-exams-api` Requirement "Contrato HTTP — GET /tutor/virtual-exams" (all mapping Scenarios).
   - `getExamDetail`: same scalar mapping + `dto.enabledStudentIds`. Satisfies Requirement "Contrato HTTP — GET /virtual-exams/:recordId".
   - `listClassroomStudents`: 1:1 DTO → `ClassroomStudent`. Satisfies Requirement "Contrato HTTP — GET /classrooms/:classroomId/students".
-- [ ] 8.5 Verify `npm run lint` clean. Verify commit 7 specs are now green.
+- [x] 8.5 Verify `npm run lint` clean. Verify commit 7 specs are now green.
 
 ---
 
 ### Commit 9 — `feat(L3): TUTOR_EXAMS_API token + app.config wiring + FakeTutorExamsApi`
 
-- [ ] 9.1 Add `export const TUTOR_EXAMS_API = new InjectionToken<TutorExamsApi>('TUTOR_EXAMS_API')` in `src/L3_periphery/tokens.ts` (or a new `src/L3_periphery/tutor-tokens.ts`). Satisfies `tutor-exams-api` Requirement "Token de inyección TUTOR_EXAMS_API y wiring en app.config.ts" / Scenario "Token y provider existen en app.config.ts".
-- [ ] 9.2 Modify `src/app.config.ts`: add:
+- [x] 9.1 Add `export const TUTOR_EXAMS_API = new InjectionToken<TutorExamsApi>('TUTOR_EXAMS_API')` in `src/L3_periphery/tokens.ts` (or a new `src/L3_periphery/tutor-tokens.ts`). Satisfies `tutor-exams-api` Requirement "Token de inyección TUTOR_EXAMS_API y wiring en app.config.ts" / Scenario "Token y provider existen en app.config.ts".
+- [x] 9.2 Modify `src/app.config.ts`: add:
   - `{ provide: TUTOR_EXAMS_API, useExisting: HttpTutorExamsApi }`
   - 6 factory providers (one per use-case, each with `deps: [TUTOR_EXAMS_API]`) per design.md D7 template.
   Satisfies `tutor-exams-api` Requirement "Token de inyección" / Scenario "Token y provider existen en app.config.ts".
-- [ ] 9.3 Create `src/L3_periphery/fakes/fake-tutor-exams-api.ts` — `FakeTutorExamsApi implements TutorExamsApi` with stub methods returning fixed data (arrays, void, `FinalizeResult`). TypeScript must compile without errors. Satisfies Scenario "FakeTutorExamsApi implementa el port completo". (This is the src-side version for injection in test AppConfig; the `tests/` version added in commit 3.1 is for L2 unit tests.)
-- [ ] 9.4 Write a type-level integration test snippet (in commit 9's spec or in an existing spec file) verifying `TUTOR_EXAMS_API` token type resolves to `TutorExamsApi` when `FakeTutorExamsApi` is provided. Satisfies Scenario "FakeTutorExamsApi implementa el port completo".
-- [ ] 9.5 Verify `npm run lint` clean. Run `npm test` — all 3-PR1 specs pass, existing suite unaffected.
+- [x] 9.3 Create `src/L3_periphery/fakes/fake-tutor-exams-api.ts` — `FakeTutorExamsApi implements TutorExamsApi` with stub methods returning fixed data (arrays, void, `FinalizeResult`). TypeScript must compile without errors. Satisfies Scenario "FakeTutorExamsApi implementa el port completo". (This is the src-side version for injection in test AppConfig; the `tests/` version added in commit 3.1 is for L2 unit tests.)
+- [x] 9.4 Write a type-level integration test snippet (in commit 9's spec or in an existing spec file) verifying `TUTOR_EXAMS_API` token type resolves to `TutorExamsApi` when `FakeTutorExamsApi` is provided. Satisfies Scenario "FakeTutorExamsApi implementa el port completo".
+- [x] 9.5 Verify `npm run lint` clean. Run `npm test` — all 3-PR1 specs pass, existing suite unaffected.
 
 ---
 
