@@ -68,6 +68,32 @@ describe('app.routes', () => {
       expect(typeof r?.canActivate?.[1]).toBe('function');
     });
 
+    it('/tutor/home carga TutorExamsListPage (lazy loadComponent apunta al componente de lista)', () => {
+      const r = findRoute('tutor/home');
+      expect(typeof r?.loadComponent).toBe('function');
+      // Verificamos que la función lazy NO referencia el placeholder antiguo
+      // inspeccionando el toString() del import dinámico.
+      const importStr = r?.loadComponent?.toString() ?? '';
+      expect(importStr).toContain('tutor-exams-list');
+    });
+
+    it('/tutor/exams/:recordId existe en la configuración de rutas', () => {
+      const r = findRoute('tutor/exams/:recordId');
+      expect(r).toBeDefined();
+    });
+
+    it('/tutor/exams/:recordId tiene canActivate: [authGuard, roleGuard("tutor")]', () => {
+      const r = findRoute('tutor/exams/:recordId');
+      expect(r?.canActivate?.length).toBe(2);
+      expect(r?.canActivate?.[0]).toBe(authGuard);
+      expect(typeof r?.canActivate?.[1]).toBe('function');
+    });
+
+    it('/tutor/exams/:recordId tiene loadComponent (lazy)', () => {
+      const r = findRoute('tutor/exams/:recordId');
+      expect(typeof r?.loadComponent).toBe('function');
+    });
+
     it('roleGuard("student") y roleGuard("tutor") son funciones distintas (factory genera instancia nueva por rol)', () => {
       const studentRoute = findRoute('student/home');
       const tutorRoute = findRoute('tutor/home');
@@ -77,6 +103,39 @@ describe('app.routes', () => {
       // Sanity check: producen un guard al ser invocadas independientemente.
       const newStudentGuard = roleGuard('student');
       expect(typeof newStudentGuard).toBe('function');
+    });
+
+    it('no existe componente placeholder para /tutor/home (tutor-home.page en loadComponent)', () => {
+      // Tras el change, /tutor/home debe apuntar a TutorExamsListPage, NO al
+      // placeholder TutorHomePage. Verificamos que la función de lazy load NO
+      // contiene 'tutor-home.page'.
+      const r = findRoute('tutor/home');
+      const importStr = r?.loadComponent?.toString() ?? '';
+      expect(importStr).not.toContain('tutor-home.page');
+    });
+  });
+
+  describe('Scenario: Rutas del alumno sin cambios', () => {
+    it('/student/home sigue con authGuard + roleGuard("student") sin alteración', () => {
+      const r = findRoute('student/home');
+      expect(r).toBeDefined();
+      expect(r?.canActivate?.length).toBe(2);
+      expect(r?.canActivate?.[0]).toBe(authGuard);
+      expect(typeof r?.canActivate?.[1]).toBe('function');
+      expect(typeof r?.loadComponent).toBe('function');
+    });
+
+    it('/student/simulacro/:id sigue sin cambios', () => {
+      const r = findRoute('student/simulacro/:id');
+      expect(r).toBeDefined();
+      expect(r?.canActivate?.length).toBe(2);
+      expect(r?.canActivate?.[0]).toBe(authGuard);
+      expect(typeof r?.canActivate?.[1]).toBe('function');
+    });
+
+    it('/login sigue con publicOnlyGuard', () => {
+      const r = findRoute('login');
+      expect(r?.canActivate).toContain(publicOnlyGuard);
     });
   });
 
