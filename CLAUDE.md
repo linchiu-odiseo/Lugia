@@ -1,18 +1,27 @@
 # Lugia — guía para Claude Code
 
 > Esta nota la lee Claude Code al arrancar en este repo. Resume el proyecto, el stack y las reglas para que cualquier sesión (humana o agente) pueda colaborar sin pedir contexto desde cero.
+>
+> **⚠️ Antes de tocar código, leé [`CONTRIBUTING.md`](./CONTRIBUTING.md).** Define las 3 reglas obligatorias del repo: workflow SDD/OpenSpec, respeto a la arquitectura hexagonal, y uso obligatorio de los 3 subagentes (`hexagonal-guard` es bloqueante antes de archivar). Aplican a todo colaborador, humano o IA.
 
 ## Qué es esto
 
 **Lugia** es una PWA Angular para móviles que sirve como **cartilla virtual de marcaciones** para simulacros (exámenes de práctica). El alumno marca las alternativas A–E por pregunta en pantalla; el enunciado viene impreso en una hoja física que entrega el profesor. Backend: **learnex** (NestJS + Postgres, multi-tenant) en Docker. Auth via cookies HttpOnly + `withCredentials: true`.
 
-**Fase actual: Fase 3 — migración a learnex EN CURSO.** Cambio activo `fase-3-login-learnex` (sin archivar todavía): cut-over duro de API-FAKE (Bearer + X-API-Key) a learnex (cookies HttpOnly + `withCredentials: true`). Multi-rol mínimo: alumno rinde, tutor stub identificable. Refresh reactivo con lock `shareReplay(1)`. Cartilla queda **rota en runtime** hasta el change siguiente `fase-3-exam-learnex`.
+**Estado actual (2026-06-20): Fase 3 completada. Sin change activo.**
 
-Fase 2 archivada (2026-06-12): cartilla completa con grilla A–E offline-first, queue IDB, server-time-sync, bearer rolling 6h vía `X-New-Bearer`. 400/400 tests.
+Changes archivados a la fecha (en `openspec/changes/archive/`):
 
-Fase 1 archivada (2026-06-11): login funcional + redirect a `/home` protegido por guard.
+- `2026-06-11-add-auth-login` — Fase 1: login funcional + redirect a `/home` protegido por guard.
+- `2026-06-12-cartilla-fase-2` — Fase 2: cartilla completa con grilla A–E offline-first, queue IDB, server-time-sync (sobre API-FAKE). 400/400 tests.
+- `2026-06-14-restyle-native-excellence` — refactor de estilos UI a tokens.
+- `2026-06-14-fase-3-login-learnex` — Fase 3 login: cut-over duro de API-FAKE a learnex (cookies HttpOnly + `withCredentials: true`). Refresh reactivo con lock `shareReplay(1)`.
+- `2026-06-16-fase-3-exam-list-learnex` — Fase 3 exam list migrado a learnex.
+- `2026-06-17-pwa-auto-update` — PWA auto-update con `SwUpdate.versionUpdates` y `appData.version` inyectada post-build.
+- `2026-06-17-fase-3-exam-submit-learnex` — Fase 3 submit de marcaciones contra learnex (cierra la migración API-FAKE → learnex).
+- `2026-06-19-draft-auto-save` — auto-save de borrador (`submit-progress-snapshot`).
 
-**Fase 3 (próximos pasos):** después de `fase-3-login-learnex`: `fase-3-exam-learnex` (migrar endpoints de examen para restaurar la cartilla). Posibles changes posteriores: dashboard tutor real (aulas, activación de examen), resultados post-envío, historial, anti-fraude hardening.
+**Próximos changes candidatos:** dashboard tutor real (aulas, activación de examen), resultados post-envío, historial del alumno, anti-fraude hardening. Antes de empezar cualquiera: ver workflow SDD en [`CONTRIBUTING.md`](./CONTRIBUTING.md).
 
 ## Stack
 
@@ -64,6 +73,8 @@ npm run build-env      # genera src/environments/ desde .env (manual; se invoca 
 
 ## Reglas inviolables
 
+> Las **3 reglas de colaboración** (SDD obligatorio, respeto a arquitectura/estilos, uso de los 3 subagentes con `hexagonal-guard` bloqueante) viven en [`CONTRIBUTING.md`](./CONTRIBUTING.md). Esta sección lista los detalles técnicos que aplican adentro de la regla #2.
+
 1. **Boundaries hexagonales.** Ver `@agents/architecture-rules.md` para la tabla completa. ESLint enforza los imports cruzados; el subagente `hexagonal-guard` audita lo que ESLint no atrapa (anémicas, mappers ceremoniales, use cases passthrough).
 2. **L1 y L2 son TypeScript puro.** Cero `@angular/*`, cero `rxjs`, cero browser APIs.
 3. **Clasificación de errores HTTP por `(status, endpoint, code)` — nunca por texto del `message`.** El `code` se lee SOLO si está declarado en el zod del contrato learnex (ej. `TENANT_AUTH_INVALID_CREDENTIALS`, `TENANT_AUTH_REFRESH_TOKEN_INVALID`, `TENANT_AUTH_REFRESH_TOKEN_MISSING`). El `message` es texto humano volátil y queda PROHIBIDO. Detalle en `@agents/api-contract.md`.
@@ -88,13 +99,20 @@ Definiciones completas en `.claude/agents/`.
 
 ## Workflow de cambios (SDD)
 
-Este proyecto usa **OpenSpec / Spec-Driven Development**. Un cambio (`openspec/changes/<name>/`) contiene `proposal.md`, `design.md`, `specs/`, `tasks.md`. Se navega con skills:
+Este proyecto usa **OpenSpec / Spec-Driven Development** con 8 fases obligatorias. Detalle completo (qué archivo produce cada una, cuándo es opcional, reglas de no saltar) en [`CONTRIBUTING.md`](./CONTRIBUTING.md#regla-1--todo-cambio-pasa-por-sdd-openspec-sin-excepción).
 
-- `/openspec-propose <idea>` — crea propuesta + specs + tasks de un tirón.
-- `/openspec-apply-change <name>` — implementa tasks marcando checklist.
-- `/openspec-archive-change <name>` — finaliza y mueve a `openspec/changes/archive/`.
+Resumen rápido del pipeline:
 
-El cambio activo actual es `cartilla-fase-2` (todas las capabilities implementadas, queda solo `sdd-verify` + `sdd-archive`).
+```
+Explore (opc.) → Propose → Spec → Design → Tasks → Apply → Verify → Archive
+   sdd-explore   sdd-propose sdd-spec sdd-design sdd-tasks sdd-apply sdd-verify sdd-archive
+```
+
+Cada fase tiene su skill (`sdd-<fase>`). Un change vive en `openspec/changes/<name>/` con `proposal.md`, `design.md`, `specs/<cap>/spec.md`, `tasks.md`. Al archivar, se mueve a `openspec/changes/archive/<YYYY-MM-DD>-<name>/` y los delta specs se mergean en `openspec/specs/`.
+
+**Gate bloqueante:** durante `sdd-verify` corre el subagente `hexagonal-guard`. Si reporta violaciones duras, el change NO se puede archivar. Ver [`CONTRIBUTING.md`](./CONTRIBUTING.md#regla-3--usar-los-3-subagentes-del-proyecto-hexagonal-guard-es-bloqueante).
+
+Hoy no hay change activo (último archivado: `2026-06-19-draft-auto-save`).
 
 ## Información del entorno dev
 
