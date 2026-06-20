@@ -41,6 +41,7 @@ import { GuardarDraftUseCase } from './L2_application/use-cases/guardar-draft.us
 // L3 implementaciones de los puertos.
 import { HttpAuthRepository } from './L3_periphery/http/http-auth-repository';
 import { HttpExamsApi } from './L3_periphery/http/http-exams-api';
+import { HttpTutorExamsApi } from './L3_periphery/http/http-tutor-exams-api';
 import { LocalStorageIdentityStorage } from './L3_periphery/storage/local-storage-identity-storage';
 import { IndexedDbProfileStorage } from './L3_periphery/storage/indexed-db-profile-storage';
 import { IndexedDbMarkingsStorage } from './L3_periphery/storage/indexed-db-markings-storage';
@@ -53,8 +54,17 @@ import {
 } from './L3_periphery/envio/draft-auto-save-dispatcher.service';
 import { credentialsInterceptor } from './L3_periphery/interceptors/credentials.interceptor';
 import { PwaUpdateService } from './L3_periphery/pwa/pwa-update.service';
-import { IDENTITY_STORAGE, PROFILE_STORAGE, OUTBOX_STORAGE } from './L3_periphery/tokens';
+import { IDENTITY_STORAGE, PROFILE_STORAGE, OUTBOX_STORAGE, TUTOR_EXAMS_API } from './L3_periphery/tokens';
 import { environment } from './environments/environment';
+
+// L2 use-cases del tutor — puras TS, sin decorador Angular.
+import { GetTutorExamsUseCase } from './L2_application/use-cases/get-tutor-exams.use-case';
+import { GetTutorExamDetailUseCase } from './L2_application/use-cases/get-tutor-exam-detail.use-case';
+import { ListClassroomStudentsUseCase } from './L2_application/use-cases/list-classroom-students.use-case';
+import { IniciarExamenUseCase } from './L2_application/use-cases/iniciar-examen.use-case';
+import { FinalizarExamenUseCase } from './L2_application/use-cases/finalizar-examen.use-case';
+import { ActualizarAlumnosHabilitadosUseCase } from './L2_application/use-cases/actualizar-alumnos-habilitados.use-case';
+import { TutorExamsApi } from './L1_domain/ports/tutor-exams-api';
 
 // Tokens DI para ports de Fase 2 que aún no migraron a src/L3_periphery/tokens.ts.
 // Se mantienen acá hasta que un change futuro los consolide.
@@ -96,6 +106,10 @@ export const appConfig: ApplicationConfig = {
     { provide: CLOCK, useExisting: ServerAnchoredClock },
     { provide: CONNECTIVITY, useExisting: BrowserConnectivity },
     { provide: EXAMS_API, useExisting: HttpExamsApi },
+    // Bind puerto TutorExamsApi → implementación HttpTutorExamsApi (L3 → L1).
+    // HttpTutorExamsApi es @Injectable({ providedIn: 'root' }) — el useExisting
+    // conecta el token con la instancia singleton ya creada por Angular.
+    { provide: TUTOR_EXAMS_API, useExisting: HttpTutorExamsApi },
     {
       provide: ROUTER_PORT,
       useFactory: makeRouterPort,
@@ -189,6 +203,40 @@ export const appConfig: ApplicationConfig = {
         new GuardarDraftUseCase(api, markings, identity),
       deps: [EXAMS_API, MARKINGS_STORAGE, IDENTITY_STORAGE],
     },
+    // Use-cases del tutor: fábricas puras que inyectan el puerto via TUTOR_EXAMS_API.
+    // PR1 los registra aquí pero ninguna VM los inyecta todavía (compila, runtime-inert).
+    // PR2/PR3 añadirán las VM y páginas que los consumen. Ver design.md D7.
+    {
+      provide: GetTutorExamsUseCase,
+      useFactory: (api: TutorExamsApi) => new GetTutorExamsUseCase(api),
+      deps: [TUTOR_EXAMS_API],
+    },
+    {
+      provide: GetTutorExamDetailUseCase,
+      useFactory: (api: TutorExamsApi) => new GetTutorExamDetailUseCase(api),
+      deps: [TUTOR_EXAMS_API],
+    },
+    {
+      provide: ListClassroomStudentsUseCase,
+      useFactory: (api: TutorExamsApi) => new ListClassroomStudentsUseCase(api),
+      deps: [TUTOR_EXAMS_API],
+    },
+    {
+      provide: IniciarExamenUseCase,
+      useFactory: (api: TutorExamsApi) => new IniciarExamenUseCase(api),
+      deps: [TUTOR_EXAMS_API],
+    },
+    {
+      provide: FinalizarExamenUseCase,
+      useFactory: (api: TutorExamsApi) => new FinalizarExamenUseCase(api),
+      deps: [TUTOR_EXAMS_API],
+    },
+    {
+      provide: ActualizarAlumnosHabilitadosUseCase,
+      useFactory: (api: TutorExamsApi) => new ActualizarAlumnosHabilitadosUseCase(api),
+      deps: [TUTOR_EXAMS_API],
+    },
+
     // Provider del dispatcher de draft. Con draftEnabled=true se instancia el
     // dispatcher real; con false, el stub no-op que no emite tráfico ni timers.
     // El view-model inyecta DraftAutoSaveDispatcher y llama métodos sin condicional.
