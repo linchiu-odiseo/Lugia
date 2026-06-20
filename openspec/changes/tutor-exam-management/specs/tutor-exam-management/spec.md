@@ -1,0 +1,293 @@
+# Delta for tutor-exam-management
+
+> Esta capability es **NUEVA**. Todos los requirements debajo son ADDED.
+> Al archivar este change, este delta se promueve a `openspec/specs/tutor-exam-management/spec.md`.
+
+## ADDED Requirements
+
+### Requirement: TutorExamDetailViewModel — resolución de classroomId con fallback a refetch (D1)
+
+`TutorExamDetailViewModel` (`src/LR_render/tutor/tutor-exam-detail/tutor-exam-detail.view-model.ts`) SHALL:
+- Recibir `recordId` desde los route params (`ActivatedRoute` o `inject(ActivatedRoute)`).
+- Resolver `classroomId` y `detailId` siguiendo la estrategia D1:
+  1. Consultar el store compartido (`TutorExamsStore`) por `recordId`.
+  2. Si el store tiene el dato → usar `classroomId` y `detailId` directamente.
+  3. Si el store está vacío (deep-link, refresh) → invocar `GetTutorExamsUseCase.execute()` para refetchear la lista, poblar el store, y luego extraer `classroomId`/`detailId`.
+- Una vez resuelto `classroomId` y `detailId`, cargar en paralelo (o secuencialmente):
+  - `GetTutorExamDetailUseCase.execute({ recordId })` → `TutorExamDetail` (para `enabledStudentIds` y status actualizado).
+  - `ListClassroomStudentsUseCase.execute({ classroomId, virtualExamDetailId: detailId })` → `ClassroomStudent[]`.
+
+#### Scenario: Store vacío en deep-link → refetch list resuelve classroomId
+
+- **GIVEN** el tutor navega directamente a `/tutor/exams/rec-1` sin haber visitado `/tutor/home`
+- **AND** el store compartido está vacío
+- **WHEN** `TutorExamDetailViewModel` se inicializa
+- **THEN** el VM invoca `GetTutorExamsUseCase.execute()` para refetchear la lista
+- **AND** localiza el item con `recordId === "rec-1"` y obtiene su `classroomId`
+- **AND** continúa con la carga normal del detalle y los alumnos
+
+#### Scenario: Store poblado → classroomId resuelto sin request extra
+
+- **GIVEN** el store compartido contiene el TutorExam con `recordId === "rec-1"` y `classroomId === "cls-1"`
+- **WHEN** `TutorExamDetailViewModel` se inicializa con `recordId = "rec-1"`
+- **THEN** el VM NO invoca `GetTutorExamsUseCase.execute()`
+- **AND** usa `classroomId = "cls-1"` directamente del store
+
+#### Scenario: recordId no encontrado ni en store ni en refetch → error
+
+- **GIVEN** el store está vacío
+- **AND** `GetTutorExamsUseCase.execute()` resuelve con una lista que NO contiene `recordId = "rec-xxx"`
+- **WHEN** `TutorExamDetailViewModel` busca `recordId = "rec-xxx"`
+- **THEN** el VM entra en estado de error (`error() = true`)
+- **AND** NOT navega silenciosamente
+
+---
+
+### Requirement: TutorExamDetailViewModel — Signals expuestos
+
+El VM SHALL exponer las Signals siguientes:
+- `detail: Signal<TutorExamDetail | null>` — detalle cargado (null hasta cargar).
+- `students: Signal<readonly ClassroomStudent[]>` — lista de alumnos del aula.
+- `loading: Signal<boolean>` — true durante la carga inicial.
+- `error: Signal<'network' | 'notFound' | 'forbidden' | null>` — null si todo OK.
+- `enabledStudentIds: WritableSignal<readonly string[]>` — set local mutable de IDs habilitados (inicializa desde `detail().enabledStudentIds`).
+- `isSaving: Signal<boolean>` — true mientras un PATCH/POST esté en vuelo.
+- `actionError: Signal<string | null>` — mensaje de error en español para la última acción fallida (null si no hay error).
+
+#### Scenario: Carga exitosa popula detail y students
+
+- **GIVEN** ambos use-cases resuelven exitosamente
+- **WHEN** el VM finaliza la carga
+- **THEN** `detail()` es un `TutorExamDetail` no null
+- **AND** `students()` es la lista de `ClassroomStudent[]`
+- **AND** `loading()` es `false`
+- **AND** `error()` es `null`
+
+#### Scenario: enabledStudentIds inicializa desde detail.enabledStudentIds
+
+- **GIVEN** `detail().enabledStudentIds === ["s-1","s-2"]`
+- **WHEN** el VM completa la carga
+- **THEN** `enabledStudentIds()` es `["s-1","s-2"]`
+
+---
+
+### Requirement: Iniciar examen — lógica de habilitación y manejo de errores (D5)
+
+**Habilitación del botón Iniciar**: el botón "Iniciar" SHALL estar disponible SOLO si `detail().serverStatus.is('scheduled')`. El botón SHALL estar deshabilitado (`disabled`) si `enabledStudentIds().length === 0`. El VM SHALL NOT hacer ninguna llamada HTTP mientras el botón esté deshabilitado.
+
+**Acción**: al presionar "Iniciar", el VM invoca `IniciarExamenUseCase.execute({ recordId })`. En caso de éxito (204 → void), el VM recarga el detalle y la lista (para reflejar el nuevo status). En caso de error, setea `actionError` con el copy en español correspondiente (ver Requirement: Copy de errores por acción).
+
+#### Scenario: Botón Iniciar habilitado solo con scheduled y ≥1 alumno habilitado
+
+- **GIVEN** `detail().serverStatus.value === 'scheduled'` y `enabledStudentIds().length > 0`
+- **WHEN** se evalúa el estado del botón "Iniciar"
+- **THEN** el botón está habilitado
+
+#### Scenario: Botón Iniciar deshabilitado si 0 alumnos habilitados (D5)
+
+- **GIVEN** `detail().serverStatus.value === 'scheduled'` y `enabledStudentIds().length === 0`
+- **WHEN** se evalúa el estado del botón "Iniciar"
+- **THEN** el botón está deshabilitado (`disabled`)
+- **AND** el VM NOT llama a `IniciarExamenUseCase` mientras esté deshabilitado
+
+#### Scenario: Botón Iniciar NO aparece si status es in_progress o finalized
+
+- **GIVEN** `detail().serverStatus.value === 'in_progress'` o `'finalized'`
+- **WHEN** la página renderiza
+- **THEN** el botón "Iniciar" no es visible (o está oculto/ausente)
+
+#### Scenario: Iniciar exitoso → status pasa a in_progress
+
+- **GIVEN** `IniciarExamenUseCase.execute()` resuelve con `void`
+- **WHEN** el VM procesa el éxito
+- **THEN** el VM recarga el detalle
+- **AND** `actionError()` es `null`
+
+---
+
+### Requirement: Finalizar examen — idempotencia y manejo de errores
+
+**Habilitación del botón Finalizar**: el botón "Finalizar" SHALL estar disponible SOLO si `detail().serverStatus.is('in_progress')`.
+
+**Acción**: al presionar "Finalizar", el VM SHALL mostrar un diálogo de confirmación antes de invocar `FinalizarExamenUseCase.execute({ recordId })`. En caso de éxito:
+- Si `result.transitioned === true` → el examen se finalizó ahora; recargar detail.
+- Si `result.transitioned === false` → el examen ya estaba finalizado (idempotente); recargar detail sin mostrar error.
+En caso de error, setear `actionError` con el copy correspondiente (ver Requirement: Copy de errores por acción).
+
+#### Scenario: Botón Finalizar habilitado solo con in_progress
+
+- **GIVEN** `detail().serverStatus.value === 'in_progress'`
+- **WHEN** se evalúa el estado del botón "Finalizar"
+- **THEN** el botón está habilitado
+
+#### Scenario: Botón Finalizar NO aparece si status es scheduled o finalized
+
+- **GIVEN** `detail().serverStatus.value !== 'in_progress'`
+- **WHEN** la página renderiza
+- **THEN** el botón "Finalizar" no es visible
+
+#### Scenario: Finalizar con transitioned:true — éxito normal
+
+- **GIVEN** `FinalizarExamenUseCase.execute()` resuelve con `{ transitioned: true }`
+- **WHEN** el VM procesa el éxito
+- **THEN** `actionError()` es `null`
+- **AND** el VM recarga el detalle (detail refrescado)
+
+#### Scenario: Finalizar con transitioned:false — idempotente, no es error
+
+- **GIVEN** `FinalizarExamenUseCase.execute()` resuelve con `{ transitioned: false }`
+- **WHEN** el VM procesa el resultado
+- **THEN** `actionError()` es `null` — no se muestra mensaje de error
+- **AND** el VM recarga el detalle (ya estaba finalizado; UI refleja finalized)
+
+---
+
+### Requirement: Habilitar/deshabilitar alumnos — checkboxes y PATCH (D5)
+
+Los alumnos del aula se muestran como una lista de checkboxes:
+- El checkbox de cada alumno refleja si su `studentId` está en `enabledStudentIds()`.
+- El checkbox de un alumno con `hasSubmitted === true` SHALL estar deshabilitado (no se puede desmarcar — el backend tiraría 409).
+- Si `detail().serverStatus.is('finalized')` → todos los checkboxes están deshabilitados (read-only).
+- Al cambiar el estado de un checkbox (marcar/desmarcar), el VM actualiza `enabledStudentIds` localmente y dispara `ActualizarAlumnosHabilitadosUseCase.execute({ recordId, enabledStudentIds })`.
+- En caso de éxito (200 → void) → noop, la Signal local ya está actualizada.
+- En caso de error → revertir `enabledStudentIds` al estado anterior y setear `actionError`.
+
+#### Scenario: Checkbox de alumno con hasSubmitted deshabilitado (D5)
+
+- **GIVEN** un `ClassroomStudent` con `hasSubmitted === true`
+- **WHEN** la lista de alumnos se renderiza
+- **THEN** el checkbox de ese alumno está `disabled`
+- **AND** el usuario no puede desmarcarlo desde la UI
+
+#### Scenario: Checkboxes deshabilitados en modo finalized (D5)
+
+- **GIVEN** `detail().serverStatus.value === 'finalized'`
+- **WHEN** la página renderiza
+- **THEN** todos los checkboxes de la lista de alumnos están `disabled` (read-only)
+
+#### Scenario: Marcar alumno habilitado — PATCH exitoso
+
+- **GIVEN** `detail().serverStatus.is('scheduled')` y `enabledStudentIds` no contiene `"s-3"`
+- **WHEN** el usuario marca el checkbox del alumno `"s-3"`
+- **THEN** el VM añade `"s-3"` a `enabledStudentIds()` localmente
+- **AND** invoca `ActualizarAlumnosHabilitadosUseCase.execute({ recordId, enabledStudentIds: [..., "s-3"] })`
+- **AND** en caso de éxito `actionError()` es `null`
+
+#### Scenario: PATCH falla — enabledStudentIds se revierte
+
+- **GIVEN** `ActualizarAlumnosHabilitadosUseCase.execute()` rechaza con `ExamConflictError`
+- **WHEN** el VM procesa el error
+- **THEN** `enabledStudentIds()` vuelve al valor que tenía antes del cambio
+- **AND** `actionError()` tiene el copy en español para acción "habilitar" + error 409
+
+---
+
+### Requirement: Copy de errores por acción en español (D2)
+
+El VM SHALL seleccionar el mensaje de error (`actionError`) según `acción × tipo-de-error`. El clasificador SHALL:
+- Usar el tipo del error de dominio (instancia de la clase de error), NOT el `message` del backend.
+- NO hacer comparaciones de strings sobre `body.message` ni `body.code`.
+
+La tabla de copy SHALL ser (valores orientativos — el copy exacto puede ajustarse en implementación, pero la LÓGICA de mapping acción × tipo es la spec):
+
+| Acción | Error | Copy en español |
+|---|---|---|
+| Iniciar | `ExamPreconditionError` | "No podés iniciar el examen: configurá las claves o habilitá al menos un alumno." |
+| Iniciar | `ExamConflictError` | "El examen ya está en curso o finalizado." |
+| Iniciar | `VirtualExamNotFoundError` | "No se encontró el examen. Volvé a la lista." |
+| Iniciar | `NetworkError` | "Sin conexión. Verificá tu red y volvé a intentar." |
+| Iniciar | `TutorExamForbiddenError` | "No tenés permiso para iniciar este examen." |
+| Finalizar | `ExamConflictError` | "El examen ya fue finalizado o hubo un conflicto." |
+| Finalizar | `ExamPreconditionError` | "El examen no está en curso. Inicialo primero." |
+| Finalizar | `VirtualExamNotFoundError` | "No se encontró el examen. Volvé a la lista." |
+| Finalizar | `NetworkError` | "Sin conexión. Verificá tu red y volvé a intentar." |
+| Finalizar | `TutorExamForbiddenError` | "No tenés permiso para finalizar este examen." |
+| Habilitar alumnos | `ExamConflictError` | "Un alumno que ya entregó no puede ser deshabilitado." |
+| Habilitar alumnos | `ExamPreconditionError` | "El examen está finalizado. No se pueden cambiar los alumnos." |
+| Habilitar alumnos | `VirtualExamNotFoundError` | "No se encontró el examen. Volvé a la lista." |
+| Habilitar alumnos | `NetworkError` | "Sin conexión. Los cambios no se guardaron. Intentá de nuevo." |
+| Habilitar alumnos | `TutorExamForbiddenError` | "No tenés permiso para modificar los alumnos de este examen." |
+
+#### Scenario: Copy para iniciar × ExamPreconditionError (422)
+
+- **GIVEN** `IniciarExamenUseCase.execute()` rechaza con `ExamPreconditionError`
+- **WHEN** el VM procesa el error
+- **THEN** `actionError()` contiene un mensaje sobre configuración/alumnos habilitados
+- **AND** el copy NOT hace referencia a `body.message` del backend
+
+#### Scenario: Copy para iniciar × ExamConflictError (409)
+
+- **GIVEN** `IniciarExamenUseCase.execute()` rechaza con `ExamConflictError`
+- **WHEN** el VM procesa el error
+- **THEN** `actionError()` contiene un mensaje sobre el estado actual del examen
+
+#### Scenario: Copy para finalizar × ExamPreconditionError (422)
+
+- **GIVEN** `FinalizarExamenUseCase.execute()` rechaza con `ExamPreconditionError`
+- **WHEN** el VM procesa el error
+- **THEN** `actionError()` contiene un mensaje indicando que el examen debe iniciarse primero
+
+#### Scenario: Copy para finalizar × NetworkError
+
+- **GIVEN** `FinalizarExamenUseCase.execute()` rechaza con `NetworkError`
+- **WHEN** el VM procesa el error
+- **THEN** `actionError()` contiene un mensaje sobre falta de conexión
+- **AND** `actionError()` NOT es `null`
+
+#### Scenario: Copy para habilitar × ExamConflictError (409)
+
+- **GIVEN** `ActualizarAlumnosHabilitadosUseCase.execute()` rechaza con `ExamConflictError`
+- **WHEN** el VM procesa el error
+- **THEN** `actionError()` referencia al alumno que ya entregó (o la situación de conflicto)
+
+#### Scenario: Acción exitosa limpia actionError
+
+- **GIVEN** `actionError()` tenía un mensaje previo
+- **WHEN** cualquier acción (iniciar/finalizar/habilitar) completa exitosamente
+- **THEN** `actionError()` vuelve a `null`
+
+#### Scenario: Clasificador por tipo de error, NOT por body.message
+
+- **WHEN** se inspecciona la lógica de `actionError` en `TutorExamDetailViewModel`
+- **THEN** no aparecen comparaciones de strings sobre `body.message` ni `body.code`
+- **AND** la selección de copy usa `instanceof ExamPreconditionError`, `instanceof ExamConflictError`, etc.
+
+---
+
+### Requirement: Estado de error de red + reintentar (D3 online-only)
+
+Cuando cualquier carga inicial (detail o classroom students) falla con `NetworkError`, el VM SHALL mostrar un estado de error visible con botón "Reintentar". El botón SHALL invocar de nuevo la carga completa. El VM SHALL NOT enqueue ninguna acción, NOT escribir en IndexedDB.
+
+#### Scenario: Error de red en carga inicial → estado de error con botón reintentar
+
+- **GIVEN** `GetTutorExamDetailUseCase.execute()` rechaza con `NetworkError`
+- **WHEN** el VM intenta cargar el detalle
+- **THEN** `error()` es `'network'`
+- **AND** la UI muestra un mensaje de error y un botón "Reintentar"
+
+#### Scenario: Reintentar dispara nueva carga
+
+- **GIVEN** el VM está en estado `error()` de red
+- **WHEN** el usuario presiona "Reintentar"
+- **THEN** el VM invoca nuevamente la secuencia de carga completa
+- **AND** si tiene éxito, `error()` vuelve a `null`
+
+#### Scenario: VM NOT encola acciones fallidas (D3)
+
+- **GIVEN** `IniciarExamenUseCase.execute()` rechaza con `NetworkError`
+- **WHEN** el VM procesa el error
+- **THEN** no se escribe nada en IndexedDB
+- **AND** no se enqueue ninguna acción en outbox
+- **AND** `actionError()` muestra el mensaje de error visible
+
+---
+
+### Requirement: TutorExamDetailPage provee la VM como provider local
+
+`TutorExamDetailPage` SHALL declarar `providers: [TutorExamDetailViewModel]` en su decorador `@Component`. El VM SHALL NOT ser `providedIn: 'root'`.
+
+#### Scenario: VM es local al componente page
+
+- **WHEN** se inspecciona el decorador de `TutorExamDetailPage`
+- **THEN** `TutorExamDetailViewModel` aparece en `providers: [...]`
+- **AND** TypeScript compila sin error con la inyección del VM en la vista
