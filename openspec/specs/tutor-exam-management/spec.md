@@ -1,9 +1,10 @@
-# Delta for tutor-exam-management
+# tutor-exam-management — Specification
 
-> Esta capability es **NUEVA**. Todos los requirements debajo son ADDED.
-> Al archivar este change, este delta se promueve a `openspec/specs/tutor-exam-management/spec.md`.
+## Purpose
 
-## ADDED Requirements
+Defines the tutor exam detail / management screen: `TutorExamDetailViewModel` with store-based `classroomId` resolution (warm path) and list-refetch fallback (cold deep-link), start / finalize / enable-students actions, copy-by-action error messages in Spanish, and `TutorExamDetailPage` with iOS-safe back button. Depends on `tutor-exams-api` and `tutor-exam-list` capabilities.
+
+## Requirements
 
 ### Requirement: TutorExamDetailViewModel — resolución de classroomId con fallback a refetch (D1)
 

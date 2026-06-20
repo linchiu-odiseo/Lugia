@@ -1,9 +1,10 @@
-# Delta for tutor-exams-api
+# tutor-exams-api — Specification
 
-> Esta capability es **NUEVA**. Todos los requirements debajo son ADDED.
-> Al archivar este change, este delta se promueve a `openspec/specs/tutor-exams-api/spec.md`.
+## Purpose
 
-## ADDED Requirements
+Defines the tutor-side API boundary for virtual exam management in Lugia. Exposes a hexagonal port `TutorExamsApi` (L1), 6 pure use-cases (L2), the HTTP adapter `HttpTutorExamsApi` with status-based error classification (L3), and the read-models / domain errors introduced by the `tutor-exam-management` change. The student `ExamsApi` port is untouched. All tutor actions are online-only (no outbox, no IndexedDB).
+
+## Requirements
 
 ### Requirement: TutorExamsApi port en L1
 
@@ -427,7 +428,7 @@ Los 6 use-cases de L2 (`src/L2_application/`) SHALL:
 - **WHEN** `FinalizarExamenUseCase.execute({ recordId: "rec-1" })` es invocado
 - **THEN** retorna `{ transitioned: true, jobId: "j1" }` sin transformación
 
-#### Scenario: Use-cases propaganErrores del port sin envoltorio
+#### Scenario: Use-cases propagan errores del port sin envoltorio
 
 - **GIVEN** `TutorExamsApi.iniciar("rec-1")` rechaza con `ExamPreconditionError`
 - **WHEN** `IniciarExamenUseCase.execute({ recordId: "rec-1" })` es invocado

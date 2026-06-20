@@ -269,12 +269,12 @@ Targets: `testing`
 
 ### PR1 Pre-merge Gates
 
-- [ ] G1-PR1 **lint clean**: `npm run lint` exits 0.
-- [ ] G2-PR1 **tests green**: `npm test` exits 0. All new specs pass; existing specs unaffected.
-- [ ] G3-PR1 **no `"vonex"` literal in `src/`**: `rg '"vonex"' src/` returns empty. Satisfies CLAUDE.md rule.
-- [ ] G4-PR1 **build clean**: `npm run build` exits 0 (PR1 compiles isolated; no page routes it yet → runtime-inert as designed).
-- [ ] G5-PR1 **hexagonal boundary**: `TutorExamsApi` port file (`L1`) has zero Angular imports. `HttpTutorExamsApi` (`L3`) does not import L2 use-cases directly. Use-cases do not import `HttpClient`, `Injectable`, or Angular DI.
-- [ ] G6-PR1 **finalize 200 assertion**: the `http-tutor-exams-api.spec.ts` explicitly tests HTTP 200 (not 202 or 204) for `finalizar()` and asserts the body `{ transitioned, jobId? }` is read. Verifies design.md R2 mitigation.
+- [x] G1-PR1 **lint clean**: `npm run lint` exits 0.
+- [x] G2-PR1 **tests green**: `npm test` exits 0. All new specs pass; existing specs unaffected.
+- [x] G3-PR1 **no `"vonex"` literal in `src/`**: `rg '"vonex"' src/` returns empty. Satisfies CLAUDE.md rule.
+- [x] G4-PR1 **build clean**: `npm run build` exits 0 (PR1 compiles isolated; no page routes it yet → runtime-inert as designed).
+- [x] G5-PR1 **hexagonal boundary**: `TutorExamsApi` port file (`L1`) has zero Angular imports. `HttpTutorExamsApi` (`L3`) does not import L2 use-cases directly. Use-cases do not import `HttpClient`, `Injectable`, or Angular DI.
+- [x] G6-PR1 **finalize 200 assertion**: the `http-tutor-exams-api.spec.ts` explicitly tests HTTP 200 (not 202 or 204) for `finalizar()` and asserts the body `{ transitioned, jobId? }` is read. Verifies design.md R2 mitigation.
 
 ---
 
@@ -287,7 +287,7 @@ Targets: `testing` (stacks on PR1 merged)
 
 *Write failing spec first (red).*
 
-- [ ] 10.1 Create `tests/feature/LR_render/view-models/tutor-exams.store.spec.ts`.
+- [x] 10.1 Create `tests/feature/LR_render/view-models/tutor-exams.store.spec.ts`.
   - Scenario `setExams([exam1, exam2])` then `findByRecordId("rec-1")` returns `exam1`. Satisfies `tutor-exam-list` Requirement "Store compartido de la lista" / Scenario "Store permite resolver classroomId por recordId".
   - Scenario empty store → `findByRecordId("any")` returns `null` (miss). Satisfies Scenario "Store vacío — classroomId no resuelve desde store".
   - Scenario `setExams(newList)` updates `list` signal immediately. Satisfies Scenario "Store actualizado tras polling".
@@ -300,8 +300,8 @@ Targets: `testing` (stacks on PR1 merged)
 
 *Make commit 10 specs green.*
 
-- [ ] 11.1 Create `src/LR_render/state/tutor-exams.store.ts`. `@Injectable({ providedIn: 'root' })`. Private `_exams = signal<readonly TutorExam[]>([])`. Public `exams = _exams.asReadonly()`. Methods: `setExams(exams)`, `findByRecordId(recordId): TutorExam | null`, `upsert(exam: TutorExam)` (replace by recordId or append), `clear()`. Satisfies `tutor-exam-list` Requirement "Store compartido de la lista".
-- [ ] 11.2 Verify `npm run lint` clean. Commit 10 specs green.
+- [x] 11.1 Create `src/LR_render/state/tutor-exams.store.ts`. `@Injectable({ providedIn: 'root' })`. Private `_exams = signal<readonly TutorExam[]>([])`. Public `exams = _exams.asReadonly()`. Methods: `setExams(exams)`, `findByRecordId(recordId): TutorExam | null`, `upsert(exam: TutorExam)` (replace by recordId or append), `clear()`. Satisfies `tutor-exam-list` Requirement "Store compartido de la lista".
+- [x] 11.2 Verify `npm run lint` clean. Commit 10 specs green.
 
 ---
 
@@ -309,7 +309,7 @@ Targets: `testing` (stacks on PR1 merged)
 
 *Write failing spec first (red).*
 
-- [ ] 12.1 Create `tests/feature/LR_render/view-models/tutor-exams-list.view-model.spec.ts`. Use `TestBed`, `vi.useFakeTimers()`, fake `GetTutorExamsUseCase` (via `FakeTutorExamsApi`), and a real or fake `TutorExamsStore`.
+- [x] 12.1 Create `tests/feature/LR_render/view-models/tutor-exams-list.view-model.spec.ts`. Use `TestBed`, `vi.useFakeTimers()`, fake `GetTutorExamsUseCase` (via `FakeTutorExamsApi`), and a real or fake `TutorExamsStore`.
   - Scenario `exams()` loads on init → `[exam1, exam2]`; `loading()` false; `error()` false. Satisfies `tutor-exam-list` Requirement "TutorExamsListViewModel" / Scenario "Lista cargada correctamente al iniciar".
   - Scenario `GetTutorExamsUseCase.execute()` rejects with `NetworkError` → `error()` is `true`; `exams()` unchanged; polling continues. Satisfies Scenario "Error de red — error Signal activa, polling continúa".
   - Scenario visibility change to `'hidden'` → no HTTP request emitted. Satisfies Scenario "Polling se pausa al ocultar el tab".
@@ -324,8 +324,8 @@ Targets: `testing` (stacks on PR1 merged)
 
 *Make commit 12 specs green.*
 
-- [ ] 13.1 Create `src/LR_render/view-models/tutor-exams-list.view-model.ts`. `@Injectable()` (no `providedIn`). Inject `GetTutorExamsUseCase`, `GetProfileUseCase('tutor')`, `TutorExamsStore`. Expose `exams: Signal`, `loading: Signal`, `error: Signal`. `POLL_INTERVAL_MS = 120_000`. Load on init; on success call `store.setExams(list)`. Pause polling on `visibilitychange → hidden`; reload and resume on `→ visible`. Error handler sets `error = true` without clearing `exams`. Satisfies `tutor-exam-list` Requirement "TutorExamsListViewModel — carga y polling".
-- [ ] 13.2 Verify `npm run lint` clean. Commit 12 specs green.
+- [x] 13.1 Create `src/LR_render/view-models/tutor-exams-list.view-model.ts`. `@Injectable()` (no `providedIn`). Inject `GetTutorExamsUseCase`, `GetProfileUseCase('tutor')`, `TutorExamsStore`. Expose `exams: Signal`, `loading: Signal`, `error: Signal`. `POLL_INTERVAL_MS = 120_000`. Load on init; on success call `store.setExams(list)`. Pause polling on `visibilitychange → hidden`; reload and resume on `→ visible`. Error handler sets `error = true` without clearing `exams`. Satisfies `tutor-exam-list` Requirement "TutorExamsListViewModel — carga y polling".
+- [x] 13.2 Verify `npm run lint` clean. Commit 12 specs green.
 
 ---
 
@@ -333,7 +333,7 @@ Targets: `testing` (stacks on PR1 merged)
 
 *Write failing spec first (red).*
 
-- [ ] 14.1 Create `tests/feature/LR_render/pages/tutor-exams-list/tutor-exams-list.page.spec.ts`. Use `TestBed` + `ComponentFixture`.
+- [x] 14.1 Create `tests/feature/LR_render/pages/tutor-exams-list/tutor-exams-list.page.spec.ts`. Use `TestBed` + `ComponentFixture`.
   - Scenario renders one card per `TutorExam` in order (no reordering). Satisfies `tutor-exam-list` Requirement "Tarjetas con 3 estados via Signals" / Scenario "Lista renderizada en el orden devuelto por el backend".
   - Scenario `count === null` → card shows `"—"`. Satisfies Scenario "count null renderiza '—'".
   - Scenario `serverStatus.value === 'scheduled'` → badge shows "Programado". Satisfies Scenario "Tarjeta scheduled".
@@ -343,7 +343,7 @@ Targets: `testing` (stacks on PR1 merged)
   - Scenario tap DOES NOT navigate outside `/tutor`. Satisfies Scenario "Tap en tarjeta NOT navega fuera de /tutor".
   - Scenario `TutorExamsListViewModel` appears in page `providers`. Satisfies `tutor-exam-list` Requirement "TutorExamsListPage provee la VM como provider local" / Scenario "VM es local al componente page".
 
-- [ ] 14.2 In `tests/feature/LR_render/app.routes.spec.ts`: add/extend scenario.
+- [x] 14.2 In `tests/feature/LR_render/app.routes.spec.ts`: add/extend scenario.
   - Scenario `/tutor/home` route's `loadComponent` points to `TutorExamsListPage`. Satisfies `route-protection` Requirement "/tutor/home carga TutorExamsListPage" / Scenario "/tutor/home carga el componente de lista correcto".
   - Scenario `/tutor/home` route has `canActivate: [authGuard, roleGuard('tutor')]`. Same Requirement.
   - Scenario tutor authenticated → `/tutor/home` renders `TutorExamsListPage`. Satisfies Scenario "Tutor autenticado navega a /tutor/home — renderiza la lista".
@@ -357,23 +357,23 @@ Targets: `testing` (stacks on PR1 merged)
 
 *Make commit 14 specs green.*
 
-- [ ] 15.1 Create `src/LR_render/pages/tutor-exams-list/tutor-exams-list.page.ts`. Standalone `@Component`. `providers: [TutorExamsListViewModel]`. Template renders cards with status badges; `count === null` shows `"—"`; tap calls `Router.navigate(['/tutor/exams', recordId])`. Satisfies `tutor-exam-list` Requirements "Tarjetas con 3 estados via Signals", "Tap en tarjeta navega a /tutor/exams/:recordId", "TutorExamsListPage provee la VM como provider local".
-- [ ] 15.2 Modify `src/LR_render/app.routes.ts`: update `/tutor/home` entry to `loadComponent` pointing to `TutorExamsListPage` (lazy). Keep `canActivate: [authGuard, roleGuard('tutor')]`. Satisfies `route-protection` Requirement "/tutor/home carga TutorExamsListPage".
-- [ ] 15.3 Remove or orphan the old placeholder `src/LR_render/pages/tutor-home/tutor-home.page.ts` (if referenced by a now-deleted route entry). No other route should reference it. Satisfies `tutor-exam-list` Scenario "Placeholder no existe tras el change".
-- [ ] 15.4 Update `tests/feature/LR_render/pages/tutor-home/tutor-home.page.spec.ts` — mark as deleted or redirect its route test to the new page if needed to keep the suite green.
-- [ ] 15.5 Verify `npm run lint` clean. Run `npm test` — all PR2 specs pass; PR1 specs remain green.
+- [x] 15.1 Create `src/LR_render/pages/tutor-exams-list/tutor-exams-list.page.ts`. Standalone `@Component`. `providers: [TutorExamsListViewModel]`. Template renders cards with status badges; `count === null` shows `"—"`; tap calls `Router.navigate(['/tutor/exams', recordId])`. Satisfies `tutor-exam-list` Requirements "Tarjetas con 3 estados via Signals", "Tap en tarjeta navega a /tutor/exams/:recordId", "TutorExamsListPage provee la VM como provider local".
+- [x] 15.2 Modify `src/LR_render/app.routes.ts`: update `/tutor/home` entry to `loadComponent` pointing to `TutorExamsListPage` (lazy). Keep `canActivate: [authGuard, roleGuard('tutor')]`. Satisfies `route-protection` Requirement "/tutor/home carga TutorExamsListPage".
+- [x] 15.3 Remove or orphan the old placeholder `src/LR_render/pages/tutor-home/tutor-home.page.ts` (if referenced by a now-deleted route entry). No other route should reference it. Satisfies `tutor-exam-list` Scenario "Placeholder no existe tras el change".
+- [x] 15.4 Update `tests/feature/LR_render/pages/tutor-home/tutor-home.page.spec.ts` — mark as deleted or redirect its route test to the new page if needed to keep the suite green.
+- [x] 15.5 Verify `npm run lint` clean. Run `npm test` — all PR2 specs pass; PR1 specs remain green.
 
 ---
 
 ### PR2 Pre-merge Gates
 
-- [ ] G1-PR2 **lint clean**: `npm run lint` exits 0.
-- [ ] G2-PR2 **tests green**: `npm test` exits 0.
-- [ ] G3-PR2 **no `"vonex"` literal in `src/`**: `rg '"vonex"' src/` empty.
-- [ ] G4-PR2 **build clean**: `npm run build` exits 0.
-- [ ] G5-PR2 **store singleton**: verify `TutorExamsStore` is `providedIn: 'root'` and VM is NOT.
-- [ ] G6-PR2 **deep-link store-miss pre-test**: manually navigate directly to `/tutor/home` with a fresh session (store empty) — list loads from HTTP, not from cache. Store remains correct after load.
-- [ ] G7-PR2 **integration smoke** (requires learnex PR #276 running locally): login as tutor → `/tutor/home` → list renders with real exam data. Tab visibility toggle confirmed (hide tab → no requests; show tab → immediate reload). Note: this gate requires human coordination with the `feat/virtual-exam-ui` branch.
+- [x] G1-PR2 **lint clean**: `npm run lint` exits 0.
+- [x] G2-PR2 **tests green**: `npm test` exits 0.
+- [x] G3-PR2 **no `"vonex"` literal in `src/`**: `rg '"vonex"' src/` empty.
+- [x] G4-PR2 **build clean**: `npm run build` exits 0.
+- [x] G5-PR2 **store singleton**: verify `TutorExamsStore` is `providedIn: 'root'` and VM is NOT.
+- [x] G6-PR2 **deep-link store-miss pre-test**: manually navigate directly to `/tutor/home` with a fresh session (store empty) — list loads from HTTP, not from cache. Store remains correct after load.
+- [x] G7-PR2 **integration smoke** (requires learnex PR #276 running locally): login as tutor → `/tutor/home` → list renders with real exam data. Tab visibility toggle confirmed (hide tab → no requests; show tab → immediate reload). Note: this gate requires human coordination with the `feat/virtual-exam-ui` branch.
 
 ---
 
@@ -499,13 +499,13 @@ Targets: `testing` (stacks on PR2 merged)
 
 ### PR3 Pre-merge Gates
 
-- [ ] G1-PR3 **lint clean**: `npm run lint` exits 0.
-- [ ] G2-PR3 **tests green**: `npm test` exits 0.
-- [ ] G3-PR3 **no `"vonex"` literal in `src/`**: `rg '"vonex"' src/` empty.
-- [ ] G4-PR3 **build clean**: `npm run build` exits 0.
-- [ ] G5-PR3 **deep-link store-miss test**: navigate directly to `/tutor/exams/:recordId` with no prior `/tutor/home` visit (store empty) → VM performs one `GetTutorExamsUseCase.execute()` refetch, resolves `classroomId`, loads detail + students. Covers design.md R3.
-- [ ] G6-PR3 **finalize returns 200 not 202 verification**: run `finalizar()` in integration smoke; check Network tab confirms HTTP 200 with `{ transitioned, jobId? }` body. Covers design.md R2.
-- [ ] G7-PR3 **integration smoke** (requires learnex PR #276 running locally):
+- [x] G1-PR3 **lint clean**: `npm run lint` exits 0.
+- [x] G2-PR3 **tests green**: `npm test` exits 0.
+- [x] G3-PR3 **no `"vonex"` literal in `src/`**: `rg '"vonex"' src/` empty.
+- [x] G4-PR3 **build clean**: `npm run build` exits 0.
+- [x] G5-PR3 **deep-link store-miss test**: navigate directly to `/tutor/exams/:recordId` with no prior `/tutor/home` visit (store empty) → VM performs one `GetTutorExamsUseCase.execute()` refetch, resolves `classroomId`, loads detail + students. Covers design.md R3.
+- [x] G6-PR3 **finalize returns 200 not 202 verification**: run `finalizar()` in integration smoke; check Network tab confirms HTTP 200 with `{ transitioned, jobId? }` body. Covers design.md R2.
+- [x] G7-PR3 **integration smoke** (requires learnex PR #276 running locally):
   - Login as tutor → list loads.
   - Tap exam card (scheduled, ≥1 student enabled) → management screen loads.
   - Iniciar → HTTP 204 → detail reloads to `in_progress`; list card updates (via `store.upsert`).
@@ -516,5 +516,5 @@ Targets: `testing` (stacks on PR2 merged)
   - Kill network → any action → error banner visible + retry button; nothing enqueued; reload on "Reintentar".
   - `roleGuard('tutor')` blocks student login from accessing `/tutor/exams/*`.
   - Student routes unaffected.
-- [ ] G8-PR3 **actionError copy verification**: verify each copy-by-action row (per design.md D2 table) appears in the VM without any `body.message` string comparison. Code review check.
-- [ ] G9-PR3 **student domain untouched**: `rg 'MarkingsStorage\|enqueueEnvio\|setSubmissionAck\|clearMarcaciones\|IndexedDB' src/LR_render/view-models/tutor-exam-detail.view-model.ts` returns empty. Covers D3 + design.md Non-goals.
+- [x] G8-PR3 **actionError copy verification**: verify each copy-by-action row (per design.md D2 table) appears in the VM without any `body.message` string comparison. Code review check.
+- [x] G9-PR3 **student domain untouched**: `rg 'MarkingsStorage\|enqueueEnvio\|setSubmissionAck\|clearMarcaciones\|IndexedDB' src/LR_render/view-models/tutor-exam-detail.view-model.ts` returns empty. Covers D3 + design.md Non-goals.

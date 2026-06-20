@@ -1,9 +1,10 @@
-# Delta for tutor-exam-list
+# tutor-exam-list — Specification
 
-> Esta capability es **NUEVA**. Todos los requirements debajo son ADDED.
-> Al archivar este change, este delta se promueve a `openspec/specs/tutor-exam-list/spec.md`.
+## Purpose
 
-## ADDED Requirements
+Defines the tutor exam list screen: `TutorExamsListViewModel` with 120s polling and tab-visibility pause, `TutorExamsStore` (root singleton for `classroomId` resolution), `TutorExamsListPage` with 3-state status cards, routing at `/tutor/home`, and the complete profile header (name, email, code, classrooms, logout). Depends on `tutor-exams-api` capability.
+
+## Requirements
 
 ### Requirement: TutorExamsListViewModel — carga y polling
 
