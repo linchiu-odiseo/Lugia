@@ -1,4 +1,5 @@
 import { Component, DestroyRef, inject } from '@angular/core';
+import { Router } from '@angular/router';
 import { TutorExamDetailViewModel } from '../../view-models/tutor-exam-detail.view-model';
 import { ClassroomStudent } from '../../../L1_domain/value-objects/classroom-student';
 
@@ -12,6 +13,7 @@ import { ClassroomStudent } from '../../../L1_domain/value-objects/classroom-stu
   providers: [TutorExamDetailViewModel],
 })
 export class TutorExamDetailPage {
+  private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
   protected readonly vm = inject(TutorExamDetailViewModel);
 
@@ -22,6 +24,13 @@ export class TutorExamDetailPage {
     this.destroyRef.onDestroy(() => {
       // No hay timers ni listeners en el detail VM (a diferencia del list VM).
     });
+  }
+
+  // Volver a /tutor/home usando Router.navigate — robusto para deep-links e
+  // iOS standalone PWA donde no hay historial de navegación previo ni gesto
+  // del sistema para volver. NO usar history.back().
+  onVolver(): void {
+    void this.router.navigate(['/tutor/home']);
   }
 
   // Proxy a vm para que el template acceda a los guards sin llamar vm.vm.canIniciar().

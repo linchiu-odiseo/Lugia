@@ -1,4 +1,17 @@
 <main class="tutor-exam-detail">
+  <!-- Botón volver: SIEMPRE visible (no condicional). iOS standalone PWA no tiene
+       gesto de sistema — el usuario DEBE poder salir incluso en estado de error. -->
+  <nav class="tutor-exam-detail__nav">
+    <button
+      type="button"
+      class="tutor-exam-detail__btn-volver"
+      data-testid="btn-volver"
+      (click)="onVolver()"
+    >
+      ← Volver
+    </button>
+  </nav>
+
   <!-- Error de carga (D3 online-only) -->
   @if (vm.error()) {
     <section

@@ -39,4 +39,8 @@ export class TutorExamsListPage {
   protected countDisplay(exam: TutorExam): string {
     return exam.count === null ? '—' : String(exam.count);
   }
+
+  protected onSignOut(): void {
+    void this.vm.signOut();
+  }
 }
