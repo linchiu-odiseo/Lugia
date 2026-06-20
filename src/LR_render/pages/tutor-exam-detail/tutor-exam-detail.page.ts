@@ -7,7 +7,6 @@ import { ClassroomStudent } from '../../../L1_domain/value-objects/classroom-stu
 // Ver diseño D4 (routing), D5 (UI guards), D6 (path).
 @Component({
   selector: 'app-tutor-exam-detail-page',
-  standalone: true,
   templateUrl: './tutor-exam-detail.page.html',
   styleUrl: './tutor-exam-detail.page.scss',
   providers: [TutorExamDetailViewModel],
