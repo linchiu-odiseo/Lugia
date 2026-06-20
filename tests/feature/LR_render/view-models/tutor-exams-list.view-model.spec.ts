@@ -1,15 +1,27 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { TestBed } from '@angular/core/testing';
+import { Router } from '@angular/router';
 import { TutorExamsListViewModel } from '../../../../src/LR_render/view-models/tutor-exams-list.view-model';
 import { TutorExamsStore } from '../../../../src/LR_render/state/tutor-exams.store';
 import { GetTutorExamsUseCase } from '../../../../src/L2_application/use-cases/get-tutor-exams.use-case';
 import { GetProfileUseCase } from '../../../../src/L2_application/use-cases/get-profile.use-case';
+import { LogoutUseCase } from '../../../../src/L2_application/use-cases/logout.use-case';
+import { GetIdentityUseCase } from '../../../../src/L2_application/use-cases/get-identity.use-case';
 import { TutorExam } from '../../../../src/L1_domain/entities/tutor-exam';
 import { ExamServerStatus } from '../../../../src/L1_domain/value-objects/exam-server-status';
 import { NetworkError } from '../../../../src/L1_domain/errors/network.error';
-import { TutorProfile } from '../../../../src/L1_domain/value-objects/tutor-profile';
+import { ProfileNotAvailableError } from '../../../../src/L1_domain/errors/profile-not-available.error';
+import { TutorProfile, TutorClassroom } from '../../../../src/L1_domain/value-objects/tutor-profile';
 import { Role } from '../../../../src/L1_domain/entities/identity';
 import { StudentProfile } from '../../../../src/L1_domain/value-objects/student-profile';
+
+class FakeRouter {
+  public navigateCalls: unknown[][] = [];
+  async navigate(commands: unknown[]): Promise<boolean> {
+    this.navigateCalls.push(commands);
+    return true;
+  }
+}
 
 // Helper para simular cambios de visibilidad en jsdom.
 const setDocumentVisibility = (state: 'visible' | 'hidden') => {
@@ -62,8 +74,33 @@ class FakeGetTutorExamsUseCase {
   }
 }
 
+const CLASSROOM_A: TutorClassroom = {
+  id: 'cls-a',
+  code: 'AULA-A',
+  name: 'Matemáticas I',
+  modality: 'presencial',
+  shift: 'manana',
+  campusName: 'Campus Norte',
+  cycleId: 'cycle-1',
+  cycleName: 'Ciclo 2026-I',
+  studentCount: 30,
+};
+
+const CLASSROOM_B: TutorClassroom = {
+  id: 'cls-b',
+  code: 'AULA-B',
+  name: 'Física II',
+  modality: 'virtual',
+  shift: 'tarde',
+  campusName: null,
+  cycleId: 'cycle-2',
+  cycleName: 'Ciclo 2026-II',
+  studentCount: 25,
+};
+
 class FakeGetProfileUseCase {
   public calls: Role[] = [];
+  classrooms: readonly TutorClassroom[] = [];
   async execute(role: Role): Promise<StudentProfile | TutorProfile> {
     this.calls.push(role);
     return {
@@ -72,14 +109,30 @@ class FakeGetProfileUseCase {
       firstName: 'Carlos',
       lastName: 'Mendoza',
       email: 'tutor1@example.pe',
-      classrooms: [],
+      classrooms: this.classrooms,
     };
+  }
+}
+
+class FakeLogoutUseCase {
+  public callCount = 0;
+  async execute(): Promise<void> {
+    this.callCount++;
+  }
+}
+
+class FakeGetIdentityUseCase {
+  async execute() {
+    return null;
   }
 }
 
 describe('TutorExamsListViewModel', () => {
   let fakeGetTutorExams: FakeGetTutorExamsUseCase;
   let fakeGetProfile: FakeGetProfileUseCase;
+  let fakeLogout: FakeLogoutUseCase;
+  let fakeGetIdentity: FakeGetIdentityUseCase;
+  let fakeRouter: FakeRouter;
   let store: TutorExamsStore;
 
   const createVm = (): TutorExamsListViewModel =>
@@ -88,6 +141,9 @@ describe('TutorExamsListViewModel', () => {
   beforeEach(async () => {
     fakeGetTutorExams = new FakeGetTutorExamsUseCase();
     fakeGetProfile = new FakeGetProfileUseCase();
+    fakeLogout = new FakeLogoutUseCase();
+    fakeGetIdentity = new FakeGetIdentityUseCase();
+    fakeRouter = new FakeRouter();
 
     // Default: visible
     setDocumentVisibility('visible');
@@ -98,6 +154,9 @@ describe('TutorExamsListViewModel', () => {
         TutorExamsStore,
         { provide: GetTutorExamsUseCase, useValue: fakeGetTutorExams },
         { provide: GetProfileUseCase, useValue: fakeGetProfile },
+        { provide: LogoutUseCase, useValue: fakeLogout },
+        { provide: GetIdentityUseCase, useValue: fakeGetIdentity },
+        { provide: Router, useValue: fakeRouter },
       ],
     }).compileComponents();
 
@@ -286,6 +345,162 @@ describe('TutorExamsListViewModel', () => {
       await startPromise;
 
       expect(vm.loading()).toBe(false);
+      vm.stop();
+    });
+  });
+
+  // ── Nuevos escenarios: profile completo + classrooms + logout ────────────────
+
+  describe('Scenario: classrooms y userCode expuestos desde el perfil', () => {
+    it('classrooms() contiene los aulas del perfil después de start()', async () => {
+      fakeGetProfile.classrooms = [CLASSROOM_A, CLASSROOM_B];
+      fakeGetTutorExams.willResolve([]);
+
+      const vm = createVm();
+      await vm.start();
+
+      expect(vm.classrooms()).toEqual([CLASSROOM_A, CLASSROOM_B]);
+      vm.stop();
+    });
+
+    it('userCode() refleja el código del perfil', async () => {
+      fakeGetProfile.classrooms = [];
+      fakeGetTutorExams.willResolve([]);
+
+      const vm = createVm();
+      await vm.start();
+
+      expect(vm.userCode()).toBe('T001');
+      vm.stop();
+    });
+
+    it('profileEmail() refleja el email del perfil', async () => {
+      fakeGetProfile.classrooms = [];
+      fakeGetTutorExams.willResolve([]);
+
+      const vm = createVm();
+      await vm.start();
+
+      expect(vm.profileEmail()).toBe('tutor1@example.pe');
+      vm.stop();
+    });
+  });
+
+  describe('Scenario: classroomCount y studentTotal computados', () => {
+    it('classroomCount() es el largo del array classrooms', async () => {
+      fakeGetProfile.classrooms = [CLASSROOM_A, CLASSROOM_B];
+      fakeGetTutorExams.willResolve([]);
+
+      const vm = createVm();
+      await vm.start();
+
+      expect(vm.classroomCount()).toBe(2);
+      vm.stop();
+    });
+
+    it('studentTotal() es la suma de studentCount de todas las aulas', async () => {
+      fakeGetProfile.classrooms = [CLASSROOM_A, CLASSROOM_B]; // 30 + 25 = 55
+      fakeGetTutorExams.willResolve([]);
+
+      const vm = createVm();
+      await vm.start();
+
+      expect(vm.studentTotal()).toBe(55);
+      vm.stop();
+    });
+
+    it('hasClassrooms() es false cuando classrooms está vacío', async () => {
+      fakeGetProfile.classrooms = [];
+      fakeGetTutorExams.willResolve([]);
+
+      const vm = createVm();
+      await vm.start();
+
+      expect(vm.hasClassrooms()).toBe(false);
+      vm.stop();
+    });
+
+    it('hasClassrooms() es true cuando hay al menos una aula', async () => {
+      fakeGetProfile.classrooms = [CLASSROOM_A];
+      fakeGetTutorExams.willResolve([]);
+
+      const vm = createVm();
+      await vm.start();
+
+      expect(vm.hasClassrooms()).toBe(true);
+      vm.stop();
+    });
+  });
+
+  describe('Scenario: signOut llama LogoutUseCase y maneja isSigningOut', () => {
+    it('signOut() invoca LogoutUseCase.execute()', async () => {
+      fakeGetTutorExams.willResolve([]);
+
+      const vm = createVm();
+      await vm.start();
+
+      await vm.signOut();
+
+      expect(fakeLogout.callCount).toBe(1);
+      vm.stop();
+    });
+
+    it('isSigningOut() es false antes de signOut()', async () => {
+      fakeGetTutorExams.willResolve([]);
+
+      const vm = createVm();
+      await vm.start();
+
+      expect(vm.isSigningOut()).toBe(false);
+      vm.stop();
+    });
+
+    it('isSigningOut() es false después de signOut() completado', async () => {
+      fakeGetTutorExams.willResolve([]);
+
+      const vm = createVm();
+      await vm.start();
+
+      await vm.signOut();
+
+      expect(vm.isSigningOut()).toBe(false);
+      vm.stop();
+    });
+
+    it('llamadas redundantes a signOut() mientras está en vuelo no duplican la ejecución', async () => {
+      fakeGetTutorExams.willResolve([]);
+      let resolveLogout!: () => void;
+      fakeLogout.execute = () =>
+        new Promise<void>((res) => {
+          fakeLogout.callCount++;
+          resolveLogout = res;
+        });
+
+      const vm = createVm();
+      await vm.start();
+
+      const p1 = vm.signOut();
+      const p2 = vm.signOut(); // segunda llamada mientras la primera está pendiente
+
+      resolveLogout();
+      await Promise.all([p1, p2]);
+
+      expect(fakeLogout.callCount).toBe(1); // solo una llamada real
+      vm.stop();
+    });
+  });
+
+  describe('Scenario: profileUnavailable cuando ProfileNotAvailableError', () => {
+    it('profileUnavailable() es true cuando getProfile lanza ProfileNotAvailableError', async () => {
+      fakeGetProfile.execute = async () => {
+        throw new ProfileNotAvailableError();
+      };
+      fakeGetTutorExams.willResolve([]);
+
+      const vm = createVm();
+      await vm.start();
+
+      expect(vm.profileUnavailable()).toBe(true);
       vm.stop();
     });
   });

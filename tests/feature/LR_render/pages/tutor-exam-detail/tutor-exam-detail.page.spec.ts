@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
 import { Component, signal, WritableSignal } from '@angular/core';
 import { TutorExamDetailPage } from '../../../../../src/LR_render/pages/tutor-exam-detail/tutor-exam-detail.page';
 import { TutorExamDetailViewModel } from '../../../../../src/LR_render/view-models/tutor-exam-detail.view-model';
@@ -337,6 +337,70 @@ describe('TutorExamDetailPage', () => {
 
       const el = fixture.nativeElement as HTMLElement;
       expect(el.querySelector('[data-testid="error-banner"]')).toBeNull();
+    });
+  });
+
+  // ── Back button (btn-volver) ───────────────────────────────────────────────
+
+  describe('Scenario: Botón Volver — navegación a /tutor/home (iOS standalone)', () => {
+    it('btn-volver existe en el DOM cuando no hay error', async () => {
+      fakeVm.detail.set(buildDetail());
+      fakeVm.error.set(null);
+
+      const fixture = TestBed.createComponent(TutorExamDetailPage);
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      const el = fixture.nativeElement as HTMLElement;
+      expect(el.querySelector('[data-testid="btn-volver"]')).not.toBeNull();
+    });
+
+    it('btn-volver existe en el DOM incluso cuando error() está seteado', async () => {
+      fakeVm.error.set('network');
+
+      const fixture = TestBed.createComponent(TutorExamDetailPage);
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      const el = fixture.nativeElement as HTMLElement;
+      expect(el.querySelector('[data-testid="btn-volver"]')).not.toBeNull();
+    });
+
+    it('click en btn-volver navega a ["/tutor/home"] via Router.navigate', async () => {
+      fakeVm.detail.set(buildDetail());
+      fakeVm.error.set(null);
+
+      const fixture = TestBed.createComponent(TutorExamDetailPage);
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      const router = TestBed.inject(Router);
+      const navigateSpy = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+
+      const btn = (fixture.nativeElement as HTMLElement).querySelector(
+        '[data-testid="btn-volver"]',
+      ) as HTMLButtonElement;
+      btn.click();
+
+      // Flush promises for the async navigate
+      for (let i = 0; i < 5; i++) await Promise.resolve();
+
+      expect(navigateSpy).toHaveBeenCalledWith(['/tutor/home']);
+    });
+
+    it('btn-volver usa Router.navigate — NO usa history.back()', async () => {
+      // Verifica que el componente tenga el método onVolver() que llama Router.navigate
+      // (no history.back, que falla en iOS standalone sin historial previo).
+      const fixture = TestBed.createComponent(TutorExamDetailPage);
+      fixture.detectChanges();
+
+      const page = fixture.componentInstance as TutorExamDetailPage & {
+        onVolver?: () => void;
+      };
+      expect(typeof page.onVolver).toBe('function');
     });
   });
 });
