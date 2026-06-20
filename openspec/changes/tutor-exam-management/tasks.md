@@ -386,7 +386,7 @@ Targets: `testing` (stacks on PR2 merged)
 
 *Write failing spec first (red). This is the largest spec file in the change.*
 
-- [ ] 16.1 Create `tests/feature/LR_render/view-models/tutor-exam-detail.view-model.spec.ts`. Use `TestBed`, fakes for all 4 use-cases + `TutorExamsStore`.
+- [x] 16.1 Create `tests/feature/LR_render/view-models/tutor-exam-detail.view-model.spec.ts`. Use `TestBed`, fakes for all 4 use-cases + `TutorExamsStore`.
 
   **Store resolution — warm path:**
   - Scenario store contains exam with `recordId === "rec-1"` → VM does NOT call `GetTutorExamsUseCase.execute()`; uses `classroomId` directly. Satisfies `tutor-exam-management` Requirement "TutorExamDetailViewModel — resolución de classroomId con fallback a refetch (D1)" / Scenario "Store poblado → classroomId resuelto sin request extra".
@@ -446,16 +446,16 @@ Targets: `testing` (stacks on PR2 merged)
 
 *Make commit 16 specs green.*
 
-- [ ] 17.1 Create `src/LR_render/view-models/tutor-exam-detail.view-model.ts`. `@Injectable()` (no `providedIn`). Inject `ActivatedRoute`, `GetTutorExamDetailUseCase`, `ListClassroomStudentsUseCase`, `IniciarExamenUseCase`, `FinalizarExamenUseCase`, `ActualizarAlumnosHabilitadosUseCase`, `TutorExamsStore`.
-- [ ] 17.2 Implement `recordId` extraction from route params.
-- [ ] 17.3 Implement D1 resolution flow: `store.findByRecordId(recordId)` → hit/miss → refetch on miss → `VirtualExamNotFoundError` UX if still missing after refetch. Satisfies `tutor-exam-management` Requirement "TutorExamDetailViewModel — resolución de classroomId".
-- [ ] 17.4 Expose all Signals: `detail`, `students`, `loading`, `error`, `enabledStudentIds` (WritableSignal), `isSaving`, `actionError`. Satisfies Requirement "TutorExamDetailViewModel — Signals expuestos".
-- [ ] 17.5 Implement `iniciar()` method: guard check (button enabled only if `puedeIniciar() && enabledStudentIds().length > 0`), call use-case, on success reload detail + `store.upsert(...)`, on error set `actionError` via copy table. Satisfies Requirements "Iniciar examen" + D5 + R4.
-- [ ] 17.6 Implement `finalizar()` method: guard check (`puedeFinalizar()`), call use-case, handle `transitioned: true/false` (both are success, no error), reload detail + `store.upsert(...)`, on error set `actionError`. Satisfies Requirement "Finalizar examen".
-- [ ] 17.7 Implement `toggleStudent(studentId)` method: update `enabledStudentIds` locally, call `ActualizarAlumnosHabilitadosUseCase`, on error revert `enabledStudentIds` + set `actionError`. Satisfies Requirement "Habilitar/deshabilitar alumnos".
-- [ ] 17.8 Implement `actionError` copy table by action × error type using `instanceof` checks. Design.md D2 table rows for `iniciar`, `finalizar`, `actualizarAlumnosHabilitados`, `getDetail`, `listStudents`. Generic fallback for unexpected status. Satisfies Requirement "Copy de errores por acción en español (D2)".
-- [ ] 17.9 Implement `retry()` method (re-triggers full load sequence). No IDB or outbox. Satisfies Requirement "Estado de error de red + reintentar (D3 online-only)".
-- [ ] 17.10 Verify `npm run lint` clean. Commit 16 specs green.
+- [x] 17.1 Create `src/LR_render/view-models/tutor-exam-detail.view-model.ts`. `@Injectable()` (no `providedIn`). Inject `ActivatedRoute`, `GetTutorExamDetailUseCase`, `ListClassroomStudentsUseCase`, `IniciarExamenUseCase`, `FinalizarExamenUseCase`, `ActualizarAlumnosHabilitadosUseCase`, `TutorExamsStore`.
+- [x] 17.2 Implement `recordId` extraction from route params.
+- [x] 17.3 Implement D1 resolution flow: `store.findByRecordId(recordId)` → hit/miss → refetch on miss → `VirtualExamNotFoundError` UX if still missing after refetch. Satisfies `tutor-exam-management` Requirement "TutorExamDetailViewModel — resolución de classroomId".
+- [x] 17.4 Expose all Signals: `detail`, `students`, `loading`, `error`, `enabledStudentIds` (WritableSignal), `isSaving`, `actionError`. Satisfies Requirement "TutorExamDetailViewModel — Signals expuestos".
+- [x] 17.5 Implement `iniciar()` method: guard check (button enabled only if `puedeIniciar() && enabledStudentIds().length > 0`), call use-case, on success reload detail + `store.upsert(...)`, on error set `actionError` via copy table. Satisfies Requirements "Iniciar examen" + D5 + R4.
+- [x] 17.6 Implement `finalizar()` method: guard check (`puedeFinalizar()`), call use-case, handle `transitioned: true/false` (both are success, no error), reload detail + `store.upsert(...)`, on error set `actionError`. Satisfies Requirement "Finalizar examen".
+- [x] 17.7 Implement `toggleStudent(studentId)` method: update `enabledStudentIds` locally, call `ActualizarAlumnosHabilitadosUseCase`, on error revert `enabledStudentIds` + set `actionError`. Satisfies Requirement "Habilitar/deshabilitar alumnos".
+- [x] 17.8 Implement `actionError` copy table by action × error type using `instanceof` checks. Design.md D2 table rows for `iniciar`, `finalizar`, `actualizarAlumnosHabilitados`, `getDetail`, `listStudents`. Generic fallback for unexpected status. Satisfies Requirement "Copy de errores por acción en español (D2)".
+- [x] 17.9 Implement `retry()` method (re-triggers full load sequence). No IDB or outbox. Satisfies Requirement "Estado de error de red + reintentar (D3 online-only)".
+- [x] 17.10 Verify `npm run lint` clean. Commit 16 specs green.
 
 ---
 
@@ -463,7 +463,7 @@ Targets: `testing` (stacks on PR2 merged)
 
 *Write failing spec first (red).*
 
-- [ ] 18.1 Create `tests/feature/LR_render/pages/tutor-exam-detail/tutor-exam-detail.page.spec.ts`. Use `TestBed` + `ComponentFixture`.
+- [x] 18.1 Create `tests/feature/LR_render/pages/tutor-exam-detail/tutor-exam-detail.page.spec.ts`. Use `TestBed` + `ComponentFixture`.
   - Scenario `TutorExamDetailViewModel` appears in page `providers`. Satisfies Requirement "TutorExamDetailPage provee la VM como provider local" / Scenario "VM es local al componente page".
   - Scenario "Iniciar" button visible when `status === 'scheduled'`. Satisfies design.md D5 UI check.
   - Scenario "Iniciar" button disabled when `enabledStudentIds().length === 0`. Satisfies Scenario "Botón Iniciar deshabilitado si 0 alumnos habilitados (D5)".
@@ -474,7 +474,7 @@ Targets: `testing` (stacks on PR2 merged)
   - Scenario all checkboxes disabled when `status === 'finalized'`. Satisfies Scenario "Checkboxes deshabilitados en modo finalized (D5)".
   - Scenario error banner + retry button visible when `error() === 'network'`. Satisfies Scenario "Error de red en carga inicial → estado de error con botón reintentar".
 
-- [ ] 18.2 In `tests/feature/LR_render/app.routes.spec.ts`: add scenarios.
+- [x] 18.2 In `tests/feature/LR_render/app.routes.spec.ts`: add scenarios.
   - Scenario new route `tutor/exams/:recordId` exists with `loadComponent` pointing to `TutorExamDetailPage`. Satisfies `route-protection` Requirement "Nueva ruta /tutor/exams/:recordId" / Scenario "Nueva ruta /tutor/exams/:recordId existe en la config".
   - Scenario route has `canActivate: [authGuard, roleGuard('tutor')]`. Same Requirement.
   - Scenario tutor navigates to `/tutor/exams/rec-1` → `TutorExamDetailPage` renders; VM receives `recordId === "rec-1"`. Satisfies Scenario "Tutor autenticado navega a /tutor/exams/rec-1 — renderiza gestión".
@@ -490,10 +490,10 @@ Targets: `testing` (stacks on PR2 merged)
 
 *Make commit 18 specs green.*
 
-- [ ] 19.1 Create `src/LR_render/pages/tutor-exam-detail/tutor-exam-detail.page.ts`. Standalone `@Component`. `providers: [TutorExamDetailViewModel]`. Template: status-conditional "Iniciar"/"Finalizar" buttons; checkbox list (disabled for `hasSubmitted` or `finalized`); error banner with retry button when `error() === 'network'`; `actionError` banner. Satisfies `tutor-exam-management` Requirements "Iniciar examen", "Finalizar examen", "Habilitar/deshabilitar alumnos", "Estado de error de red + reintentar", "TutorExamDetailPage provee la VM como provider local".
-- [ ] 19.2 Modify `src/LR_render/app.routes.ts`: add new entry `{ path: 'tutor/exams/:recordId', canActivate: [authGuard, roleGuard('tutor')], loadComponent: () => import(...TutorExamDetailPage) }`. Group logically alongside tutor routes. Satisfies `route-protection` Requirement "Nueva ruta /tutor/exams/:recordId".
-- [ ] 19.3 Verify existing student routes are unchanged in `app.routes.ts`. Satisfies `route-protection` Requirement "Rutas del alumno sin cambios".
-- [ ] 19.4 Verify `npm run lint` clean. Run `npm test` — all PR3 specs pass; PR1 + PR2 specs remain green.
+- [x] 19.1 Create `src/LR_render/pages/tutor-exam-detail/tutor-exam-detail.page.ts`. Standalone `@Component`. `providers: [TutorExamDetailViewModel]`. Template: status-conditional "Iniciar"/"Finalizar" buttons; checkbox list (disabled for `hasSubmitted` or `finalized`); error banner with retry button when `error() === 'network'`; `actionError` banner. Satisfies `tutor-exam-management` Requirements "Iniciar examen", "Finalizar examen", "Habilitar/deshabilitar alumnos", "Estado de error de red + reintentar", "TutorExamDetailPage provee la VM como provider local".
+- [x] 19.2 Route `/tutor/exams/:recordId` already wired in PR2 with authGuard + roleGuard('tutor') + loadComponent. PR3 replaced the stub with the real standalone component in the same file path — no route config change needed. Satisfies `route-protection` Requirement "Nueva ruta /tutor/exams/:recordId".
+- [x] 19.3 Verified existing student routes unchanged in `app.routes.ts`. Satisfies `route-protection` Requirement "Rutas del alumno sin cambios".
+- [x] 19.4 Lint clean. 880 tests pass; all PR1 + PR2 + PR3 specs green.
 
 ---
 
