@@ -1,0 +1,108 @@
+<main class="tutor-exam-detail">
+  <!-- Error de carga (D3 online-only) -->
+  @if (vm.error()) {
+    <section
+      class="tutor-exam-detail__error"
+      role="alert"
+      data-testid="error-banner"
+    >
+      @if (vm.error() === 'network') {
+        <p>Sin conexión. Revisá tu red y reintentá.</p>
+        <button
+          type="button"
+          data-testid="btn-retry"
+          (click)="onRetry()"
+        >
+          Reintentar
+        </button>
+      } @else if (vm.error() === 'notFound') {
+        <p>Este examen ya no está disponible.</p>
+      } @else if (vm.error() === 'forbidden') {
+        <p>No tenés permiso para ver este examen.</p>
+      }
+    </section>
+  }
+
+  <!-- Estado de carga -->
+  @if (vm.loading()) {
+    <section class="tutor-exam-detail__loading" aria-busy="true">
+      <p>Cargando examen…</p>
+    </section>
+  }
+
+  <!-- Contenido principal (disponible tras carga exitosa) -->
+  @if (vm.detail(); as detail) {
+    <header class="tutor-exam-detail__header">
+      <h1 class="tutor-exam-detail__name">{{ detail.name }}</h1>
+      <span class="tutor-exam-detail__status">{{ detail.status.value }}</span>
+    </header>
+
+    <!-- Error de acción (iniciar / finalizar / habilitar) -->
+    @if (vm.actionError()) {
+      <section
+        class="tutor-exam-detail__action-error"
+        role="alert"
+        data-testid="action-error-banner"
+      >
+        <p>{{ vm.actionError() }}</p>
+      </section>
+    }
+
+    <!-- Botones de acción: Iniciar y Finalizar (D5 guards — solo el válido aparece) -->
+    <section class="tutor-exam-detail__actions">
+      @if (canIniciar()) {
+        <button
+          type="button"
+          class="tutor-exam-detail__btn-iniciar"
+          data-testid="btn-iniciar"
+          [disabled]="vm.isSaving()"
+          (click)="onIniciar()"
+        >
+          Iniciar examen
+        </button>
+      }
+
+      @if (canFinalizar()) {
+        <button
+          type="button"
+          class="tutor-exam-detail__btn-finalizar"
+          data-testid="btn-finalizar"
+          [disabled]="vm.isSaving()"
+          (click)="onFinalizar()"
+        >
+          Finalizar examen
+        </button>
+      }
+    </section>
+
+    <!-- Lista de alumnos con checkboxes (D5: hasSubmitted + finalized → disabled) -->
+    <section class="tutor-exam-detail__students">
+      <h2>Alumnos del aula</h2>
+      <ul class="tutor-exam-detail__student-list">
+        @for (student of vm.students(); track student.studentId) {
+          <li class="tutor-exam-detail__student-item" data-testid="student-item">
+            <label class="tutor-exam-detail__student-label">
+              <input
+                type="checkbox"
+                data-testid="student-checkbox"
+                [checked]="isStudentEnabled(student.studentId)"
+                [disabled]="isCheckboxDisabled(student)"
+                (change)="onToggleStudent(student.studentId)"
+              />
+              <span class="tutor-exam-detail__student-name">
+                {{ student.firstName }} {{ student.lastName }}
+              </span>
+              @if (student.hasSubmitted) {
+                <span class="tutor-exam-detail__submitted-badge">Entregado</span>
+              }
+            </label>
+          </li>
+        } @empty {
+          <li class="tutor-exam-detail__no-students">
+            <p>No hay alumnos en el aula.</p>
+          </li>
+        }
+      </ul>
+    </section>
+  }
+</main>
