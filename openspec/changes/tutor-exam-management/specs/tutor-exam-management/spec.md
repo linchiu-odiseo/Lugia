@@ -291,3 +291,38 @@ Cuando cualquier carga inicial (detail o classroom students) falla con `NetworkE
 - **WHEN** se inspecciona el decorador de `TutorExamDetailPage`
 - **THEN** `TutorExamDetailViewModel` aparece en `providers: [...]`
 - **AND** TypeScript compila sin error con la inyección del VM en la vista
+
+---
+
+### Requirement: Back button en la pantalla de detalle (iOS standalone PWA)
+
+`TutorExamDetailPage` SHALL mostrar un botón visible "← Volver" (data-testid="btn-volver") en la parte superior de la pantalla, SIEMPRE presente (no condicional a la carga ni al estado de error).
+
+Al presionar el botón, la página SHALL navegar a `/tutor/home` usando `Router.navigate(['/tutor/home'])`. NOT SHALL usar `history.back()`.
+
+**Rationale**: En iOS instalado como PWA standalone no existe gesto del sistema para navegar atrás ni barra de Safari — el usuario queda atrapado si no hay botón de volver explícito. `Router.navigate` funciona incluso en deep-links donde no hay historial previo; `history.back()` en ese caso no hace nada (o navega fuera de la app).
+
+#### Scenario: btn-volver existe en estado normal
+
+- **GIVEN** el examen cargó correctamente
+- **WHEN** la página renderiza
+- **THEN** existe un botón con data-testid="btn-volver"
+
+#### Scenario: btn-volver existe en estado de error
+
+- **GIVEN** `error()` está seteado (ej. "network")
+- **WHEN** la página renderiza
+- **THEN** existe un botón con data-testid="btn-volver" (el usuario puede escapar incluso sin datos)
+
+#### Scenario: btn-volver navega a /tutor/home
+
+- **GIVEN** el botón (data-testid="btn-volver") es visible
+- **WHEN** el usuario hace click
+- **THEN** `Router.navigate(['/tutor/home'])` es invocado
+- **AND** NOT se invoca `history.back()`
+
+#### Scenario: btn-volver usa Router.navigate (no history.back)
+
+- **WHEN** se inspecciona `TutorExamDetailPage.onVolver()`
+- **THEN** el método existe y llama `Router.navigate(['/tutor/home'])`
+- **AND** no hay ninguna referencia a `history.back()` en el componente

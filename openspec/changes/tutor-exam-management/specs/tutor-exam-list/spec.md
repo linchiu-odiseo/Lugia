@@ -142,9 +142,21 @@ Al tocar una tarjeta, la app SHALL navegar a `/tutor/exams/<recordId>`. La VM o 
 
 ---
 
-### Requirement: Ruta /tutor/home reemplaza el placeholder
+### Requirement: Ruta /tutor/home — header completo con perfil, aulas y logout
 
-La configuración de rutas SHALL modificar `/tutor/home` para cargar `TutorExamsListPage` (lazy `loadComponent`). El componente placeholder anterior SHALL ser eliminado o reemplazado. El header de perfil (`GetProfileUseCase('tutor')`) SHALL ser reusado sin modificaciones — el VM de la lista lo inyecta de la misma forma que la vista actual de `/tutor/home`.
+La configuración de rutas SHALL modificar `/tutor/home` para cargar `TutorExamsListPage` (lazy `loadComponent`). El componente placeholder anterior SHALL ser eliminado o reemplazado. La página SHALL renderizar el perfil COMPLETO del tutor (nombre, email, código), la lista de aulas (`Mis aulas`) con ciclo y recuento de alumnos por aula, y un botón de logout — TODO por encima de la lista de exámenes.
+
+El VM SHALL inyectar `GetProfileUseCase('tutor')` y exponer:
+- `classrooms: Signal<readonly TutorClassroom[]>` — lista de aulas del perfil.
+- `classroomCount: Signal<number>` — computed de `classrooms().length`.
+- `studentTotal: Signal<number>` — computed de suma de `studentCount` por aula.
+- `hasClassrooms: Signal<boolean>` — computed de `classrooms().length > 0`.
+- `userCode: Signal<string | null>` — código interno del tutor.
+- `profileEmail: Signal<string | null>` — email del perfil (puede diferir del identity email).
+- `isSigningOut: Signal<boolean>` — estado de logout en progreso.
+- `signOut(): Promise<void>` — invoca `LogoutUseCase.execute()` y navega a `/login`.
+
+El VM SHALL también inyectar `LogoutUseCase` y `GetIdentityUseCase` (fallback de email en estado degraded).
 
 #### Scenario: /tutor/home carga TutorExamsListPage
 
@@ -157,6 +169,70 @@ La configuración de rutas SHALL modificar `/tutor/home` para cargar `TutorExams
 
 - **WHEN** se inspecciona el código fuente tras el change
 - **THEN** no existe ningún componente de "Próximamente" / placeholder para `/tutor/home`
+
+#### Scenario: Profile card muestra nombre, email y código del tutor
+
+- **GIVEN** `GetProfileUseCase('tutor')` resuelve con un `TutorProfile`
+- **WHEN** `TutorExamsListPage` renderiza
+- **THEN** la profile card (data-testid="profile-card") muestra el nombre completo (`firstName lastName`)
+- **AND** muestra el `profileEmail` o `userEmail` como fallback
+- **AND** muestra el `code` del tutor (DNI / Código)
+
+#### Scenario: Profile card — skeleton mientras carga
+
+- **GIVEN** `profileLoading()` es `true`
+- **WHEN** la página renderiza
+- **THEN** se muestra el skeleton (data-testid="profile-skeleton") en lugar de la profile card
+
+#### Scenario: Profile card — degraded cuando perfil no disponible
+
+- **GIVEN** `profileUnavailable()` es `true`
+- **WHEN** la página renderiza
+- **THEN** se muestra la tarjeta degraded (data-testid="profile-card-degraded") con el email de identity como fallback
+
+#### Scenario: Mis aulas — lista de aulas con nombre, ciclo y alumnos
+
+- **GIVEN** el perfil tiene `classrooms = [aulA, aulaB]`
+- **WHEN** `TutorExamsListPage` renderiza
+- **THEN** se muestran dos filas (data-testid="classroom-item")
+- **AND** cada fila muestra el `name` del aula
+- **AND** cada fila muestra el `cycleName` del aula
+- **AND** cada fila muestra el `studentCount` del aula
+
+#### Scenario: Mis aulas — línea de resumen
+
+- **GIVEN** el tutor tiene 2 aulas con 30 y 25 alumnos respectivamente
+- **WHEN** la página renderiza
+- **THEN** el resumen (data-testid="classrooms-summary") contiene "2" aulas y "55" alumnos
+
+#### Scenario: Mis aulas — empty-state cuando no hay aulas
+
+- **GIVEN** `classrooms()` está vacío
+- **WHEN** la página renderiza
+- **THEN** se muestra el empty-state (data-testid="classrooms-empty")
+
+#### Scenario: DOM order — perfil y aulas ANTES de los exámenes
+
+- **GIVEN** el perfil y los exámenes están disponibles
+- **WHEN** la página renderiza
+- **THEN** la profile card (data-testid="profile-card") aparece ANTES de la lista de exámenes (data-testid="exams-list") en el DOM
+- **AND** la sección de aulas (data-testid="classrooms-section") aparece ANTES de la lista de exámenes
+
+#### Scenario: Logout — botón "Cerrar sesión" existe y funciona
+
+- **WHEN** la página renderiza
+- **THEN** existe el botón de logout (data-testid="btn-logout")
+
+- **GIVEN** el tutor hace click en "Cerrar sesión"
+- **WHEN** `signOut()` es invocado
+- **THEN** `LogoutUseCase.execute()` es llamado una vez
+- **AND** la app navega a `/login`
+
+#### Scenario: Logout — botón disabled durante logout en progreso
+
+- **GIVEN** `isSigningOut()` es `true`
+- **WHEN** la página renderiza
+- **THEN** el botón (data-testid="btn-logout") está `disabled`
 
 ---
 
