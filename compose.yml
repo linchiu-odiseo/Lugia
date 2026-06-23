@@ -4,5 +4,5 @@ services:
     image: lugia:latest
     container_name: lugia
     ports:
-      - "3005:80"
+      - "3006:80"
     restart: unless-stopped

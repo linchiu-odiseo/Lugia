@@ -117,7 +117,7 @@ El repo ya está dockerizado. Producción corre como un único container nginx c
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `Dockerfile`     | Multi-stage. Etapa 1 (`node:22-alpine`): `npm ci` + `npm run build`. Etapa 2 (`nginx:alpine`): copia `dist/lugia/browser` y `nginx.conf`. Sin Node en la imagen final. |
 | `nginx.conf`     | SPA fallback (`try_files`), gzip, cache `immutable` 1y para assets hasheados, `no-cache` para `index.html`, `ngsw.json`, `ngsw-worker.js`.                              |
-| `compose.yml`    | Servicio `lugia` expuesto en **puerto 3005:80**, `restart: unless-stopped`.                                                                                  |
+| `compose.yml`    | Servicio `lugia` expuesto en **puerto 3006:80**, `restart: unless-stopped`.                                                                                  |
 | `.dockerignore`  | Excluye `node_modules`, `tests/`, `docs/`, `openspec/`, etc. **Conserva `.env`** porque `build-env.mjs` lo necesita dentro del build.                          |
 
 ### Deploy manual (válido para staging o como referencia)
@@ -128,14 +128,14 @@ cd lugia
 cp .env.example .env
 # Editar .env con los valores REALES de prod (ver tabla "Variables de entorno")
 docker compose up -d --build
-# PWA disponible en http://<server>:3005
+# PWA disponible en http://<server>:3006
 ```
 
 ### Prerequisitos del entorno de producción
 
 Pase lo que pase con la pipeline, el server productivo necesita:
 
-- **HTTPS** delante del container. El `compose.yml` solo expone HTTP en `3005`. Hace falta un reverse proxy con TLS (Traefik, Caddy, nginx anfitrión, Cloudflare). Sin HTTPS las cookies HttpOnly con `SameSite=None` no funcionan.
+- **HTTPS** delante del container. El `compose.yml` solo expone HTTP en `3006`. Hace falta un reverse proxy con TLS (Traefik, Caddy, nginx anfitrión, Cloudflare). Sin HTTPS las cookies HttpOnly con `SameSite=None` no funcionan.
 - **CORS en learnex** configurado con el dominio público de la PWA y `Access-Control-Allow-Credentials: true`. Sin esto el login falla con error de CORS.
 - **DNS** apuntando al server.
 - **`APP_VERSION` bumpeada** en cada release. Si no se bumpea, el modal de "hay actualización" no se dispara en clientes con la PWA cacheada.
